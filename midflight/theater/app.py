@@ -28,11 +28,21 @@ from midflight.theater.scenario import NAMES, change, seed
 
 
 class Theater:
-    def __init__(self, root: Path, db_port: int, api_port: int):
+    def __init__(
+        self,
+        root: Path,
+        db_port: int,
+        api_port: int,
+        *,
+        seed_fn=seed,
+        prepare_workspaces=True,
+        existing_project=None,
+        existing_tokens=None,
+    ):
         self.repo = Path(__file__).resolve().parents[2]
         self.root = root.resolve()
-        self.root.mkdir(parents=True, exist_ok=False, mode=0o700)
-        self.project = "theater-" + uuid.uuid4().hex[:10]
+        self.root.mkdir(parents=True, exist_ok=bool(existing_project), mode=0o700)
+        self.project = existing_project or "theater-" + uuid.uuid4().hex[:10]
         self.server = create_server(
             Settings(
                 dev_login=True,
@@ -43,7 +53,9 @@ class Theater:
                 worker_poll_interval=0.2,
             )
         )
-        self.tokens = seed(self.server.services, self.project)
+        self.tokens = (
+            existing_tokens if existing_project else seed_fn(self.server.services, self.project)
+        )
         self.api_port = api_port
         self.db_port = db_port
         self.api = uvicorn.Server(
@@ -62,7 +74,7 @@ class Theater:
             ["git", "rev-parse", "HEAD"], cwd=self.repo, text=True
         ).strip()
         self.dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=self.repo))
-        for name in NAMES:
+        for name in NAMES if prepare_workspaces else ():
             folder = self.root / name
             folder.mkdir()
             subprocess.run(["git", "init", "-q", "-b", name], cwd=folder, check=True)

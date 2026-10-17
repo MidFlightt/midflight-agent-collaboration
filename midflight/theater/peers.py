@@ -92,7 +92,7 @@ class PeerTheater(InteractiveTheater):
             self.checkpoint_wake.clear()
             if self.version == 1:
                 continue
-            for name in NAMES:
+            for name in self.names:
                 if self.stop_event.is_set():
                     return
                 key = (self.version, name)
@@ -144,7 +144,7 @@ class PeerTheater(InteractiveTheater):
             "direction": self.direction,
             "session": self.session,
             "checks": {
-                "four_claims": {c.task_id for c in claims} == set(NAMES),
+                "four_claims": {c.agent_id for c in claims} == set(self.names),
                 "all_claims_approved": len(claims) >= 4
                 and all(c.state.value == "approved" for c in claims),
                 "sessions_alive": bool(agents) and all(a["alive"] for a in agents.values()),
@@ -165,8 +165,8 @@ class Update(BaseModel):
     plan: PlanDraft
 
 
-def peer_app(live):
-    app = terminal_app(live, factory=PeerTheater, allow_staged_reset=True)
+def peer_app(live, *, factory=PeerTheater):
+    app = terminal_app(live, factory=factory, allow_staged_reset=True)
 
     @app.get("/graph")
     def graph_page():
@@ -235,6 +235,10 @@ def peer_app(live):
             '<span id="note">', '<a href="/graph" target="_blank">Live graph</a><span id="note">'
         )
         html = html.replace("One-off sales · waiting for your direction", "Peer experiment · ready")
+        if hasattr(live, "viewer_url"):
+            html = html.replace("Direction accepted · plan ", "Shared plan · v")
+            html = html.replace("Peer experiment · ready", "Worktree lab · ready")
+            html = html.replace('href="/graph"', 'href="' + live.viewer_url + '"')
         return HTMLResponse(html)
 
     return app
