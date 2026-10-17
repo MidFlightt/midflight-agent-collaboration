@@ -338,6 +338,74 @@ def test_inv_02_threaded_race_never_double_approves() -> None:
         assert states.count(ClaimState.APPROVED) <= 1
 
 
+def bump(store: MemoryStore, key: str) -> None:
+    """A change elsewhere in the project: coord_rev moves, nothing the review read does."""
+    store.commit(Commit(PROJECT, key, bump_coord_rev=True))
+
+
+def test_inv_02_rerun_reuses_the_reviewer_answer_when_its_input_is_unchanged() -> None:
+    env = make_env(deferred=True)
+    store = env.store
+    reviewer = ScriptedReviewer(lambda _request: bump(store, "elsewhere") or [])
+    env.service = ClaimService(store, env.runner, env.clock, reviewer)
+    env.runner.register(JobKind.CLAIM_REVIEW, env.service.run_review)
+    result = env.service.submit(env.agent("T2"), submission("T2"))
+    env.runner.run_all()  # type: ignore[union-attr]
+
+    claim = store.get_claim(result.claim_id)
+    assert claim is not None and claim.state is ClaimState.APPROVED
+    assert len(reviewer.calls) == 1
+
+
+def test_inv_02_rerun_asks_the_reviewer_again_when_a_compared_claim_changed() -> None:
+    env = make_env(deferred=True)
+    t1 = env.agent("T1")
+
+    def another_claim_lands(_request: ClaimReviewRequest) -> list[Any]:
+        env.service.submit(t1, submission("T1"))
+        return []
+
+    reviewer = ScriptedReviewer(another_claim_lands)
+    env.service = ClaimService(env.store, env.runner, env.clock, reviewer)
+    env.runner.register(JobKind.CLAIM_REVIEW, env.service.run_review)
+    result = env.service.submit(env.agent("T2"), submission("T2"))
+    env.runner.run_next()  # type: ignore[union-attr]
+
+    asked_about_t2 = [r for r in reviewer.calls if r.claim.id == result.claim_id]
+    assert len(asked_about_t2) == 2
+    assert [o.task_id for o in asked_about_t2[1].other_claims] == ["T1"]
+
+
+class BusyStore(MemoryStore):
+    """Before each of the first `busy` review saves, another change lands."""
+
+    def __init__(self, busy: int) -> None:
+        super().__init__()
+        self.busy = busy
+
+    def commit(self, commit: Commit):  # type: ignore[override]
+        if commit.idempotency_key.startswith("review:") and self.busy > 0:
+            self.busy -= 1
+            super().commit(Commit(PROJECT, f"busy-{self.busy}", bump_coord_rev=True))
+        return super().commit(commit)
+
+
+def test_inv_02_a_busy_project_doesnt_exhaust_the_review() -> None:
+    store = BusyStore(busy=6)  # more than the 3 runs a review used to get
+    reviewer = ScriptedReviewer()
+    runner = InlineRunner()
+    service = ClaimService(store, runner, FixedClock(NOW), reviewer)
+    runner.register(JobKind.CLAIM_REVIEW, service.run_review)
+    people = seed(store, 1)
+
+    result = service.submit(people["p-t2"], submission("T2"))
+
+    claim = store.get_claim(result.claim_id)
+    assert claim is not None and claim.state is ClaimState.APPROVED
+    assert len(reviewer.calls) == 1
+    assert store.get_job(result.job_id).state is JobState.SUCCEEDED  # type: ignore[union-attr]
+
+
 # Retries and duplicates (UC-05 *a, NFR-02, INV-13) -------------------------------------
 
 
