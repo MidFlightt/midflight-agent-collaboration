@@ -1,0 +1,84 @@
+{
+  "case": "hirebot-pro",
+  "run": "B7",
+  "approach": "Midflight",
+  "model": "sonnet",
+  "merge": [
+    "t1-catalog: merged",
+    "t2-pricing: merged",
+    "t3-bookings: merged",
+    "t4-reports: merged",
+    "t5-cli: merged"
+  ],
+  "scores": [
+    {
+      "passed": 8,
+      "of": 14,
+      "failed": [
+        "C7",
+        "C8",
+        "C9",
+        "C11",
+        "C13",
+        "C14"
+      ]
+    },
+    {
+      "passed": 14,
+      "of": 14,
+      "failed": []
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 6.4567,
+    "warmup_cost": 0.17896800000000002,
+    "turns": 262,
+    "input": 442,
+    "output": 165641,
+    "cache_read": 16707528,
+    "cache_write": 362609,
+    "agent_minutes": 31.8,
+    "tool_calls": 249,
+    "midflight_calls": {
+      "my_projects": 5,
+      "check_in": 28,
+      "project_status": 5,
+      "submit_claim": 13,
+      "acknowledge_directive": 6
+    },
+    "cost_by_agent": {
+      "t1": 0.4394795999999999,
+      "t2": 1.1524572000000002,
+      "t3": 1.4380894000000002,
+      "t4": 1.0725944,
+      "t5": 1.4084446000000004,
+      "main": 0.9456694
+    },
+    "chat_calls": {},
+    "lead_actions": 0,
+    "turns_by_call": {
+      "01-t1-p1": 21,
+      "02-t2-p1": 27,
+      "03-t3-p1": 23,
+      "04-t4-p1": 23,
+      "05-t5-p1": 48,
+      "06-t1-p2": 4,
+      "07-t2-p2": 12,
+      "08-t3-p2": 17,
+      "09-t4-p2": 8,
+      "10-t5-p2": 15,
+      "11-t3-say1792227657": 8,
+      "12-t4-say1792227785": 14,
+      "13-main-fix1": 42
+    },
+    "lead_cost": 0.0
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 7227a92, the `sonnet` alias of that day. Run against a Midflight on the same machine (experiment/local_midflight.py): everything in memory, one person signed in who leads and owns every task; reviewer: scripted.",
+    "Lead round 1: Escalation E-6 resolved (request_revision). Claims C-2, C-4 were updated; their agents see it at their next check_in. Told: t3, t4.",
+    "Final project status: HireBot experiment (hirebot-7bf3), repository acme/hirebot\nJoin code: MF-5Y85-N38J\n\nMembers:\n- somesh (lead): T1, T2, T3, T4, T5\n\nPlan v2:\n- T1 Catalog (somesh): claim C-1 rev 1 approved\n- T2 Pricing (somesh): claim C-5 rev 3 approved\n- T3 Bookings (somesh): claim C-4 rev 3 approved\n- T4 Reports (somesh): claim C-2 rev 4 approved\n- T5 Command line (somesh): claim C-3 rev 2 approved\n\nOpen directives: 0\n\nOpen escalations: 0\n\nDecisions in force: 4\n- E-6 (decided by the lead; claims C-2, C-4): Cancelling a booking keeps a cancellation fee of 10% of the booking's total (rounded half up); the customer is refunded the rest. The fee counts as revenue in the report.\n- E-7 (agreed between tasks; claims C-5, C-4): Adopting settled escalation E-2: app.pricing.price_order(items, promo_code=None, rush=False) is the in-process function T3 (bookings) calls directly. It raises plain ValueError (not HTTPException) for an unknown agent handle, invalid promo code, empty items, or invalid hours -- pydantic's ValidationError subclasses ValueError so item-shape errors are covered too. The POST /api/quote route itself catches ValueError and re-raises it as HTTPException(400, str(e)), so T5's CLI still sees a plain HTTP 400 with a human-readable detail.\n- E-9 (agreed between tasks; claims C-4, C-2): Superseding my prior claim: per the lead's decision on E-6/D-6, cancelling a booking keeps a cancellation fee of 10% of the booking's total (rounded half up); the customer is refunded the rest, and the fee counts as revenue. bookings.py needs no new field for this: cancel() leaves the booking's recorded subtotal/volume_discount/promo_discount/rush_fee/tax/total untouched (only status flips to 'cancelled'), so reports.py (T4) can compute round_half_up(total * 0.10) itself from the cancelled booking's existing 'total'. Neither the booking contract nor the CLI's cancel output (README) includes a fee/refund field, so bookings.py doesn't expose one.\n- E-10 (agreed between tasks; claims C-4, C-2): T4: app.bookings continues to expose list_bookings() returning all booking records (confirmed and cancelled), unchanged in shape; T4 computes the 10% cancellation-fee revenue itself from each cancelled record's 'total'.\nOverturn anything Midflight settled with resolve_escalation: request_revision with your own ruling, or dismiss to withdraw it.",
+    "Reviewer: {\"reviewer\": \"scripted\"}",
+    "Wall time 17 minutes."
+  ]
+}

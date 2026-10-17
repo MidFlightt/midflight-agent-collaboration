@@ -20,6 +20,8 @@ has everything needed to check them or run them again.
 | `midflight-only.mcp.json` | The MCP configuration run B's agents get: only Midflight |
 | `walkthrough.py` | One simulated run of the whole workflow, written to `docs/pages/walkthrough.html` |
 | `local_midflight.py`, `midflight-local.mcp.json` | A Midflight for one trial on this machine, in memory, with a scripted reviewer: for comparing two versions of the code on the same case. Its first lines say how to run a trial against it |
+| `matrix.py` | Runs several trials one after another, unattended: a local Midflight for each run B, the lead scripted, usage limits waited out, each trial recorded |
+| `claude_reviewer.py` | Midflight's AI reviewer with the model call made through the Claude Code CLI, for run B on a laptop without AWS |
 | `reply_size.py` | Replays a recorded trial's Midflight calls in memory and adds up how much text Midflight sends back. No tokens spent |
 | `cases/<case>/README.md` | The case: the product, the parts, the surprises |
 | `cases/<case>/case.py` | **The exact words every agent is given**, per approach and phase |
@@ -46,6 +48,7 @@ has everything needed to check them or run them again.
 | [`hirebot-small`](cases/hirebot-small/README.md) | 3 | by hand, 8 checks | field names between a page and two small APIs |
 | [`hirebot-pro`](cases/hirebot-pro/README.md) | 5 | automatically, 14 checks | real business rules, a change touching four parts, a decision only the lead can make |
 | [`pigeonpost`](cases/pigeonpost/README.md) | 6 | automatically, 20 checks | six things that happen after the plan is written; separate laptops; agents starting at different times |
+| [`tabby`](cases/tabby/README.md) | 2 | automatically, 9 checks | the simple tier: a plan change, two developers who disagree, a note against the plan |
 
 ## Running a trial
 

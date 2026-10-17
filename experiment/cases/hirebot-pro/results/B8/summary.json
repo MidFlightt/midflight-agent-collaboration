@@ -1,0 +1,82 @@
+{
+  "case": "hirebot-pro",
+  "run": "B8",
+  "approach": "Midflight",
+  "model": "sonnet",
+  "merge": [
+    "t1-catalog: merged",
+    "t2-pricing: merged",
+    "t3-bookings: merged",
+    "t4-reports: merged",
+    "t5-cli: merged"
+  ],
+  "scores": [
+    {
+      "passed": 13,
+      "of": 14,
+      "failed": [
+        "C13"
+      ]
+    },
+    {
+      "passed": 14,
+      "of": 14,
+      "failed": []
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 7.2269,
+    "warmup_cost": 0.1784548,
+    "turns": 299,
+    "input": 482,
+    "output": 187963,
+    "cache_read": 19019891,
+    "cache_write": 383807,
+    "agent_minutes": 43.7,
+    "tool_calls": 285,
+    "midflight_calls": {
+      "my_projects": 3,
+      "check_in": 28,
+      "submit_claim": 16,
+      "project_status": 3,
+      "hook_setup": 2,
+      "acknowledge_directive": 6,
+      "resolve_escalation": 1
+    },
+    "cost_by_agent": {
+      "t1": 0.3961596,
+      "t2": 1.3325137999999999,
+      "t3": 1.6497031999999998,
+      "t4": 1.171435,
+      "t5": 2.0709285999999993,
+      "main": 0.6061549999999999
+    },
+    "chat_calls": {},
+    "lead_actions": 1,
+    "turns_by_call": {
+      "01-t1-p1": 19,
+      "02-t2-p1": 28,
+      "03-t3-p1": 32,
+      "04-t4-p1": 24,
+      "05-t5-p1": 64,
+      "06-t1-p2": 4,
+      "07-t2-p2": 16,
+      "08-t3-p2": 14,
+      "09-t4-p2": 8,
+      "10-t5-p2": 32,
+      "11-t2-say1792232259": 4,
+      "12-t3-say1792232283": 10,
+      "13-t4-say1792232412": 11,
+      "14-main-fix1": 33
+    },
+    "lead_cost": 0.0
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 7227a92, the `sonnet` alias of that day. Run against a Midflight on the same machine (experiment/local_midflight.py): everything in memory, one person signed in who leads and owns every task; reviewer: claude.",
+    "Lead round 1: Escalation E-2 resolved (request_revision). Claims C-2, C-3, C-5 were updated; their agents see it at their next check_in. Told: t2, t3, t4.",
+    "Final project status: HireBot experiment (hirebot-1a8f), repository acme/hirebot\nJoin code: MF-KUQG-GYA4\n\nMembers:\n- somesh (lead): T1, T2, T3, T4, T5\n\nPlan v2:\n- T1 Catalog (somesh): claim C-1 rev 1 approved\n- T2 Pricing (somesh): claim C-2 rev 5 approved\n- T3 Bookings (somesh): claim C-3 rev 4 approved\n- T4 Reports (somesh): claim C-5 rev 4 approved\n- T5 Command line (somesh): claim C-4 rev 2 approved\n\nOpen directives: 0\n\nOpen escalations: 0\n\nDecisions in force: 5\n- E-2 (decided by the lead; claims C-2, C-3, C-5): Cancelling a booking keeps a cancellation fee of 10% of the booking's total (rounded half up); the customer is refunded the rest. The fee counts as revenue in the report.\n- E-6 (agreed between tasks; claims C-2, C-3): I expose `price_order(items, promo_code=None, rush=False) -> dict` from app.pricing (importable as `from app.pricing import price_order`); return dict includes `rush_fee: int` alongside the existing quote fields. Raises ValueError on an unknown agent, invalid promo code, or invalid hours \u2014 T3 should catch ValueError and surface its own error.\n- E-7 (agreed between tasks; claims C-2, C-3): The rev-4 finding about C-3/C-5 disagreeing on a cancellation fee (T3: no fee vs T4/reports: 20% fee) is outside T2's scope \u2014 pricing only prices new orders (rules 1-6 plus R-7 rush), not cancellations or revenue reporting. I'm not building anything that depends on that open question; it's for the lead/T3/T4 to resolve, and I'm flagging it to my developer rather than guessing.\n- E-8 (agreed between tasks; claims C-3, C-5): Per the lead's decision on E-2: cancelling a booking still gives back 100% of its reserved hours (rule 8 is about capacity, not money, and is unaffected by the fee). Money-wise, the customer is refunded total minus a 10% cancellation fee (round-half-up(0.1 x total)); I do not change the stored `total` on cancel (it stays the original pre-cancellation amount, unchanged, for audit purposes) and I do not compute or expose a separate fee/refund field, since no such field exists in the booking contract. T4/reports derives the 10% fee from the unchanged `total` of each cancelled booking when computing revenue.\n- E-9 (agreed between tasks; claims C-3, C-5): Per T4's stated assumption, I expose an in-process function list_bookings() -> list of booking objects (same fields as the booking contract) covering both confirmed and cancelled bookings, for app.reports to import and read directly.\nOverturn anything Midflight settled with resolve_escalation: request_revision with your own ruling, or dismiss to withdraw it.",
+    "Reviewer: {\"model\": \"haiku\", \"calls\": 31, \"cost_usd\": 0.6134, \"seconds\": 241.2}",
+    "Wall time 20 minutes."
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "case": "tabby",
+  "run": "N2",
+  "approach": "no channel",
+  "model": "sonnet",
+  "merge": [
+    "t1-bills: merged",
+    "t2-cli: merged"
+  ],
+  "scores": [
+    {
+      "passed": 6,
+      "of": 9,
+      "failed": [
+        "C7",
+        "C8",
+        "C9"
+      ],
+      "events": {
+        "plain build": {
+          "passed": 4,
+          "of": 4,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 0,
+          "of": 2,
+          "held": false
+        },
+        "a note against the plan": {
+          "passed": 0,
+          "of": 1,
+          "held": false
+        }
+      }
+    },
+    {
+      "passed": 9,
+      "of": 9,
+      "failed": [],
+      "events": {
+        "plain build": {
+          "passed": 4,
+          "of": 4,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a note against the plan": {
+          "passed": 1,
+          "of": 1,
+          "held": true
+        }
+      }
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 2.296,
+    "warmup_cost": 0.0,
+    "turns": 111,
+    "input": 196,
+    "output": 51647,
+    "cache_read": 6171100,
+    "cache_write": 135337,
+    "agent_minutes": 10.4,
+    "tool_calls": 104,
+    "midflight_calls": {},
+    "cost_by_agent": {
+      "t1": 0.7769148000000002,
+      "t2": 0.75791,
+      "main": 0.7611291999999997
+    },
+    "chat_calls": {},
+    "lead_actions": 0,
+    "turns_by_call": {
+      "01-t1-p1": 18,
+      "02-t2-p1": 26,
+      "03-t1-p2": 11,
+      "04-t2-p2": 4,
+      "05-t1-p3": 8,
+      "06-t2-p3": 6,
+      "07-main-fix1": 38
+    },
+    "lead_cost": 0.0
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 9c0a55d, the `sonnet` alias of that day. ",
+    "Wall time 8 minutes."
+  ]
+}

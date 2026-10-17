@@ -123,7 +123,10 @@ class Trial:
         return json.loads((self.root / "state.json").read_text(encoding="utf-8"))
 
     def save(self, state: dict) -> None:
-        (self.root / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+        # Written whole and then renamed: agents in other threads read it while it's saved.
+        temp = self.root / f"state.json.{threading.get_ident()}"
+        temp.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        os.replace(temp, self.root / "state.json")
 
 
 def load_module(path: Path, name: str) -> ModuleType:

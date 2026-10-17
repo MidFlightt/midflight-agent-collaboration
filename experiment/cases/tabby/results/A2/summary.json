@@ -1,0 +1,108 @@
+{
+  "case": "tabby",
+  "run": "A2",
+  "approach": "team-chat file",
+  "model": "sonnet",
+  "merge": [
+    "t1-bills: merged",
+    "t2-cli: merged"
+  ],
+  "scores": [
+    {
+      "passed": 7,
+      "of": 9,
+      "failed": [
+        "C5",
+        "C7"
+      ],
+      "events": {
+        "plain build": {
+          "passed": 4,
+          "of": 4,
+          "held": true
+        },
+        "plan change": {
+          "passed": 1,
+          "of": 2,
+          "held": false
+        },
+        "two developers disagree": {
+          "passed": 1,
+          "of": 2,
+          "held": false
+        },
+        "a note against the plan": {
+          "passed": 1,
+          "of": 1,
+          "held": true
+        }
+      }
+    },
+    {
+      "passed": 9,
+      "of": 9,
+      "failed": [],
+      "events": {
+        "plain build": {
+          "passed": 4,
+          "of": 4,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a note against the plan": {
+          "passed": 1,
+          "of": 1,
+          "held": true
+        }
+      }
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 2.6341,
+    "warmup_cost": 0.0,
+    "turns": 135,
+    "input": 264,
+    "output": 48454,
+    "cache_read": 8319242,
+    "cache_write": 155490,
+    "agent_minutes": 10.2,
+    "tool_calls": 126,
+    "midflight_calls": {},
+    "cost_by_agent": {
+      "t1": 0.8308328,
+      "t2": 1.1288091999999996,
+      "main": 0.6744701999999999
+    },
+    "chat_calls": {
+      "read": 15,
+      "post": 7
+    },
+    "lead_actions": 2,
+    "turns_by_call": {
+      "01-t1-p1": 22,
+      "02-t2-p1": 27,
+      "03-lead-answer": 3,
+      "04-t1-p2": 11,
+      "05-t2-p2": 8,
+      "06-lead-answer": 3,
+      "07-t1-p3": 8,
+      "08-t2-p3": 16,
+      "09-main-fix1": 37
+    },
+    "lead_cost": 0.1416
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 9c0a55d, the `sonnet` alias of that day. ",
+    "Wall time 8 minutes."
+  ]
+}
