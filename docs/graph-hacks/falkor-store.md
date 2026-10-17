@@ -81,10 +81,9 @@ operational records, outside project context. Auth expiry is enforced on every r
 expired records remain stored until explicitly deleted. Token/join-code/repository
 lookups use current node fields, so rotation leaves no stale lookup pointers.
 
-This is the persistence layer. Versioned Task/Contract/Requirement nodes, dependency
-edges and evidence traversal are **not yet materialized**: plans still contain their
-full structured definitions as JSON. Those are the next graph-coordination work and
-must be written atomically with plans before graph-based impact is enabled. Do not
+GH-04 now adds [versioned task/contract/requirement projections and impact queries](dependency-graph.md)
+atomically alongside plan records. Plans retain their full structured definitions as JSON.
+Service propagation has not yet switched to the graph queries. Do not
 export the entire operational graph to agents or a demo viewer.
 
 ## Evidence and boundaries
