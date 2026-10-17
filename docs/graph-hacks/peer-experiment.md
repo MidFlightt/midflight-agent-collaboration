@@ -79,37 +79,39 @@ rehearsal result is saved with that local run, not presented as a generic test o
 
 ## Live graph
 
-Open http://127.0.0.1:8907/graph for a minimal, dark canvas with a stationary hierarchy.
-Agents occupy the top row, claims sit beneath their agent, shared interfaces occupy
-a common row, and declared files sit in their owner’s column below. The vendored
-`force-graph@1.52.0` library (https://github.com/vasturiano/force-graph) renders the
-canvas with its physics and node dragging disabled.
-It runs locally without a separate visualization service or CDN.
+Open http://127.0.0.1:8907/graph for a minimal, dark canvas showing only two node
+types: agents and shared interfaces. Agents stay across the top; interfaces occupy
+a shared row below. Claims, files, directives and row headers are hidden from the
+canvas. Select an agent to see its latest claims, declared files and current updates.
 
-- The MidFlight palette uses a navy canvas, cyan agents and interfaces, muted gray
-  declared files, green approved claims, and orange directives or claims needing attention.
+The vendored `force-graph@1.52.0` library (https://github.com/vasturiano/force-graph)
+renders fixed coordinates with physics and node dragging disabled. Pan on empty
+space, scroll to zoom, or use Fit and Fullscreen. Agents opens the coding windows.
+
 - Agent presence is persisted in the run's FalkorDB graph when its MCP client connects.
-- Nodes and links are projected from the latest persisted claim revisions. There are
-  no prefilled visual dependencies from the fixture plan and no artificial replay.
-- A declared file is not proof of a filesystem write. A provided/consumed interface is
-  a declaration in a claim. Select a node or link to inspect the underlying data.
-- Polling reads FalkorDB every 800 ms. Existing nodes retain fixed coordinates;
-  new nodes append to stable slots without shifting their peers or moving the camera.
-- Pan on empty space, scroll to zoom, and click a node or connection for details.
-  Click empty space to close details. Fit restores
-  the overview; Fullscreen gives the graph the entire screen. Agents opens the terminals.
-- Reset archives the current run and opens a fresh empty workspace without launching
-  sessions. Start agents launches the four equal peers from their short direct prompts.
-- Use `python -m midflight.theater.peers --paused` to start directly in that empty state.
-  Existing run files and FalkorDB graphs are retained. The original demo is independent.
+- The raw graph-state endpoint reads the latest persisted claim revisions every 800 ms.
+  The browser projects `agent → claim → interface` into `agent → interface` for provided
+  interfaces, and `interface → agent` for consumed interfaces. Every edge retains its
+  source claim IDs and declared fields for inspection. No links are inferred from names.
+- Cyan agents and muted interfaces show ordinary dependencies. A current-plan directive
+  highlights its recipient and that agent's interface edges orange while pending or
+  requiring attention, and green once acknowledged. Acknowledgement does not prove that
+  implementation or tests passed. Unrelated agents receive no change highlight.
+- Existing nodes retain fixed coordinates. New nodes append to stable slots without
+  shifting their peers or moving the camera. Size growth remains capped.
+- Reset archives the run and opens an empty workspace without launching sessions.
+  Start agents launches four equal peers from short direct prompts. Use
+  `python -m midflight.theater.peers --paused` to start directly in the empty state.
+- Existing run files and FalkorDB graphs are retained. The original demo is independent.
 
-The visualization is a semantic view of coordination data stored in FalkorDB, not a
-raw dump of all storage nodes. Control and graph-state requests require the current
-local run key. MCP arrivals require the session's participant token.
+This is a semantic view of coordination declarations stored in FalkorDB, not a raw
+storage dump or proof of filesystem writes. Local graph/control requests require
+the run key; MCP arrivals require a participant token. There is no external CDN or
+visualization service at runtime.
 
 Node size encodes declared scope: agents are always the largest circles, with a
 small capped increase for the number of distinct files/interfaces their claims
 declare. Interface circles grow with the number of distinct claims providing or
-consuming them. Files, claims and directives stay smaller. Size does not indicate
+consuming them. Files, claims and directives appear only in inspection details. Size does not indicate
 code correctness or agent performance. Agent rings, bold labels and an AGENT mark
 keep them recognizable even when an agent has no declarations yet.

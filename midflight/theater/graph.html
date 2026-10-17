@@ -5,23 +5,34 @@
 <div id="canvas" aria-label="Live hierarchical collaboration graph"></div>
 <header><b>midflight</b><nav><button id="start">Start agents</button><button id="reset">Reset</button><button id="fit">Fit</button><button id="full">Fullscreen</button><a href="/" target="_blank">Agents ↗</a></nav></header>
 <div id="status" role="status">Connecting…</div><div id="empty">An empty workspace.<p>Start the agents to watch their connections form.</p></div>
-<footer><span><i class="dot"></i>agents &nbsp; <i class="dot context"></i>shared context &nbsp; <i class="dot approved"></i>approved &nbsp; <i class="dot directive"></i>changes</span><span id="source">live · FalkorDB</span></footer>
+<footer><span><i class="dot"></i>agents &nbsp; <i class="dot context"></i>interfaces &nbsp; <i class="dot approved"></i>acknowledged &nbsp; <i class="dot directive"></i>changes</span><span id="source">live · FalkorDB</span></footer>
 <aside id="detail" hidden><button id="close" aria-label="Close details">×</button><h2 id="detail-title"></h2><pre id="detail-body"></pre></aside>
 <script src="/vendor/force-graph.min.js"></script><script>
 const $=id=>document.getElementById(id);
 let key='',project='',busy=false,polling=false,signature='',selected=null,hovered=null;
 const nodes=new Map(),links=new Map(),lanes=new Map(),rowSlots=new Map();
-const color=n=>n.kind==='directive'?'#f3b183':n.kind==='claim'?(n.state==='approved'?'#a6d3ad':n.state==='pending'?'#9fabb7':'#f3b183'):n.kind==='file'?'#9fabb7':'#80cadf';
+const color=n=>n.change==='pending'?'#f3b183':n.change==='acknowledged'?'#a6d3ad':n.kind==='agent'?'#80cadf':'#9fabb7';
 // Radius grows slowly and is capped, so busy agents remain distinct without dominating.
 const radius=n=>n.kind==='agent'?32+Math.min(14,3*Math.sqrt(n.context_count||0)):
  n.kind==='interface'?12+Math.min(10,3*Math.sqrt(n.shared_by||0)):
  n.kind==='directive'?10:n.kind==='claim'?8:7;
-function inspect(item){selected=item;$('detail').hidden=!item;if(!item)return;$('detail-title').textContent=item.label||item.kind;const copy={};for(const [k,v] of Object.entries(item))if(!['x','y','vx','vy','fx','fy','index','born','__indexColor'].includes(k))copy[k]=(k==='source'||k==='target')&&typeof v==='object'?v.id:v;$('detail-body').textContent=JSON.stringify(copy,null,2)}
+function inspect(item){selected=item;$('detail').hidden=!item;if(!item)return;$('detail-title').textContent=item.label||item.kind;
+if(item.kind==='agent'){
+ $('detail-body').textContent='CLAIMS\n'+(item.claims.map(c=>`${c.label} · ${c.state} · plan ${c.plan_version}`).join('\n')||'No claim yet')+'\n\nDECLARED FILES\n'+(item.files.join('\n')||'None yet')+'\n\nCHANGES\n'+(item.updates.map(d=>`${d.state}: ${d.requested_adjustment}`).join('\n')||'No current directive');return;
+}
+const copy={};for(const [k,v] of Object.entries(item))if(!['x','y','vx','vy','fx','fy','index','born','__indexColor'].includes(k))copy[k]=(k==='source'||k==='target')&&typeof v==='object'?v.id:v;$('detail-body').textContent=JSON.stringify(copy,null,2)}
 const graph=new ForceGraph($('canvas'))
  .width(innerWidth).height(innerHeight).backgroundColor('#090f14')
  .nodeId('id').nodeVal(n=>Math.pow(radius(n)/4,2)).nodeColor(color)
- .nodeLabel(()=>null).linkLabel(()=>null).linkColor(l=>l.kind==='notifies'?'#f3b183':'#344653')
- .linkWidth(l=>l.kind==='provides'||l.kind==='consumes'?1.25:.65)
+ .nodeLabel(()=>null).linkLabel(()=>null).linkColor(l=>l.change==='pending'?'#f3b183':l.change==='acknowledged'?'#a6d3ad':'#607380')
+ .linkWidth(1.4).linkCanvasObjectMode(()=> 'replace').linkCanvasObject((link,ctx,scale)=>{
+   const a=link.source,b=link.target;if(typeof a!=='object'||typeof b!=='object')return;
+   const dx=b.x-a.x,dy=b.y-a.y,length=Math.hypot(dx,dy)||1,ux=dx/length,uy=dy/length;
+   ctx.strokeStyle=link.change==='pending'?'#f3b183':link.change==='acknowledged'?'#a6d3ad':'#607380';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=1.4/scale;
+   ctx.beginPath();ctx.moveTo(a.x+ux*radius(a),a.y+uy*radius(a));ctx.lineTo(b.x-ux*radius(b),b.y-uy*radius(b));ctx.stroke();
+   const x=a.x+dx*.6,y=a.y+dy*.6,size=6/scale;
+   ctx.beginPath();ctx.moveTo(x+ux*size,y+uy*size);ctx.lineTo(x-ux*size-uy*size*.55,y-uy*size+ux*size*.55);ctx.lineTo(x-ux*size+uy*size*.55,y-uy*size-ux*size*.55);ctx.closePath();ctx.fill();
+ })
  .minZoom(.2).maxZoom(6).enableNodeDrag(false).cooldownTicks(0)
  .nodeCanvasObjectMode(()=> 'after').nodeCanvasObject((n,ctx,scale)=>{
    const r=radius(n),age=Date.now()-n.born;
@@ -38,49 +49,59 @@ const graph=new ForceGraph($('canvas'))
 // Render fixed coordinates: no spring solver, reheat, or automatic repositioning.
 for(const force of ['charge','link','center'])graph.d3Force(force,null);
 function slot(group,id){if(!rowSlots.has(group))rowSlots.set(group,new Map());const map=rowSlots.get(group);if(!map.has(id))map.set(id,map.size);return map.get(id)}
+function simplify(data){
+ const claims=new Map(data.nodes.filter(n=>n.kind==='claim').map(n=>[n.id,n]));
+ const owners=new Map(data.edges.filter(e=>e.kind==='claims').map(e=>[e.target,e.source]));
+ const agents=new Map(data.nodes.filter(n=>n.kind==='agent').map(n=>[n.id,{...n,claims:[],files:[],updates:[],context_count:0}]));
+ for(const [id,claim] of claims){const agent=agents.get(owners.get(id));if(!agent)continue;agent.claims.push(claim);agent.files.push(...data.edges.filter(e=>e.source===id&&e.kind==='declares').map(e=>data.nodes.find(n=>n.id===e.target)?.label).filter(Boolean))}
+ for(const directive of data.nodes.filter(n=>n.kind==='directive'&&n.plan_version===data.plan_version&&n.state!=='superseded')){
+   const target=data.edges.find(e=>e.source===directive.id&&e.kind==='notifies')?.target;
+   const agent=agents.get(target);if(!agent)continue;agent.updates.push(directive);
+ }
+ for(const agent of agents.values()){
+   agent.files=[...new Set(agent.files)];
+   agent.change=agent.updates.some(d=>['queued','delivered','rejected','needs_clarification'].includes(d.state))?'pending':agent.updates.length&&agent.updates.every(d=>d.state==='acknowledged')?'acknowledged':null;
+   agent.context_count=agent.files.length;
+ }
+ const edges=new Map(),interfaces=new Map();
+ for(const e of data.edges.filter(e=>['provides','consumes'].includes(e.kind))){
+   const owner=owners.get(e.source),agent=agents.get(owner);if(!agent)continue;
+   const source=e.kind==='provides'?owner:e.target,target=e.kind==='provides'?e.target:owner;
+   const id=source+'|'+e.kind+'|'+target;
+   if(!interfaces.has(e.target)){const original=data.nodes.find(n=>n.id===e.target);if(!original)continue;interfaces.set(e.target,{...original,shared_by:0})}
+   const existing=edges.get(id);
+   if(existing){existing.claim_ids.push(e.source);existing.declarations.push({claim_id:e.source,fields:e.fields})}
+   else edges.set(id,{id,source,target,kind:e.kind,fields:e.fields,claim_ids:[e.source],declarations:[{claim_id:e.source,fields:e.fields}],change:agent.change});
+ }
+ for(const agent of agents.values())agent.context_count=agent.files.length+new Set([...edges.values()].filter(e=>e.source===agent.id||e.target===agent.id).map(e=>e.source===agent.id?e.target:e.source)).size;
+ for(const n of interfaces.values())n.shared_by=new Set([...edges.values()].filter(e=>e.source===n.id||e.target===n.id).flatMap(e=>e.claim_ids)).size;
+ return {...data,nodes:[...agents.values(),...interfaces.values()],edges:[...edges.values()]};
+}
 function hierarchy(data){
- const positions=new Map(),owners=new Map();
- for(const n of data.nodes.filter(n=>n.kind==='agent')){
-   if(!lanes.has(n.id))lanes.set(n.id,lanes.size);
-   positions.set(n.id,{x:lanes.get(n.id)*260-390,y:-280});
+ for(const n of data.nodes){
+   let p;
+   if(n.kind==='agent'){
+     if(!lanes.has(n.id))lanes.set(n.id,lanes.size);
+     p={x:lanes.get(n.id)*260-390,y:-160};
+   }else{
+     const i=slot('interfaces',n.id);
+     p={x:(i%2?1:-1)*(130+Math.floor(i/2)*260),y:120};
+   }
+   Object.assign(nodes.get(n.id),p,{fx:p.x,fy:p.y,vx:0,vy:0});
  }
- for(const e of data.edges.filter(e=>e.kind==='claims'))owners.set(e.target,e.source);
- for(const n of data.nodes.filter(n=>n.kind==='claim')){
-   const owner=owners.get(n.id),p=positions.get(owner)||{x:0};
-   positions.set(n.id,{x:p.x,y:-100+slot('claims:'+owner,n.id)*60});
- }
- for(const n of data.nodes.filter(n=>n.kind==='file')){
-   const parent=data.edges.find(e=>e.kind==='declares'&&e.target===n.id);
-   const owner=owners.get(parent?.source),p=positions.get(owner)||{x:0};
-   positions.set(n.id,{x:p.x,y:260+slot('files:'+owner,n.id)*65});
- }
- for(const n of data.nodes.filter(n=>n.kind==='interface')){
-   const i=slot('interfaces',n.id);
-   positions.set(n.id,{x:(i%2?1:-1)*(130+Math.floor(i/2)*260),y:80});
- }
- for(const n of data.nodes.filter(n=>n.kind==='directive')){
-   const target=data.edges.find(e=>e.source===n.id&&e.kind==='notifies')?.target;
-   const p=positions.get(target)||{x:0};
-   positions.set(n.id,{x:p.x+80,y:-205+slot('directives:'+target,n.id)*45});
- }
- for(const [id,p] of positions){const n=nodes.get(id);Object.assign(n,p,{fx:p.x,fy:p.y,vx:0,vy:0})}
 }
 function fit(){
  const all=[...nodes.values()];
  const left=Math.min(-520,...all.map(n=>n.x-80)),right=Math.max(520,...all.map(n=>n.x+80));
- const top=Math.min(-370,...all.map(n=>n.y-80)),bottom=Math.max(370,...all.map(n=>n.y+80));
+ const top=Math.min(-260,...all.map(n=>n.y-80)),bottom=Math.max(260,...all.map(n=>n.y+80));
  graph.centerAt((left+right)/2,(top+bottom)/2,0);
  graph.zoom(Math.min((innerWidth-70)/(right-left),(innerHeight-160)/(bottom-top)),0);
 }
-function guides(ctx,scale){
- if(!nodes.size)return;ctx.font=`${10/scale}px ui-monospace,Menlo,monospace`;ctx.fillStyle='#718290';ctx.textAlign='left';ctx.textBaseline='middle';
- for(const [label,y] of [['AGENTS',-360],['CLAIMS',-155],['SHARED INTERFACES',25],['DECLARED FILES',205]])ctx.fillText(label,-490,y);
-}
-graph.onRenderFramePre(guides);
 fit();
 async function connection(){const r=await fetch('/connection');if(!r.ok)throw Error('Connection unavailable');key=(await r.json()).key}
 async function post(url){const r=await fetch(url,{method:'POST',headers:{'x-demo-key':key}});if(!r.ok)throw Error('Request failed ('+r.status+')');return r.json()}
-function draw(data){
+function draw(raw){
+ const data=simplify(raw);
  if(project!==data.project){project=data.project;nodes.clear();links.clear();lanes.clear();rowSlots.clear();signature='';inspect(null);graph.graphData({nodes:[],links:[]});fit()}
  const ids=new Set(data.nodes.map(n=>n.id)),edgeIds=new Set(data.edges.map(l=>l.id));
  for(const id of nodes.keys())if(!ids.has(id))nodes.delete(id);
@@ -88,19 +109,11 @@ function draw(data){
  for(const n of data.nodes){const existing=nodes.get(n.id);if(existing)Object.assign(existing,n);else{
    nodes.set(n.id,{...n,born:Date.now()});
  }}
- for(const n of nodes.values()){
-   if(n.kind==='agent'){
-     const owned=new Set(data.edges.filter(e=>e.source===n.id&&e.kind==='claims').map(e=>e.target));
-     n.context_count=new Set(data.edges.filter(e=>owned.has(e.source)&&['declares','provides','consumes'].includes(e.kind)).map(e=>e.target)).size;
-   }else if(n.kind==='interface'){
-     n.shared_by=new Set(data.edges.filter(e=>e.target===n.id&&['provides','consumes'].includes(e.kind)).map(e=>e.source)).size;
-   }
- }
  for(const l of data.edges){const existing=links.get(l.id);if(existing){const {source,target,...details}=l;Object.assign(existing,details)}else links.set(l.id,{...l})}
  const next=JSON.stringify([data.nodes.map(n=>n.id).sort(),data.edges.map(l=>l.id).sort()]);
  if(next!==signature){signature=next;hierarchy(data);graph.graphData({nodes:[...nodes.values()],links:[...links.values()]})}
  if(selected){const updated=nodes.get(selected.id)||links.get(selected.id);inspect(updated||null)}
- $('empty').hidden=data.nodes.length>0;$('status').textContent=`${data.nodes.length} nodes · ${data.edges.length} connections`;$('source').title=data.source+' · '+data.project;$('start').hidden=data.started;$('start').disabled=busy;
+ $('empty').hidden=data.nodes.length>0;$('status').textContent=`${data.nodes.filter(n=>n.kind==='agent').length} agents · ${data.nodes.filter(n=>n.kind==='interface').length} interfaces`;$('source').title=data.source+' · '+data.project;$('start').hidden=data.started;$('start').disabled=busy;
 }
 async function refresh(){if(busy||polling)return;polling=true;try{if(!key)await connection();const r=await fetch('/graph-state',{headers:{'x-demo-key':key}});if(r.status===403){await connection();return}if(!r.ok)throw Error('Graph unavailable');draw(await r.json())}catch(e){$('status').textContent='Waiting for live service…'}finally{polling=false}}
 $('start').onclick=async()=>{busy=true;$('start').disabled=true;$('status').textContent='Starting agents…';try{await post('/peer-start')}catch(e){$('status').textContent=e.message}finally{busy=false;refresh()}};
