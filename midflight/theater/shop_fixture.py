@@ -5,7 +5,7 @@ from midflight.services.plans import PlanDraft
 
 PROMPTS = {
     "pricing": "Add volume discounts.",
-    "checkout": "Add a checkout endpoint.",
+    "checkout": "Add promo codes.",
     "reporting": "Add a revenue summary.",
     "notifications": "Add signup confirmations.",
 }
@@ -23,10 +23,11 @@ def initial_plan():
             ],
         ),
         "checkout": (
-            "Checkout endpoint",
+            "Promo codes at checkout",
             [
                 "POST /checkout accepts a price quote and returns an order with total_cents.",
-                "Preserve the supplied integer cents without recomputing pricing.",
+                "Accept an optional promo code; SAVE10 gives 10% off the supplied quote. "
+                "Without a code preserve the supplied total; reject unknown codes.",
             ],
         ),
         "reporting": (
@@ -99,6 +100,7 @@ Each agent edits its owned module and tests in its own workspace. Keep public
 function names stable; Midflight provides current requirements and data contracts.
 The app passes JSON-compatible dictionaries between modules, using integer cents.
 
+The promo catalog has one code: SAVE10 gives 10% off the supplied quote.
 The initial code has basic undiscounted pricing. Checkout, reporting and signup
 confirmation are unfinished. See Midflight for acceptance criteria.
 """,

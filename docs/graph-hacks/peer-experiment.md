@@ -14,12 +14,13 @@ Open http://127.0.0.1:8907 (API 8908), or use `--port 8909 --api-port 8910`.
 Each composer is prefilled, unsent, with a direct request:
 
 - Pricing: “Add volume discounts.”
-- Checkout: “Add a checkout endpoint.”
+- Checkout: “Add promo codes.”
 - Reporting: “Add a revenue summary.”
 - Notifications: “Add signup confirmations.”
 
 All workspaces start from the same small Python shop application, with an HTTP router,
-module interfaces, baseline tests and README. Each agent owns its module and tests.
+module interfaces, baseline tests and README. Each agent owns its module and tests. The promo catalog defines SAVE10 as 10% off,
+so a basic prompt does not require the agent to invent a coupon.
 Requirements are seeded into plan v1; agents do not need to republish these assignments.
 The prompts contain no coordination choreography. AGENTS.md and MCP supply the protocol.
 
@@ -215,3 +216,5 @@ a normal-case target, not a hard limit. Initial human requests may still add gen
 missing requirements; requests already represented in the plan should not republish it.
 There are no automatic idle wake-ups. Each new work request starts with a check-in
 that discovers outstanding relevant directives.
+
+Live discount-prompt experiments and their actual outcomes: [trial results](discount-prompt-trials.md).
