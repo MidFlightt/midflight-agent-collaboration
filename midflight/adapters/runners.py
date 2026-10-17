@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from threading import Lock, RLock
+
 from midflight.domain.models import Job, JobKind
 from midflight.ports import JobHandler
 
@@ -21,13 +23,27 @@ class _Dispatch:
 
 
 class InlineRunner(_Dispatch):
-    """Runs each job as soon as it is submitted, in the caller's thread.
+    """Runs each job as soon as it is submitted, in the caller's thread, one job at a
+    time per project.
 
-    Handler errors propagate, so a test sees them instead of a silent failed job.
+    Without the per-project lock, two requests' reviews run side by side and each one's
+    save moves `coord_rev` under the other, so they rerun each other until they give up
+    (evals/scale-results.md). A job waits for the project's previous job instead, as it
+    would on the worker. The lock is reentrant: a handler that submits another job for
+    the same project runs it straight away. Handler errors propagate, so a test sees
+    them instead of a silent failed job.
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._locks: dict[str, RLock] = {}
+        self._guard = Lock()
+
     def submit(self, job: Job) -> None:
-        self._run(job)
+        with self._guard:
+            lock = self._locks.setdefault(job.project_id, RLock())
+        with lock:
+            self._run(job)
 
 
 class DeferredRunner(_Dispatch):
