@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse
 
 from midflight.config import Settings
 from midflight.main import create_server
-from midflight.theater.scenario import NAMES, change, seed
+from midflight.theater.scenario import change, seed
 
 
 class Theater:
@@ -45,6 +45,7 @@ class Theater:
             reviewer=reviewer,
         )
         self.tokens = seed(self.server.services, self.project, plan_draft)
+        self.names = tuple(n for n in self.tokens if n != "lead")
         self.api_port = api_port
         self.db_port = db_port
         self.api = uvicorn.Server(
@@ -55,15 +56,15 @@ class Theater:
         self.phase = "ready"
         self.stopping = threading.Event()
         self.processes = {}
-        self.events = {n: [] for n in NAMES}
-        self.status = dict.fromkeys(NAMES, "ready")
+        self.events = {n: [] for n in self.names}
+        self.status = dict.fromkeys(self.names, "ready")
         self.changed = False
         self.baseline_hash = None
         self.commit = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=self.repo, text=True
         ).strip()
         self.dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=self.repo))
-        for name in NAMES:
+        for name in self.names:
             folder = self.root / name
             folder.mkdir()
             subprocess.run(["git", "init", "-q", "-b", name], cwd=folder, check=True)
@@ -229,7 +230,7 @@ class Theater:
         def run():
             try:
                 with ThreadPoolExecutor(max_workers=4) as pool:
-                    list(pool.map(lambda n: self.agent(n, phase), NAMES))
+                    list(pool.map(lambda n: self.agent(n, phase), self.names))
                 self.phase = (
                     ("built" if phase == "build" else "changed")
                     if all(s == "done" for s in self.status.values())
@@ -250,7 +251,7 @@ class Theater:
         claims = store.list_claims(self.project)
         directives = store.list_directives(self.project)
         checks = {
-            "four_claims": {c.task_id for c in claims} == set(NAMES),
+            "four_claims": {c.task_id for c in claims} == set(self.names),
             "all_agents_finished": all(s == "done" for s in self.status.values()),
         }
         if self.changed:
@@ -340,7 +341,8 @@ print('Commerce integration passed')
                 "commit": self.commit[:10],
                 "dirty": self.dirty,
                 "agents": {
-                    n: {"status": self.status[n], "events": list(self.events[n])} for n in NAMES
+                    n: {"status": self.status[n], "events": list(self.events[n])}
+                    for n in self.names
                 },
             }
 

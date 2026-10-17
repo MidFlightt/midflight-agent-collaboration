@@ -9,7 +9,8 @@ NAMES = ("pricing", "checkout", "reporting", "notifications")
 
 
 def seed(services, project, plan_draft=None):
-    tokens = {name: new_token() for name in (*NAMES, "lead")}
+    names = tuple(t.id for t in plan_draft.tasks) if plan_draft else NAMES
+    tokens = {name: new_token() for name in (*names, "lead")}
     people = [
         Participant(
             id=name,

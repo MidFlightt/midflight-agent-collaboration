@@ -6,7 +6,6 @@ from fastapi import HTTPException
 
 from midflight.services.errors import ServiceError
 from midflight.services.plans import PlanDraft
-from midflight.theater.scenario import NAMES
 
 
 def content(plan):
@@ -26,7 +25,7 @@ class PeerCoordination:
     def actor(self, name):
         actor = self.services.store.get_participant(name)
         if (
-            name not in NAMES
+            name not in {t.id for t in self.services.plans.current(self.project).tasks}
             or actor is None
             or not actor.active
             or actor.project_id != self.project

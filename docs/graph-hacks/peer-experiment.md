@@ -1,3 +1,7 @@
+The current broader four-role demonstration is documented in [Delivery business demo](delivery-demo.md).
+Use --scenario delivery for Billing, Delivery, Booking and Notifications. The shop
+experiment below remains available as --scenario shop.
+
 # GH-05: equal-peer collaboration experiment
 
 Branch: `GH-05-peer-collaboration`, based on `GH-04-four-agent-demo`.

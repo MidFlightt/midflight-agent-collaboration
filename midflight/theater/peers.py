@@ -31,6 +31,10 @@ TASKS = PROMPTS
 
 
 class PeerTheater(InteractiveTheater):
+    names = NAMES
+    prompts = TASKS
+    starter = staticmethod(write_starter)
+
     mcp_module = "midflight.theater.peer_mcp"
     submit_initial_prompt = False
 
@@ -50,13 +54,14 @@ class PeerTheater(InteractiveTheater):
                 self.theater.project,
                 "equal-peer-capabilities",
                 puts=[
-                    store.get_participant(n).model_copy(update={"role": Role.LEAD}) for n in NAMES
+                    store.get_participant(n).model_copy(update={"role": Role.LEAD})
+                    for n in self.names
                 ],
             )
         )
         self.coordination = PeerCoordination(self.theater.server.services, self.theater.project)
-        for name, brief in TASKS.items():
-            write_starter(self.theater.root / name, name)
+        for name, brief in self.prompts.items():
+            self.starter(self.theater.root / name, name)
             (self.theater.root / name / "TASK.md").write_text(brief + "\n")
             (self.theater.root / name / "AGENTS.md").write_text(agent_instructions(name))
             folder = self.theater.root / name
@@ -77,19 +82,19 @@ class PeerTheater(InteractiveTheater):
             )
 
     def initial_prompt(self, name, default):
-        return TASKS[name]
+        return self.prompts[name]
 
     def plan_tools(self, name):
         return ["read_shared_plan", "publish_shared_plan"]
 
     def launch(self):
         super().launch()
-        self.tmux("select-pane", "-t", self.panes["pricing"], "-T", "Pricing")
+        self.tmux("select-pane", "-t", self.panes[self.names[0]], "-T", self.names[0].title())
         self.prepare_prompts()
 
     def prepare_prompts(self):
         """Wait for each CLI composer, then fill its draft without pressing Enter."""
-        pending = set(NAMES)
+        pending = set(self.names)
         deadline = time.monotonic() + 45
         while pending and time.monotonic() < deadline and not self.stop_event.is_set():
             for name in tuple(pending):
@@ -155,7 +160,7 @@ class PeerTheater(InteractiveTheater):
             "direction": self.direction,
             "session": self.session,
             "checks": {
-                "four_claims": {c.task_id for c in claims} == set(NAMES),
+                "four_claims": {c.task_id for c in claims} == set(self.names),
                 "all_claims_approved": len(claims) >= 4
                 and all(c.state.value == "approved" for c in claims),
                 "sessions_alive": bool(agents) and all(a["alive"] for a in agents.values()),
@@ -177,7 +182,7 @@ class Update(BaseModel):
 
 
 def peer_app(live):
-    app = terminal_app(live, factory=PeerTheater, allow_staged_reset=True)
+    app = terminal_app(live, factory=type(live), allow_staged_reset=True)
 
     @app.get("/graph")
     def graph_page():
@@ -240,6 +245,10 @@ def peer_app(live):
     @app.get("/")
     def index():
         html = Path(__file__).with_name("terminal.html").read_text()
+        html = html.replace(
+            "['pricing','checkout','reporting','notifications']",
+            json.dumps(list(app.state.live.names)),
+        )
         html = html.replace("Pricing / Lead", "any agent").replace(" / Lead", "")
         html = html.replace("Test results</a>", "Coordination</a>")
         html = html.replace(
@@ -256,6 +265,7 @@ def main():
     parser.add_argument("--port", type=int, default=8907)
     parser.add_argument("--api-port", type=int, default=8908)
     parser.add_argument("--db-port", type=int, default=6379)
+    parser.add_argument("--scenario", choices=["shop", "delivery"], default="shop")
     parser.add_argument("--paused", action="store_true", help="Start with an empty graph")
     args = parser.parse_args()
     for port in (args.port, args.api_port):
@@ -264,7 +274,12 @@ def main():
             listener.bind(("127.0.0.1", port))
     os.umask(0o077)
     root = Path.home() / ".local/share/midflight-demo" / ("peers-" + uuid.uuid4().hex[:10])
-    live = PeerTheater(root, args.db_port, args.api_port, args.port)
+    scenario = PeerTheater
+    if args.scenario == "delivery":
+        from midflight.theater.delivery_fixture import DeliveryTheater
+
+        scenario = DeliveryTheater
+    live = scenario(root, args.db_port, args.api_port, args.port)
     if not args.paused:
         live.launch()
     uvicorn.run(peer_app(live), host="127.0.0.1", port=args.port, access_log=False)

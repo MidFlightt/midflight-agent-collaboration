@@ -37,6 +37,7 @@ from midflight.theater.scenario import NAMES, subscription_direction
 
 
 class InteractiveTheater:
+    names = NAMES
     submit_initial_prompt = True
 
     mcp_module = "midflight.theater.agent_mcp"
@@ -57,14 +58,15 @@ class InteractiveTheater:
         self.theater = Theater(
             root, db_port, api_port, plan_draft=self.initial_plan(), reviewer=self.reviewer()
         )
+        self.names = self.theater.names
         self.session = "midflight-" + uuid.uuid4().hex[:8]
         self.key = secrets.token_urlsafe(24)
         self.panes = {}
         self.changed = False
         self.controller_port = controller_port
         self.direction = None
-        self.cues = dict.fromkeys(NAMES, "unchanged")
-        self.check_ins = dict.fromkeys(NAMES, 0)
+        self.cues = dict.fromkeys(self.names, "unchanged")
+        self.check_ins = dict.fromkeys(self.names, 0)
         self.events = []
         self.guard = threading.RLock()
         self.stop_event = threading.Event()
@@ -73,8 +75,10 @@ class InteractiveTheater:
         self.checkpoint_counts = {}
         self.version = 1
         store = self.theater.server.services.store
-        pricing = store.get_participant("pricing").model_copy(update={"role": Role.LEAD})
-        project = store.get_project(self.theater.project).model_copy(update={"lead_id": "pricing"})
+        pricing = store.get_participant(self.names[0]).model_copy(update={"role": Role.LEAD})
+        project = store.get_project(self.theater.project).model_copy(
+            update={"lead_id": self.names[0]}
+        )
         store.commit(Commit(self.theater.project, "demo-pricing-lead", puts=[pricing, project]))
         specifications = {
             "pricing": 'price() -> dict, initially {"total_cents": 1200}. '
@@ -84,6 +88,8 @@ class InteractiveTheater:
             "notifications": 'notify(email: str) -> str. Return exactly "Subscribed: " + email.',
         }
         for name, spec in specifications.items():
+            if name not in self.names:
+                continue
             (self.theater.root / name / "TASK.md").write_text(
                 f"You own {name}. Implement {name}.py. {spec}\n"
                 "Obtain shared contracts only through MidFlight. Use only this workspace.\n"
@@ -98,7 +104,7 @@ class InteractiveTheater:
 
     def launch(self):
         theater = self.theater
-        for i, name in enumerate(NAMES):
+        for i, name in enumerate(self.names):
             config = (
                 "mcp_servers.theater_midflight={command="
                 + json.dumps(sys.executable)
@@ -229,10 +235,14 @@ class InteractiveTheater:
             self.panes[name] = pane
             self.tmux("select-pane", "-t", pane, "-T", name.title())
             self.tmux("select-layout", "-t", self.session, "tiled")
-        self.tmux("swap-pane", "-s", self.panes["checkout"], "-t", self.panes["notifications"])
-        self.tmux("select-pane", "-t", self.panes["pricing"])
+        self.tmux("swap-pane", "-s", self.panes[self.names[1]], "-t", self.panes[self.names[3]])
+        self.tmux("select-pane", "-t", self.panes[self.names[0]])
         self.tmux(
-            "select-pane", "-t", self.panes["pricing"], "-T", "PRICING / LEAD — type direction here"
+            "select-pane",
+            "-t",
+            self.panes[self.names[0]],
+            "-T",
+            "PRICING / LEAD — type direction here",
         )
         self.poller = threading.Thread(target=self._checkpoints, daemon=True)
         self.poller.start()
@@ -294,7 +304,7 @@ class InteractiveTheater:
             out.write(json.dumps(event) + "\n")
 
     def observed(self, name):
-        if name not in NAMES:
+        if name not in self.names:
             raise HTTPException(403, "Not a demo task")
         with self.guard:
             self.check_ins[name] += 1
