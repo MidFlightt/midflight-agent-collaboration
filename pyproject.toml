@@ -16,6 +16,9 @@ dependencies = [
 
 [project.optional-dependencies]
 falkordb = ["falkordb==1.8.0", "redis==8.1.0"]
+demo = [
+    "websockets>=15,<17",
+]
 
 [project.scripts]
 midflight-server = "midflight.main:run"
