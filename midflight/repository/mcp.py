@@ -77,10 +77,11 @@ def build_repository_server(api, role):
 
 def run(repo: Path, identity: str):
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    from midflight.repository.cli import local_url
+    from midflight.repository.cli import load_config, local_url
+    from midflight.repository.cli import member as identity_config
 
-    config = json.loads((repo / ".midflight/private.json").read_text())
-    member = config["identities"][identity]
+    config = load_config(repo)
+    member = identity_config(config, identity)
     os.chdir(repo)
     api = MidflightApi.connect(local_url(config["url"]), member["token"], config["project_id"])
     try:
