@@ -116,6 +116,107 @@ pending; it is never approved by accident (INV-03).
 - **Check-in replies don't grow with the team.** About 800 to 900 characters at 2 and at 64
   agents, because an agent is only told about its own task's neighbours.
 
+## After the fixes
+
+Run on October 17, 2026 on four commits: \`main\` and each of the three fix branches
+stacked on it (\`scale-1-reuse-findings\`, \`scale-2-requeue-reviews\`,
+\`scale-3-serialize-inline-reviews\`), with the same benchmark (d6996aa, which gives the
+concurrent setup its own lock-free runner and adds a sixth setup: concurrent reviews with a
+slow reviewer). Medians of 3 runs. Raw numbers: [\`scale-fixes.json\`](scale-fixes.json).
+Each column includes the fixes to its left. Planted drift is not shown: every review that
+finished stopped it, with 0 false alarms in every run on every commit.
+
+#### memory, reviews inline (local server)
+
+| Agents | main | + reuse the answer | + backoff and requeue | + one at a time |
+| --- | --- | --- | --- | --- |
+| 2 | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up |
+| 4 | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up |
+| 8 | 7 approved, 0 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up |
+| 16 | 14 approved, 0 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up |
+| 32 | 28 approved, 0 gave up | 28 approved, 0 gave up | 28 approved, 0 gave up | 28 approved, 0 gave up |
+| 64 | 56 approved, 0 gave up | 56 approved, 0 gave up | 56 approved, 0 gave up | 56 approved, 0 gave up |
+
+#### memory, reviews inline, 0.5s reviewer, claims over 5.0s
+
+| Agents | main | + reuse the answer | + backoff and requeue | + one at a time |
+| --- | --- | --- | --- | --- |
+| 2 | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up |
+| 4 | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up |
+| 8 | 5 approved, 2 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up |
+| 16 | 4 approved, 10 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up |
+| 32 | 3 approved, 25 gave up | 26 approved, 2 gave up | 28 approved, 0 gave up | 28 approved, 0 gave up |
+
+#### FalkorDB, one worker (Graph Hacks server)
+
+| Agents | main | + reuse the answer | + backoff and requeue | + one at a time |
+| --- | --- | --- | --- | --- |
+| 2 | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up |
+| 4 | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up |
+| 8 | 7 approved, 0 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up |
+| 16 | 14 approved, 0 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up |
+| 32 | 28 approved, 0 gave up | 28 approved, 0 gave up | 28 approved, 0 gave up | 28 approved, 0 gave up |
+| 64 | 56 approved, 0 gave up | 56 approved, 0 gave up | 56 approved, 0 gave up | 56 approved, 0 gave up |
+
+#### FalkorDB, concurrent reviews (like many Lambda workers)
+
+| Agents | main | + reuse the answer | + backoff and requeue | + one at a time |
+| --- | --- | --- | --- | --- |
+| 2 | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up |
+| 4 | 2 approved, 1 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up |
+| 8 | 3 approved, 5 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up |
+| 16 | 2 approved, 13 gave up | 8 approved, 6 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up |
+| 32 | 1 approved, 29 gave up | 9 approved, 20 gave up | 28 approved, 0 gave up | 28 approved, 0 gave up |
+| 64 | 2 approved, 60 gave up | 9 approved, 50 gave up | 55 approved, 1 gave up | 54 approved, 2 gave up |
+
+#### FalkorDB, one worker, 0.5s reviewer, claims over 5.0s
+
+| Agents | main | + reuse the answer | + backoff and requeue | + one at a time |
+| --- | --- | --- | --- | --- |
+| 2 | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up |
+| 4 | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up |
+| 8 | 7 approved, 0 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up |
+| 16 | 12 approved, 2 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up |
+| 32 | 26 approved, 2 gave up | 28 approved, 0 gave up | 28 approved, 0 gave up | 28 approved, 0 gave up |
+
+#### FalkorDB, concurrent reviews, 0.5s reviewer, claims over 5.0s
+
+| Agents | main | + reuse the answer | + backoff and requeue | + one at a time |
+| --- | --- | --- | --- | --- |
+| 2 | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up | 1 approved, 0 gave up |
+| 4 | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up | 3 approved, 0 gave up |
+| 8 | 4 approved, 3 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up | 7 approved, 0 gave up |
+| 16 | 4 approved, 10 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up | 14 approved, 0 gave up |
+| 32 | 3 approved, 25 gave up | 20 approved, 8 gave up | 28 approved, 0 gave up | 28 approved, 0 gave up |
+
+### Model calls and waiting, local server, 0.5 s reviewer, claims over 5 s
+
+The third fix doesn't change what gets approved in this benchmark; the second already
+gets every review through. What it changes is how often the reviewer is asked and how
+long a claim waits. Medians of 3 runs, counted with [`scale_calls.py`](scale_calls.py):
+
+| Agents | Reviewer calls, + backoff and requeue | Reviewer calls, + one at a time | Wait per claim (median), + backoff and requeue | + one at a time |
+| --- | --- | --- | --- | --- |
+| 8 | 10 | 11 | 0.5 s | 2.4 s |
+| 16 | 55 | 21 | 1.6 s | 5.4 s |
+| 32 | 130 | 36 | 2.2 s | 10.0 s |
+
+With reviews side by side, each one is overtaken by claims joining the set it compares
+against, so its input changes and the model is asked again: 130 calls for 28 reviews at 32
+agents. One at a time, each review is asked about once, at the price of claims queueing
+behind each other. On a real model that is a cost-against-latency choice.
+
+### What changed
+
+- **Reusing the reviewer's answer** fixed every setup where the reviewer is slow and only
+  one thing reviews at a time: on the Graph Hacks worker nothing gave up at any size. It
+  also cut the local server's give-ups at 32 agents from 25 to 2.
+- **Backoff and requeue** fixed reviews running side by side: at 32 agents 28 approved and
+  0 gave up, against 1 approved and 29 gave up on \`main\`. At 64 agents with instant
+  reviews, 1 or 2 of 64 still gave up; that setup has no worker to requeue them.
+- **One at a time** made the local server ask the reviewer 3.6 times less at 32 agents,
+  and made each claim wait about 4 times longer.
+
 ## Limits of this benchmark
 
 - It runs on one machine with threads, not separate processes or the AWS deployment.
@@ -127,12 +228,8 @@ pending; it is never approved by accident (INV-03).
 - The plan shape (chains of four) keeps each task's neighbourhood small. A plan where one
   contract has many consumers would give larger check-ins and wider plan changes.
 
-## Possible fixes, not made here
+## The fixes
 
-These change behaviour in `midflight/services/claims.py`, so they are for the services'
-owner to decide:
-
-- Requeue a review that keeps losing the race instead of failing it, with a short random
-  backoff between runs.
-- Only restart a review when something it read changed (the plan, or a claim it was
-  compared with), not on any change in the project.
+Made in three stacked branches, measured above: D35 (reuse the reviewer's answer when its
+input is unchanged), D36 (random backoff between reruns, requeue on the worker), and D37
+(inline jobs one at a time per project).
