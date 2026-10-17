@@ -5,7 +5,7 @@
 Keeps a team's coding agents aligned with the plan, and with each other, while they work.
 
 Agentic AI Hackathon project by **Team Yoga**: Somesh Agrawal (lead), Frederik
-Jønsson, and Mithilesh Kowshik.
+Jønsson, Mithilesh Kowshik, and Sasha Skinderev.
 
 > **New here?** Read the [code guide](docs/code-guide.md) to see how the code fits
 > together. Coding agents start with [AGENTS.md](AGENTS.md).
