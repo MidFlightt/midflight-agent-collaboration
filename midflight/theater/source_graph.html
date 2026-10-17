@@ -1,0 +1,150 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MidFlight · source activity</title>
+<style>
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#090f14;color:#f0eee7;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace}#canvas{position:absolute;inset:0}header{position:fixed;z-index:2;top:20px;left:24px;right:24px;display:flex;align-items:center;gap:20px;pointer-events:none}header b{font-weight:500;letter-spacing:.03em}nav{margin-left:auto;display:flex;gap:14px;align-items:center;pointer-events:auto}button,a{font:inherit;border:0;background:transparent;color:#9fabb7;padding:3px 0;text-decoration:none;cursor:pointer}button:hover,a:hover{color:#80cadf}button:disabled{opacity:.4;cursor:wait}#empty{position:absolute;top:45%;width:100%;text-align:center;pointer-events:none;color:#9fabb7}#empty p{font-size:12px;margin-top:8px}footer{position:fixed;bottom:20px;left:24px;right:24px;display:flex;justify-content:space-between;gap:20px;color:#9fabb7;font-size:11px;pointer-events:none}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:#80cadf}.context{background:#9fabb7}.approved{background:#a6d3ad}.directive{background:#f3b183}#detail{position:fixed;right:24px;bottom:55px;width:min(340px,calc(100vw - 48px));max-height:50vh;overflow:auto;background:#121922f5;padding:18px;border:1px solid #263541;box-shadow:0 5px 25px #00000008}#detail h2{font-size:12px;font-weight:500;margin:0 0 10px}#detail pre{font:11px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#9fabb7}#close{float:right}#status{position:fixed;top:48px;left:24px;font-size:10px;color:#718290;pointer-events:none}@media(max-width:620px){header{top:12px;left:16px;right:16px;gap:10px}nav{gap:10px}footer{left:16px;right:16px;bottom:12px}#source{display:none}#status{left:16px;top:38px}#fit{display:none}}
+</style>
+<div id="canvas" aria-label="Live agent dependency graph"></div>
+<header><b>midflight / source activity</b><nav><button id="fit">Fit</button><button id="full">Fullscreen</button><a id="coding" href="http://127.0.0.1:8907/" target="_blank">Coding windows ↗</a></nav></header>
+<div id="status" role="status">Connecting…</div><div id="empty">Waiting for workspace activity.<p>Files appear when they exist on disk.</p></div>
+<footer><span><i class="dot"></i>agents &nbsp; <i class="dot context"></i>files on disk &nbsp; <i class="dot approved"></i>acknowledged &nbsp; <i class="dot directive"></i>changes</span><span id="source">dashed links: claimed contracts</span></footer>
+<div id="file-event" style="position:fixed;bottom:55px;left:24px;color:#80cadf;font-size:11px;pointer-events:none"></div><aside id="detail" hidden><button id="close" aria-label="Close details">×</button><h2 id="detail-title"></h2><pre id="detail-body"></pre></aside>
+<script src="/vendor/force-graph.min.js"></script><script>
+const $=id=>document.getElementById(id);
+let key='',project='',busy=false,polling=false,signature='',selected=null,hovered=null,lastEvent=0,eventsReady=false,eventTimer;
+const nodes=new Map(),links=new Map(),lanes=new Map(),rowSlots=new Map();
+const color=n=>n.kind==='file'?'#9fabb7':n.change==='pending'?'#f3b183':n.change==='acknowledged'?'#a6d3ad':n.kind==='agent'?'#80cadf':'#9fabb7';
+// Radius grows slowly and is capped, so busy agents remain distinct without dominating.
+const radius=n=>n.kind==='file'?7:32+Math.min(14,3*Math.sqrt(n.context_count||0));
+function inspect(item){selected=item;$('detail').hidden=!item;if(!item)return;$('detail-title').textContent=item.label||item.kind;
+if(item.kind==='agent'){
+ $('detail-body').textContent='CLAIMS\n'+(item.claims.map(c=>`${c.label} · ${c.state} · plan ${c.plan_version}`).join('\n')||'No claim yet')+'\n\nDECLARED FILES\n'+(item.files.join('\n')||'None yet')+'\n\nCHANGES\n'+(item.updates.map(d=>`${d.state}: ${d.requested_adjustment}`).join('\n')||'No current directive');return;
+}
+const copy={};for(const [k,v] of Object.entries(item))if(!['x','y','vx','vy','fx','fy','index','born','__indexColor','__controlPoints','label_lines'].includes(k))copy[k]=(k==='source'||k==='target')&&typeof v==='object'?v.id:v;$('detail-body').textContent=JSON.stringify(copy,null,2)}
+const graph=new ForceGraph($('canvas'))
+ .width(innerWidth).height(innerHeight).backgroundColor('#090f14')
+ .nodeId('id').nodeVal(n=>Math.pow(radius(n)/4,2)).nodeColor(color)
+ .nodeLabel(()=>null).linkLabel(()=>null).linkColor(l=>l.change==='pending'?'#f3b183':l.change==='acknowledged'?'#a6d3ad':'#607380')
+ .linkWidth(1.4).linkCanvasObjectMode(()=> 'replace').linkCanvasObject((link,ctx,scale)=>{
+   ctx.strokeStyle=link.change==='pending'?'#f3b183':link.change==='acknowledged'?'#a6d3ad':'#607380';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=1.4/scale;
+   ctx.setLineDash(link.kind==='dependency'?[5/scale,5/scale]:[]);
+   const g=linkPath(link,ctx);if(!g)return;ctx.stroke();ctx.setLineDash([]);
+   if(link.kind==='workspace')return;
+   const t=.72,u=1-t,x=u*u*g.x1+2*u*t*g.cx+t*t*g.x2,y=u*u*g.y1+2*u*t*g.cy+t*t*g.y2;
+   const dx=2*u*(g.cx-g.x1)+2*t*(g.x2-g.cx),dy=2*u*(g.cy-g.y1)+2*t*(g.y2-g.cy),len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,size=6/scale;
+   ctx.beginPath();ctx.moveTo(x+ux*size,y+uy*size);ctx.lineTo(x-ux*size-uy*size*.55,y-uy*size+ux*size*.55);ctx.lineTo(x-ux*size+uy*size*.55,y-uy*size-ux*size*.55);ctx.closePath();ctx.fill();
+   const lx=(g.x1+2*g.cx+g.x2)/4,ly=(g.y1+2*g.cy+g.y2)/4-16/scale;
+   ctx.font=`${11/scale}px ui-monospace,Menlo,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.strokeStyle='#090f14';ctx.fillStyle='#b6c6d1';ctx.lineWidth=5/scale;
+   link.label_lines.forEach((text,i)=>{const y=ly+(i-.5)*15/scale;ctx.strokeText(text,lx,y);ctx.fillText(text,lx,y)});
+ }).linkPointerAreaPaint((link,color,ctx,scale)=>{ctx.strokeStyle=color;ctx.lineWidth=10/scale;if(linkPath(link,ctx))ctx.stroke()})
+ .minZoom(.2).maxZoom(6).enableNodeDrag(false).cooldownTicks(0)
+ .autoPauseRedraw(false).nodeCanvasObjectMode(()=> 'after').nodeCanvasObject((n,ctx,scale)=>{
+   const r=radius(n),age=Date.now()-n.born;
+   if(age<1400){ctx.beginPath();ctx.arc(n.x,n.y,r+age/120,0,2*Math.PI);ctx.strokeStyle=color(n);ctx.globalAlpha=.35*(1-age/1400);ctx.lineWidth=1/scale;ctx.stroke();ctx.globalAlpha=1}
+   if(n.kind==='agent'){
+     ctx.beginPath();ctx.arc(n.x,n.y,r+4/scale,0,2*Math.PI);ctx.strokeStyle='#80cadf55';ctx.lineWidth=1/scale;ctx.stroke();
+     ctx.font=`${8/scale}px ui-monospace,Menlo,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#090f14';ctx.fillText('AGENT',n.x,n.y);
+   }
+   const size=(n.kind==='agent'?14:11)/scale;ctx.font=`${n.kind==='agent'?'600 ':''}${size}px system-ui`;ctx.textAlign='center';ctx.textBaseline='bottom';
+   ctx.lineWidth=3/scale;ctx.strokeStyle='#090f14';ctx.strokeText(n.label,n.x,n.y-r-3/scale);ctx.fillStyle='#f0eee7';ctx.fillText(n.label,n.x,n.y-r-3/scale);
+ })
+ .onNodeClick(inspect).onLinkClick(inspect).onBackgroundClick(()=>inspect(null))
+ .onNodeHover(n=>{hovered=n;document.body.style.cursor=n?'pointer':'default'});
+// Render fixed coordinates: no spring solver, reheat, or automatic repositioning.
+for(const force of ['charge','link','center'])graph.d3Force(force,null);
+function linkPath(link,ctx){
+ const a=link.source,b=link.target;if(typeof a!=='object'||typeof b!=='object')return null;
+ ctx.beginPath();
+ if(link.kind==='workspace'){
+   const spine=a.x-55;ctx.moveTo(a.x-radius(a)*.6,a.y+radius(a)*.8);ctx.lineTo(spine,a.y+80);ctx.lineTo(spine,b.y);ctx.lineTo(b.x-radius(b),b.y);return {};
+ }
+ const g={x1:a.x,y1:a.y-radius(a)-5,x2:b.x,y2:b.y-radius(b)-5,cx:(a.x+b.x)/2,cy:Math.min(a.y,b.y)-150-Math.abs(a.x-b.x)*.35};
+ ctx.moveTo(g.x1,g.y1);ctx.quadraticCurveTo(g.cx,g.cy,g.x2,g.y2);return g;
+}
+function slot(group,id){if(!rowSlots.has(group))rowSlots.set(group,new Map());const map=rowSlots.get(group);if(!map.has(id))map.set(id,map.size);return map.get(id)}
+function simplify(data){
+ const claims=new Map(data.nodes.filter(n=>n.kind==='claim').map(n=>[n.id,n]));
+ const owners=new Map(data.edges.filter(e=>e.kind==='claims').map(e=>[e.target,e.source]));
+ const agents=new Map(data.nodes.filter(n=>n.kind==='agent').map(n=>[n.id,{...n,claims:[],files:[],updates:[],context_count:0}]));
+ for(const [id,claim] of claims){const agent=agents.get(owners.get(id));if(!agent)continue;agent.claims.push(claim);agent.files.push(...data.edges.filter(e=>e.source===id&&e.kind==='declares').map(e=>data.nodes.find(n=>n.id===e.target)?.label).filter(Boolean))}
+ for(const directive of data.nodes.filter(n=>n.kind==='directive'&&n.plan_version===data.plan_version&&n.state!=='superseded')){
+   const target=data.edges.find(e=>e.source===directive.id&&e.kind==='notifies')?.target;
+   const agent=agents.get(target);if(!agent)continue;agent.updates.push(directive);
+ }
+ for(const agent of agents.values()){
+   agent.files=[...new Set(agent.files)];
+   agent.change=agent.updates.some(d=>['queued','delivered','rejected','needs_clarification'].includes(d.state))?'pending':agent.updates.length&&agent.updates.every(d=>d.state==='acknowledged')?'acknowledged':null;
+   agent.context_count=agent.files.length;
+ }
+ const declarations=data.edges.filter(e=>['provides','consumes'].includes(e.kind));
+ const providers=declarations.filter(e=>e.kind==='provides'),consumers=declarations.filter(e=>e.kind==='consumes');
+ const edges=new Map();
+ for(const consumer of consumers)for(const provider of providers){
+   if(provider.target!==consumer.target)continue;
+   const source=owners.get(provider.source),target=owners.get(consumer.source);
+   if(source===target||!agents.has(source)||!agents.has(target))continue;
+   const id=source+'|depends|'+target;
+   if(!edges.has(id))edges.set(id,{id,source,target,kind:'dependency',label:'Declared contract',label_lines:[],dependencies:[]});
+   edges.get(id).dependencies.push({contract_id:provider.target.replace(/^interface:/,''),provider_claim:provider.source,consumer_claim:consumer.source,provided_fields:provider.fields,consumed_fields:consumer.fields});
+ }
+ for(const edge of edges.values()){
+   const states=[agents.get(edge.source).change,agents.get(edge.target).change];
+   edge.change=states.includes('pending')?'pending':states.includes('acknowledged')?'acknowledged':null;
+   edge.label_lines=[...new Set(edge.dependencies.flatMap(d=>Object.keys(d.consumed_fields).map(field=>d.contract_id+'.'+field)))].slice(0,2);edge.label=edge.label_lines.join(', ');
+ }
+ for(const agent of agents.values()){
+   agent.interfaces=declarations.filter(e=>owners.get(e.source)===agent.id).map(e=>({contract_id:e.target.replace(/^interface:/,''),role:e.kind,fields:e.fields,claim_id:e.source}));
+   agent.context_count=agent.files.length+new Set(agent.interfaces.map(i=>i.contract_id)).size;
+ }
+ const files=(data.workspace_files||[]).filter(f=>agents.has(f.agent_id));
+ for(const agent of agents.values())agent.context_count=files.filter(f=>f.agent_id===agent.id).length;
+ for(const file of files)edges.set('workspace:'+file.id,{id:'workspace:'+file.id,source:file.agent_id,target:file.id,kind:'workspace'});
+ return {...data,nodes:[...agents.values(),...files],edges:[...edges.values()]};
+}
+
+function hierarchy(data){
+ for(const n of data.nodes.filter(n=>n.kind==='agent')){
+   if(!lanes.has(n.id))lanes.set(n.id,lanes.size);
+   const i=lanes.get(n.id),p={x:(i%4)*300-450,y:Math.floor(i/4)*700-220};
+   Object.assign(nodes.get(n.id),p,{fx:p.x,fy:p.y,vx:0,vy:0});
+ }
+ for(const n of data.nodes.filter(n=>n.kind==='file')){
+   const owner=nodes.get(n.agent_id);if(!owner)continue;
+   const i=slot('disk:'+n.agent_id,n.id),p={x:owner.x+20,y:owner.y+150+i*75};
+   Object.assign(nodes.get(n.id),p,{fx:p.x,fy:p.y,vx:0,vy:0});
+ }
+}
+function fit(){
+ const all=[...nodes.values()];
+ const left=Math.min(-520,...all.map(n=>n.x-80)),right=Math.max(520,...all.map(n=>n.x+80));
+ const top=Math.min(-500,...all.map(n=>n.y-80)),bottom=Math.max(260,...all.map(n=>n.y+80));
+ graph.centerAt((left+right)/2,(top+bottom)/2,0);
+ graph.zoom(Math.min((innerWidth-70)/(right-left),(innerHeight-160)/(bottom-top)),0);
+}
+fit();
+async function connection(){const r=await fetch('/connection');if(!r.ok)throw Error('Connection unavailable');key=(await r.json()).key}
+async function post(url){const r=await fetch(url,{method:'POST',headers:{'x-demo-key':key}});if(!r.ok)throw Error('Request failed ('+r.status+')');return r.json()}
+function draw(raw){
+ const data=simplify(raw);
+ if(project!==data.project){eventsReady=false;lastEvent=0;project=data.project;nodes.clear();links.clear();lanes.clear();rowSlots.clear();signature='';inspect(null);graph.graphData({nodes:[],links:[]});fit()}
+ const ids=new Set(data.nodes.map(n=>n.id)),edgeIds=new Set(data.edges.map(l=>l.id));
+ for(const id of nodes.keys())if(!ids.has(id))nodes.delete(id);
+ for(const id of links.keys())if(!edgeIds.has(id))links.delete(id);
+ for(const n of data.nodes){const existing=nodes.get(n.id);if(existing)Object.assign(existing,n);else{
+   nodes.set(n.id,{...n,born:n.kind==='file'?0:Date.now()});
+ }}
+ for(const l of data.edges){const existing=links.get(l.id);if(existing){const {source,target,...details}=l;Object.assign(existing,details)}else links.set(l.id,{...l})}
+ const next=JSON.stringify([data.nodes.map(n=>n.id).sort(),data.edges.map(l=>l.id).sort()]);
+ if(next!==signature){signature=next;hierarchy(data);graph.graphData({nodes:[...nodes.values()],links:[...links.values()]})}
+ if(selected){const updated=nodes.get(selected.id)||links.get(selected.id);inspect(updated||null)}
+ $('empty').hidden=data.nodes.length>0;$('status').textContent=`${data.nodes.filter(n=>n.kind==='agent').length} agents · ${data.nodes.filter(n=>n.kind==='file').length} files on disk`;$('source').title=data.source+' · '+data.project;$('coding').href=data.coding_url+'/';
+ const incoming=(data.file_events||[]).filter(e=>e.id>lastEvent);
+ if(eventsReady&&incoming.length){const e=incoming.at(-1);$('file-event').textContent=`${e.agent}/${e.path} · ${e.type}`;clearTimeout(eventTimer);eventTimer=setTimeout(()=>$('file-event').textContent='',4500);
+   for(const e of incoming){const node=nodes.get(`disk:${e.agent}:${e.path}`);if(node)node.born=Date.now()}}
+ if(incoming.length)lastEvent=incoming.at(-1).id;eventsReady=true;
+ if(data.observer_errors?.length)$('status').textContent+=' · observation incomplete';
+}
+async function refresh(){if(busy||polling)return;polling=true;try{if(!key)await connection();const r=await fetch('/graph-state',{headers:{'x-demo-key':key}});if(r.status===403){await connection();return}if(!r.ok)throw Error('Graph unavailable');draw(await r.json())}catch(e){$('status').textContent='Waiting for live service…'}finally{polling=false}}
+$('fit').onclick=fit;$('close').onclick=()=>inspect(null);
+$('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
+addEventListener('resize',()=>{graph.width(innerWidth).height(innerHeight);fit()});
+refresh();setInterval(refresh,1000);
+</script></html>

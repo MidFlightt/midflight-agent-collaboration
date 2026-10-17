@@ -137,3 +137,42 @@ returns it to an empty, paused state. The original demo on port 8907 is independ
 
 The discarded card monitor at `/vendor/project.html` redirects to the node-based
 `/graph` view. It is not embedded into any coding window.
+
+## Source activity observer
+
+The earlier agent-only graph is a semantic projection of claims. Its readable edge
+sentences were viewer-authored descriptions, not source-code facts. It does not
+observe file writes. For an actual filesystem view attached to the same coding run:
+
+```sh
+python -m midflight.theater.source_view --upstream http://127.0.0.1:8907 --port 8927
+```
+
+Open http://127.0.0.1:8927/ alongside the coding view at http://127.0.0.1:8907/.
+The observer proxies read-only coordination snapshots and locates that project's
+local run directory from its saved report. It follows upstream Reset to the new
+run automatically; it exposes no reset, plan-publishing or agent-start endpoints.
+Existing sessions and prompts are unchanged.
+
+- Large circles are actual connected agent identities from FalkorDB coordination data.
+- Small file nodes come from eligible files found in each agent workspace, with solid
+  ownership connections. A filename in a claim alone cannot create a file node.
+- Dashed arrows represent matching provided/consumed contracts from claims. Labels
+  use exact contract/field identifiers, such as `price.total_cents`. They are not an
+  import graph or independently verified dependencies extracted from the source code.
+- File metadata includes SHA-256, size and mtime. One-second snapshots detect newly
+  observed files, content changes and removals. Existing files establish the baseline;
+  attaching the viewer does not replay them as newly created. Toasts and short rings
+  mark later observed changes. The view cannot attribute a write to a particular
+  process: a file is associated with the workspace containing it, not proven authorship.
+- A new workspace also establishes a baseline before generating change notifications.
+  Read failures retain prior observations as unavailable rather than inventing deletions.
+- Scanning excludes the seeded TASK.md, hidden paths, symlinks, dependency/build/cache
+  folders, and unsupported extensions. Limits are 300 eligible files per workspace
+  and 2 MB per hashed file; incomplete observation is surfaced in the status line.
+- File events are an in-memory, bounded observer log, not a durable audit trail.
+  Changes entirely between polls can be missed; renames look like removal/addition.
+
+This filesystem observer is new local demo tooling. Production MidFlight currently
+coordinates declared scope and contracts; these observations are not automatically
+stored in FalkorDB, nor do they establish a deployed code-indexing feature.
