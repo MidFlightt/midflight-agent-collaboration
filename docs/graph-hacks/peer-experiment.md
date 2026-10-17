@@ -118,3 +118,25 @@ small capped increase for the number of distinct files/interfaces their claims
 declare. Claims, interfaces, files and directives appear only in inspection details. Size does not indicate
 code correctness or agent performance. Agent rings, bold labels and an AGENT mark
 keep them recognizable even when an agent has no declarations yet.
+
+## Separate project monitor prototype
+
+Open http://127.0.0.1:8907/vendor/project.html alongside the running demo. This is
+an independent, read-only view; it does not replace a terminal, initialize agents,
+reset runs, publish directions, or change the demo's workflow.
+
+Each agent card shows claim status, the branch declared in its latest claim, and
+up to three declared files (select the card for scope details). These are coordination
+declarations, not a Git branch inspection, observed file edits, or verified test results.
+Matching provided/consumed contracts establish the arrows between cards.
+
+The view polls the current run every 1.8 seconds. After its initial snapshot, new
+claims/revisions, verdict changes, file declarations, plan versions and directive
+states produce brief notifications and a local activity list. New coordination
+activity briefly animates dependency lines. No initial snapshot is replayed as new
+activity. This list is limited to the latest 25 events observed by this browser page;
+it is not a durable audit log. Existing project changes remain controlled through
+the coding sessions. No branch nodes or extra diagram categories are introduced.
+
+This prototype lives with locally served browser assets so it can run against the
+current service without restarting existing agent sessions.

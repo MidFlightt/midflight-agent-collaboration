@@ -11,3 +11,8 @@ contents to a third-party website.
 (https://github.com/vasturiano/force-graph). Its MIT license is saved as
 `force-graph-LICENSE`. This bundles the force simulation and canvas renderer;
 no external CDN or visualization server is used at runtime.
+
+## Project monitor prototype
+
+`project.html` is first-party MidFlight UI code, served here as a standalone,
+read-only prototype alongside the existing demo. It is not a third-party package.
