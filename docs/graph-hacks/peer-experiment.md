@@ -181,3 +181,10 @@ For the default local setup, the demo's existing `/graph` link on port 8907 now
 opens the file observer at port 8927. The old agent-only view remains accessible
 as `http://127.0.0.1:8907/graph?legacy=1`; the isolated 8917 experiment is unchanged.
 The observer must be running for this local shortcut to work.
+
+## Manual start
+
+Startup and Reset create a fresh isolated project and four connected sessions. Each
+composer contains an editable task prompt, but no task is submitted automatically.
+Press Enter in each pane when ready, or edit the prompt first. Reset archives the
+previous run files and replaces the active graph, claims, directives and workspaces.

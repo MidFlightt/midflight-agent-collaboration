@@ -22,6 +22,7 @@ from midflight.services.plans import PlanDraft
 from midflight.theater.interactive import InteractiveTheater, terminal_app
 from midflight.theater.live_graph import snapshot
 from midflight.theater.peer_coordination import PeerCoordination
+from midflight.theater.peer_setup import agent_instructions
 from midflight.theater.scenario import NAMES
 
 TASKS = {
@@ -36,6 +37,7 @@ TASKS = {
 
 class PeerTheater(InteractiveTheater):
     mcp_module = "midflight.theater.peer_mcp"
+    submit_initial_prompt = False
 
     def __init__(self, root, db_port, api_port, controller_port=8907):
         super().__init__(root, db_port, api_port, controller_port)
@@ -53,9 +55,10 @@ class PeerTheater(InteractiveTheater):
         self.coordination = PeerCoordination(self.theater.server.services, self.theater.project)
         for name, brief in TASKS.items():
             (self.theater.root / name / "TASK.md").write_text(brief + "\n")
+            (self.theater.root / name / "AGENTS.md").write_text(agent_instructions(name))
 
     def initial_prompt(self, name, default):
-        return f"{TASKS[name]} Coordinate with the team through MidFlight."
+        return TASKS[name]
 
     def plan_tools(self, name):
         return ["read_shared_plan", "publish_shared_plan"]
@@ -63,6 +66,26 @@ class PeerTheater(InteractiveTheater):
     def launch(self):
         super().launch()
         self.tmux("select-pane", "-t", self.panes["pricing"], "-T", "Pricing")
+        self.prepare_prompts()
+
+    def prepare_prompts(self):
+        """Wait for each CLI composer, then fill its draft without pressing Enter."""
+        pending = set(NAMES)
+        deadline = time.monotonic() + 45
+        while pending and time.monotonic() < deadline and not self.stop_event.is_set():
+            for name in tuple(pending):
+                pane = self.panes[name]
+                screen = self.tmux("capture-pane", "-p", "-t", pane)
+                if "Ask Codex to do anything" not in screen:
+                    continue
+                self.tmux("send-keys", "-t", pane, "-l", self.initial_prompt(name, ""))
+                pending.remove(name)
+            if pending:
+                self.stop_event.wait(0.25)
+        if pending:
+            raise RuntimeError(
+                "Agent composers did not become ready: " + ", ".join(sorted(pending))
+            )
 
     def set_direction(self, name, direction):
         raise HTTPException(

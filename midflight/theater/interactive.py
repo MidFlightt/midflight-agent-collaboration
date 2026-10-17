@@ -37,6 +37,8 @@ from midflight.theater.scenario import NAMES, subscription_direction
 
 
 class InteractiveTheater:
+    submit_initial_prompt = True
+
     mcp_module = "midflight.theater.agent_mcp"
 
     def initial_prompt(self, name, default):
@@ -153,7 +155,8 @@ class InteractiveTheater:
                     "-c",
                     f'mcp_servers.theater_midflight.tools.{tool}.approval_mode="approve"',
                 ]
-            command.append(prompt)
+            if self.submit_initial_prompt:
+                command.append(prompt)
             launch = theater.root / (name + "-launch.json")
             launch.write_text(json.dumps(command))
             launch.chmod(0o600)

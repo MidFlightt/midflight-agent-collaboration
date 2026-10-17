@@ -92,3 +92,25 @@ def test_every_peer_has_direct_short_prompt_and_same_tools():
     assert len(prompts) == 4
     assert all("TASK.md" not in prompt and len(prompt.split()) < 25 for prompt in prompts)
     assert all(peer.plan_tools(n) == ["read_shared_plan", "publish_shared_plan"] for n in NAMES)
+
+
+def test_startup_prefills_editable_drafts_without_enter():
+    import threading
+
+    peer = PeerTheater.__new__(PeerTheater)
+    peer.stop_event = threading.Event()
+    peer.panes = {name: name for name in NAMES}
+    calls = []
+
+    def tmux(*args):
+        calls.append(args)
+        return "Ask Codex to do anything" if args[0] == "capture-pane" else ""
+
+    peer.tmux = tmux
+    peer.prepare_prompts()
+    assert not peer.submit_initial_prompt
+    sends = [call for call in calls if call[0] == "send-keys"]
+    assert len(sends) == 4
+    assert {call[-1] for call in sends} == {peer.initial_prompt(n, "") for n in NAMES}
+    assert all(call[3] == "-l" for call in sends)
+    assert not any("Enter" in call for call in calls)
