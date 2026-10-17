@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MidFlight · live graph</title>
+<style>
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#f7f7f7;color:#48454c;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace}#canvas{position:absolute;inset:0}header{position:fixed;z-index:2;top:20px;left:24px;right:24px;display:flex;align-items:center;gap:20px;pointer-events:none}header b{font-weight:500;letter-spacing:.03em}nav{margin-left:auto;display:flex;gap:14px;align-items:center;pointer-events:auto}button,a{font:inherit;border:0;background:transparent;color:#77727a;padding:3px 0;text-decoration:none;cursor:pointer}button:hover,a:hover{color:#e94319}button:disabled{opacity:.4;cursor:wait}#empty{position:absolute;top:45%;width:100%;text-align:center;pointer-events:none;color:#99949c}#empty p{font-size:12px;margin-top:8px}footer{position:fixed;bottom:20px;left:24px;right:24px;display:flex;justify-content:space-between;gap:20px;color:#99949c;font-size:11px;pointer-events:none}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:#4d4951}.context{background:#e94319}.directive{background:#9b6bb0}#detail{position:fixed;right:24px;bottom:55px;width:min(340px,calc(100vw - 48px));max-height:50vh;overflow:auto;background:#fffffff2;padding:18px;border:1px solid #e3e0e3;box-shadow:0 5px 25px #00000008}#detail h2{font-size:12px;font-weight:500;margin:0 0 10px}#detail pre{font:11px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#807986}#close{float:right}#status{position:fixed;top:48px;left:24px;font-size:10px;color:#aaa3ad;pointer-events:none}@media(max-width:620px){header{top:12px;left:16px;right:16px;gap:10px}nav{gap:10px}footer{left:16px;right:16px;bottom:12px}#source{display:none}#status{left:16px;top:38px}#fit{display:none}}
+</style>
+<div id="canvas" aria-label="Live force-directed collaboration graph"></div>
+<header><b>midflight</b><nav><button id="start">Start agents</button><button id="reset">Reset</button><button id="fit">Fit</button><button id="full">Fullscreen</button><a href="/" target="_blank">Agents ↗</a></nav></header>
+<div id="status" role="status">Connecting…</div><div id="empty">An empty workspace.<p>Start the agents to watch their connections form.</p></div>
+<footer><span><i class="dot"></i>agents &nbsp; <i class="dot context"></i>shared context &nbsp; <i class="dot directive"></i>changes</span><span id="source">live · FalkorDB</span></footer>
+<aside id="detail" hidden><button id="close" aria-label="Close details">×</button><h2 id="detail-title"></h2><pre id="detail-body"></pre></aside>
+<script src="/vendor/force-graph.min.js"></script><script>
+const $=id=>document.getElementById(id);
+let key='',project='',busy=false,polling=false,signature='',selected=null,hovered=null,fitTimer,needsFit=false;
+const nodes=new Map(),links=new Map();
+const color=n=>n.kind==='agent'?'#4d4951':n.kind==='directive'?'#9b6bb0':n.kind==='claim'?'#9d959b':'#e94319';
+const radius=n=>n.kind==='agent'?12: n.kind==='interface'?8:n.kind==='claim'?4:3.5;
+function inspect(item){selected=item;$('detail').hidden=!item;if(!item)return;$('detail-title').textContent=item.label||item.kind;const copy={};for(const [k,v] of Object.entries(item))if(!['x','y','vx','vy','fx','fy','index','born','__indexColor'].includes(k))copy[k]=(k==='source'||k==='target')&&typeof v==='object'?v.id:v;$('detail-body').textContent=JSON.stringify(copy,null,2)}
+const graph=new ForceGraph($('canvas'))
+ .width(innerWidth).height(innerHeight).backgroundColor('#f7f7f7')
+ .nodeId('id').nodeVal(n=>Math.pow(radius(n)/4,2)).nodeColor(color)
+ .nodeLabel(()=>null).linkLabel(()=>null).linkColor(l=>l.kind==='notifies'?'#b79ac1':'#d3cfd0')
+ .linkWidth(l=>l.kind==='provides'||l.kind==='consumes'?1.25:.65)
+ .minZoom(.25).maxZoom(6).cooldownTime(7000).d3VelocityDecay(.35)
+ .nodeCanvasObjectMode(()=> 'after').nodeCanvasObject((n,ctx,scale)=>{
+   const r=radius(n),age=Date.now()-n.born;
+   if(age<1400){ctx.beginPath();ctx.arc(n.x,n.y,r+age/120,0,2*Math.PI);ctx.strokeStyle=color(n);ctx.globalAlpha=.35*(1-age/1400);ctx.lineWidth=1/scale;ctx.stroke();ctx.globalAlpha=1}
+   if(n.kind==='claim'&&hovered!==n&&selected!==n)return;
+   const size=11/scale;ctx.font=`${size}px system-ui`;ctx.textAlign='center';ctx.textBaseline='bottom';
+   ctx.lineWidth=3/scale;ctx.strokeStyle='#f7f7f7';ctx.strokeText(n.label,n.x,n.y-r-3/scale);ctx.fillStyle='#48454c';ctx.fillText(n.label,n.x,n.y-r-3/scale);
+ })
+ .onEngineStop(()=>{if(needsFit){needsFit=false;fit()}})
+ .onNodeClick(inspect).onLinkClick(inspect).onBackgroundClick(()=>inspect(null))
+ .onNodeHover(n=>{hovered=n;document.body.style.cursor=n?'grab':'default'})
+ .onNodeDragEnd(n=>{n.fx=undefined;n.fy=undefined;graph.d3ReheatSimulation()});
+graph.d3Force('charge').strength(-220).distanceMax(550);
+graph.d3Force('link').distance(l=>l.kind==='claims'?48:l.kind==='declares'?40:85);
+function fit(){graph.zoomToFit(650,Math.min(innerWidth,innerHeight)*.15)}
+async function connection(){const r=await fetch('/connection');if(!r.ok)throw Error('Connection unavailable');key=(await r.json()).key}
+async function post(url){const r=await fetch(url,{method:'POST',headers:{'x-demo-key':key}});if(!r.ok)throw Error('Request failed ('+r.status+')');return r.json()}
+function draw(data){
+ if(project!==data.project){project=data.project;nodes.clear();links.clear();signature='';inspect(null);graph.graphData({nodes:[],links:[]});graph.centerAt(0,0);graph.zoom(1)}
+ const ids=new Set(data.nodes.map(n=>n.id)),edgeIds=new Set(data.edges.map(l=>l.id));
+ for(const id of nodes.keys())if(!ids.has(id))nodes.delete(id);
+ for(const id of links.keys())if(!edgeIds.has(id))links.delete(id);
+ for(const n of data.nodes){const existing=nodes.get(n.id);if(existing)Object.assign(existing,n);else{
+   const parent=data.edges.find(l=>l.target===n.id&&nodes.has(l.source));const p=parent&&nodes.get(parent.source);
+   nodes.set(n.id,{...n,born:Date.now(),...(p?{x:p.x+Math.random()*24-12,y:p.y+Math.random()*24-12}:{})});
+ }}
+ for(const l of data.edges){const existing=links.get(l.id);if(existing){const {source,target,...details}=l;Object.assign(existing,details)}else links.set(l.id,{...l})}
+ const next=JSON.stringify([data.nodes.map(n=>n.id).sort(),data.edges.map(l=>l.id).sort()]);
+ if(next!==signature){signature=next;needsFit=true;graph.graphData({nodes:[...nodes.values()],links:[...links.values()]});graph.d3ReheatSimulation();clearTimeout(fitTimer);fitTimer=setTimeout(fit,1800)}
+ if(selected){const updated=nodes.get(selected.id)||links.get(selected.id);inspect(updated||null)}
+ $('empty').hidden=data.nodes.length>0;$('status').textContent=`${data.nodes.length} nodes · ${data.edges.length} connections`;$('source').title=data.source+' · '+data.project;$('start').hidden=data.started;$('start').disabled=busy;
+}
+async function refresh(){if(busy||polling)return;polling=true;try{if(!key)await connection();const r=await fetch('/graph-state',{headers:{'x-demo-key':key}});if(r.status===403){await connection();return}if(!r.ok)throw Error('Graph unavailable');draw(await r.json())}catch(e){$('status').textContent='Waiting for live service…'}finally{polling=false}}
+$('start').onclick=async()=>{busy=true;$('start').disabled=true;$('status').textContent='Starting agents…';try{await post('/peer-start')}catch(e){$('status').textContent=e.message}finally{busy=false;refresh()}};
+$('reset').onclick=async()=>{busy=true;$('reset').disabled=true;$('status').textContent='Resetting…';try{await post('/reset?start=false');await connection()}catch(e){$('status').textContent=e.message}finally{busy=false;$('reset').disabled=false;refresh()}};
+$('fit').onclick=fit;$('close').onclick=()=>inspect(null);
+$('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
+addEventListener('resize',()=>{graph.width(innerWidth).height(innerHeight)});
+refresh();setInterval(refresh,800);
+</script></html>
