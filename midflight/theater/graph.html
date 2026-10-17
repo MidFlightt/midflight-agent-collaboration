@@ -8,6 +8,14 @@
 <footer><span><i class="dot"></i>agents &nbsp; <i class="dot approved"></i>acknowledged &nbsp; <i class="dot directive"></i>changes</span><span id="source">live · FalkorDB</span></footer>
 <aside id="detail" hidden><button id="close" aria-label="Close details">×</button><h2 id="detail-title"></h2><pre id="detail-body"></pre></aside>
 <script src="/vendor/force-graph.min.js"></script><script>
+// Keep the default local demo's Live graph link on the current file observer.
+// The isolated 8917 experiment and explicit legacy view remain independent.
+function preferredViewer(href){
+ const url=new URL(href);
+ if(!['127.0.0.1','localhost'].includes(url.hostname)||url.port!=='8907'||url.searchParams.has('legacy'))return null;
+ url.port='8927';url.pathname='/';url.search='';url.hash='';return url.href;
+}
+const preferred=preferredViewer(location.href);if(preferred)location.replace(preferred);
 const $=id=>document.getElementById(id);
 let key='',project='',busy=false,polling=false,signature='',selected=null,hovered=null;
 const nodes=new Map(),links=new Map(),lanes=new Map(),rowSlots=new Map();

@@ -176,3 +176,8 @@ Existing sessions and prompts are unchanged.
 This filesystem observer is new local demo tooling. Production MidFlight currently
 coordinates declared scope and contracts; these observations are not automatically
 stored in FalkorDB, nor do they establish a deployed code-indexing feature.
+
+For the default local setup, the demo's existing `/graph` link on port 8907 now
+opens the file observer at port 8927. The old agent-only view remains accessible
+as `http://127.0.0.1:8907/graph?legacy=1`; the isolated 8917 experiment is unchanged.
+The observer must be running for this local shortcut to work.
