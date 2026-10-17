@@ -79,13 +79,13 @@ rehearsal result is saved with that local run, not presented as a generic test o
 
 ## Live graph
 
-Open http://127.0.0.1:8907/graph for a minimal, light canvas with draggable circles
+Open http://127.0.0.1:8907/graph for a minimal, dark canvas with draggable circles
 and force-directed physics. It uses the vendored `force-graph@1.52.0` library
 (https://github.com/vasturiano/force-graph), including its spring/repulsion simulation.
 It runs locally without a separate visualization service or CDN.
 
-- Dark circles represent agents; orange circles represent declared files and shared
-  interfaces; small gray circles represent claims. Purple circles represent directives.
+- The MidFlight palette uses a navy canvas, cyan agents and interfaces, muted gray
+  declared files, green approved claims, and orange directives or claims needing attention.
 - Agent presence is persisted in the run's FalkorDB graph when its MCP client connects.
 - Nodes and links are projected from the latest persisted claim revisions. There are
   no prefilled visual dependencies from the fixture plan and no artificial replay.
