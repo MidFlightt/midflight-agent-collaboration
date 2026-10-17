@@ -96,7 +96,7 @@ space, scroll to zoom, or use Fit and Fullscreen. Agents opens the coding window
   their claim owners, and renders one provider-to-consumer connection per agent pair.
   Multiple contracts retain separate provenance inside that connection. No links are
   inferred from agent names. A consumed interface without a declared provider creates
-  no visual connection; its declaration remains in the selected agent's data.
+  no visual connection; its declaration remains in the raw graph-state data.
 - Cyan agents show ordinary scope. A current-plan directive highlights its recipient
   orange while pending or requiring attention, and green once acknowledged. Incident
   dependencies use the same colors, with pending taking precedence. Acknowledgement

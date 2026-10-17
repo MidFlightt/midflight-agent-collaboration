@@ -18,7 +18,7 @@ function inspect(item){selected=item;$('detail').hidden=!item;if(!item)return;$(
 if(item.kind==='agent'){
  $('detail-body').textContent='CLAIMS\n'+(item.claims.map(c=>`${c.label} · ${c.state} · plan ${c.plan_version}`).join('\n')||'No claim yet')+'\n\nDECLARED FILES\n'+(item.files.join('\n')||'None yet')+'\n\nCHANGES\n'+(item.updates.map(d=>`${d.state}: ${d.requested_adjustment}`).join('\n')||'No current directive');return;
 }
-const copy={};for(const [k,v] of Object.entries(item))if(!['x','y','vx','vy','fx','fy','index','born','__indexColor'].includes(k))copy[k]=(k==='source'||k==='target')&&typeof v==='object'?v.id:v;$('detail-body').textContent=JSON.stringify(copy,null,2)}
+const copy={};for(const [k,v] of Object.entries(item))if(!['x','y','vx','vy','fx','fy','index','born','__indexColor','__controlPoints','label_lines'].includes(k))copy[k]=(k==='source'||k==='target')&&typeof v==='object'?v.id:v;$('detail-body').textContent=JSON.stringify(copy,null,2)}
 const graph=new ForceGraph($('canvas'))
  .width(innerWidth).height(innerHeight).backgroundColor('#090f14')
  .nodeId('id').nodeVal(n=>Math.pow(radius(n)/4,2)).nodeColor(color)
