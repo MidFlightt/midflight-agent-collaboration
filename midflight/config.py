@@ -16,7 +16,8 @@ Locally, put them in a `.env` file in the repository root (git-ignored); see
 | `MIDFLIGHT_GITHUB_WEBHOOK_SECRET` | The App's webhook secret (verification). Secret. |
 | `MIDFLIGHT_REVIEWER_MODEL` | Bedrock model for the AI reviewer. Unset means rules only. |
 | `MIDFLIGHT_REVIEWER_ROLE_ARN` | A role in another AWS account to call Bedrock through. |
-| `MIDFLIGHT_TABLE` | DynamoDB table name. Unset means an in-memory store. |
+| `MIDFLIGHT_STORE` | Explicit backend: memory, dynamodb, falkordb. |
+| `MIDFLIGHT_TABLE` | DynamoDB table; legacy fallback only when STORE is unset. |
 | `MIDFLIGHT_SECRET_ID` | Secrets Manager secret holding the secrets above, as JSON (AWS). |
 """
 
@@ -25,7 +26,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -42,6 +43,35 @@ class Settings:
     reviewer_model: str | None = None
     reviewer_role_arn: str | None = None
     table_name: str | None = None
+
+    store_backend: str | None = None
+    falkor_host: str = "127.0.0.1"
+    falkor_port: int = 6379
+    falkor_graph: str = "midflight"
+    falkor_username: str | None = None
+    falkor_password: str | None = field(default=None, repr=False)
+    falkor_ssl: bool = False
+    worker_max_attempts: int = 3
+    worker_poll_interval: float = 1
+    worker_retry_delay: float = 2
+
+    def __post_init__(self) -> None:
+        if self.backend not in {"memory", "dynamodb", "falkordb"}:
+            raise ValueError("MIDFLIGHT_STORE must be memory, dynamodb or falkordb")
+        if self.backend == "dynamodb" and not self.table_name:
+            raise ValueError("DynamoDB requires MIDFLIGHT_TABLE")
+        if not self.falkor_graph or not 0 < self.falkor_port < 65536:
+            raise ValueError("invalid FalkorDB graph or port")
+        if (
+            self.worker_max_attempts < 1
+            or self.worker_poll_interval <= 0
+            or self.worker_retry_delay < 0
+        ):
+            raise ValueError("invalid worker settings")
+
+    @property
+    def backend(self) -> str:
+        return self.store_backend or ("dynamodb" if self.table_name else "memory")
 
     @classmethod
     def from_env(
@@ -72,6 +102,16 @@ class Settings:
             reviewer_model=env.get("MIDFLIGHT_REVIEWER_MODEL") or None,
             reviewer_role_arn=env.get("MIDFLIGHT_REVIEWER_ROLE_ARN") or None,
             table_name=env.get("MIDFLIGHT_TABLE") or None,
+            store_backend=env.get("MIDFLIGHT_STORE") or None,
+            falkor_host=env.get("MIDFLIGHT_FALKOR_HOST", "127.0.0.1"),
+            falkor_port=int(env.get("MIDFLIGHT_FALKOR_PORT", "6379")),
+            falkor_graph=env.get("MIDFLIGHT_FALKOR_GRAPH", "midflight"),
+            falkor_username=env.get("MIDFLIGHT_FALKOR_USERNAME") or None,
+            falkor_password=env.get("MIDFLIGHT_FALKOR_PASSWORD") or None,
+            falkor_ssl=env.get("MIDFLIGHT_FALKOR_SSL", "") == "1",
+            worker_max_attempts=int(env.get("MIDFLIGHT_WORKER_MAX_ATTEMPTS", "3")),
+            worker_poll_interval=float(env.get("MIDFLIGHT_WORKER_POLL_INTERVAL", "1")),
+            worker_retry_delay=float(env.get("MIDFLIGHT_WORKER_RETRY_DELAY", "2")),
         )
 
     @property

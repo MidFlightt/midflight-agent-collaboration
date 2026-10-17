@@ -346,6 +346,10 @@ class FalkorStore:
     def get_job(self, job_id: str) -> Job | None:
         return self._one(Job, "n.id=$id", id=job_id)
 
+    def list_unfinished_jobs(self) -> list[Job]:
+        """Operational recovery scan across projects; never exposed as agent context."""
+        return self._read(Job, "n.state IN ['queued', 'running']")
+
     def list_jobs(self, project_id: str) -> list[Job]:
         return self._read(Job, "n.project_id=$id", id=project_id)
 

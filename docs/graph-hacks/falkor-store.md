@@ -2,8 +2,8 @@
 
 The full existing `Store` protocol is implemented in
 [`midflight/adapters/falkor_store.py`](../../midflight/adapters/falkor_store.py).
-It can be injected into `build_services`. Backend selection and the recoverable
-worker are separate follow-up changes; this does not switch the hosted deployment.
+It can be injected into `build_services`. Backend selection and the recoverable worker are implemented by
+[GH-03](runtime-worker.md); the hosted deployment is not switched automatically.
 
 ## Use and verification
 

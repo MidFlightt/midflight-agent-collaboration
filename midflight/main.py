@@ -7,9 +7,9 @@ Run it locally:
 
 It reads settings from the environment or a `.env` file (see `midflight/config.py`).
 With `MIDFLIGHT_DEV_LOGIN=1` it needs no GitHub secrets: sign-in is a local form and
-every repository counts as having the App installed. Data lives in memory and resets
-when the server stops; the AWS deploy (H-5) swaps in DynamoDB. `MIDFLIGHT_SEED_DEMO=1`
-also loads the demo project with tokens for the local stdio adapter.
+every repository counts as having the App installed. `MIDFLIGHT_STORE=falkordb` uses
+persistent graph storage and a recoverable worker; the default remains memory.
+`MIDFLIGHT_SEED_DEMO=1` also loads the demo project with tokens for the local stdio adapter.
 
 What answers where:
 
@@ -25,6 +25,7 @@ What answers where:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -41,9 +42,11 @@ from midflight.adapters.clock import SystemClock
 from midflight.adapters.fake_github import AnyRepoAccess
 from midflight.adapters.github import GitHubAppRepoAccess, GitHubAppSignIn
 from midflight.adapters.runners import StreamRunner
+from midflight.adapters.worker import RecoverableWorker
 from midflight.api.app import Services, build_services, create_app
 from midflight.api.oauth import MidflightOAuth, add_sign_in_routes
 from midflight.config import Settings, load_dotenv
+from midflight.domain.models import JobKind
 from midflight.mcp.hosted import build_hosted_server
 from midflight.ports import Clock, GitHub, GitHubSignIn, RepoAccess, Reviewer, Store
 from midflight.services.projects import ProjectService
@@ -69,6 +72,7 @@ def create_server(
     github: GitHub | None = None,
 ) -> Server:
     """Build the whole server. Tests pass their own store, clock, and GitHub fakes."""
+    owns_store = store is None
     store = store or store_for(settings)
     clock = clock or SystemClock()
     repos = repos or _repo_access(settings)
@@ -76,8 +80,20 @@ def create_server(
     reviewer = reviewer or reviewer_for(settings)
     github = github or github_for(settings)
 
-    runner = StreamRunner() if settings.table_name else None
+    worker = None
+    if settings.backend == "falkordb":
+        worker = RecoverableWorker(
+            store,
+            clock,
+            max_attempts=settings.worker_max_attempts,
+            poll_interval=settings.worker_poll_interval,
+            retry_delay=settings.worker_retry_delay,
+        )
+    runner = worker or (StreamRunner() if settings.backend == "dynamodb" else None)
     services = build_services(store, clock, reviewer, runner, github)
+    if worker is not None:
+        worker.register(JobKind.CLAIM_REVIEW, services.claims.run_review)
+        worker.register(JobKind.VERIFICATION, services.verifications.run)
     projects = ProjectService(store, clock, repos, services.plans)
     oauth = MidflightOAuth(store, projects, settings.public_url, github_sign_in, settings.dev_login)
 
@@ -99,8 +115,21 @@ def create_server(
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        async with mcp.session_manager.run():
-            yield
+        try:
+            async with mcp.session_manager.run():
+                if worker is not None:
+                    worker.start()
+                try:
+                    yield
+                finally:
+                    if worker is not None:
+                        await asyncio.to_thread(worker.stop)
+        finally:
+            # Never close a connection while an unfinished handler still uses it.
+            if owns_store and (worker is None or not worker.running):
+                close = getattr(store, "close", None)
+                if close is not None:
+                    close()
 
     if settings.seed_demo:
         demo.seed(store, demo.local_tokens(), clock.now())

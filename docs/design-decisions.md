@@ -112,3 +112,11 @@ Simplifications adopted in the [development plan](development-plan.md#architectu
 | Q4 | Does the submission need a publicly hosted dashboard? | No. The lead works through their AI client with the lead tools (`project_status`, plan and escalation tools, D16). A read-only status page served by the backend is stretch task X-3. | requirements §13, D16 |
 | Q5 | Input size limits, retry limits, review timeout | 60 s claim wait; 2 worker retries; limits set in M-5 | requirements §13 |
 | Q6 | Official submission cutoff | Finish Oct 10, submit Oct 11 | requirements §13 |
+
+
+## Graph Hacks GH-03: explicit runtime and single-process recovery
+
+An explicit `MIDFLIGHT_STORE` setting selects the backend and matching runner. FalkorDB
+uses one background worker that recovers queued/running jobs from durable storage, with
+bounded retries and persisted backoff. Existing default selection remains compatible.
+See [runtime setup, behavior and limits](graph-hacks/runtime-worker.md).
