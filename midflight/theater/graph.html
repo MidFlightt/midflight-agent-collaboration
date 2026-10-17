@@ -73,16 +73,15 @@ function simplify(data){
    agent.context_count=agent.files.length;
  }
  const declarations=data.edges.filter(e=>['provides','consumes'].includes(e.kind));
- const providers=declarations.filter(e=>e.kind==='provides'),consumers=declarations.filter(e=>e.kind==='consumes');
  const edges=new Map();
  const name=id=>{const label=agents.get(id)?.label||id;return label.charAt(0).toUpperCase()+label.slice(1)};
- for(const consumer of consumers)for(const provider of providers){
-   if(provider.target!==consumer.target)continue;
-   const source=owners.get(provider.source),target=owners.get(consumer.source);
+ for(const dependency of data.native_dependencies||[]){
+   const source=agents.has('agent:'+dependency.provider)?'agent:'+dependency.provider:dependency.provider;
+   const target=agents.has('agent:'+dependency.consumer)?'agent:'+dependency.consumer:dependency.consumer;
    if(source===target||!agents.has(source)||!agents.has(target))continue;
    const id=source+'|depends|'+target;
    if(!edges.has(id))edges.set(id,{id,source,target,kind:'dependency',label:`${name(target)} uses ${name(source)}’s output`,label_lines:[`${name(target)} uses`,`${name(source)}’s output`],dependencies:[]});
-   edges.get(id).dependencies.push({contract_id:provider.target.replace(/^interface:/,''),provider_claim:provider.source,consumer_claim:consumer.source,provided_fields:provider.fields,consumed_fields:consumer.fields});
+   edges.get(id).dependencies.push(dependency);
  }
  for(const edge of edges.values()){
    const states=[agents.get(edge.source).change,agents.get(edge.target).change];

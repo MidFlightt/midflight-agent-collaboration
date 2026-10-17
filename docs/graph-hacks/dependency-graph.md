@@ -1,5 +1,9 @@
 # GH-04 — Versioned task/contract graph and impact queries
 
+Current peer/worktree demo integration and native shortestPath upgrade: see
+[native demo upgrade](native-demo-upgrade.md). Its whole-context budgets and
+native traversal supersede the earlier breadth-first implementation described below.
+
 Plan commits now materialize tasks, contracts, requirements and their relationships
 in the same guarded Cypher write as the plan, its audit events and retry receipt.
 There is no second database or asynchronous graph-sync step.

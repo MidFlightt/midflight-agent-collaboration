@@ -55,6 +55,17 @@ def snapshot(live):
         key = f"directive:{directive.id}"
         node(key, "directive", directive.id, **directive.model_dump(mode="json", exclude={"id"}))
         edge(key, f"agent:{directive.task_id}", "notifies")
+    native_links, native_evidence = [], []
+    if hasattr(store, "dependency_links"):
+        native_links = store.dependency_links(project, live.version)
+        if live.version > 1:
+            from dataclasses import asdict
+
+            current = store.get_plan(project, live.version)
+            result = store.dependency_impact(
+                project, live.version - 1, live.version, current.changed_ids
+            )
+            native_evidence = [asdict(path) for path in result.paths]
     return {
         "project": project,
         "plan_version": live.version,
@@ -62,4 +73,7 @@ def snapshot(live):
         "source": "FalkorDB · persisted session arrivals and claims",
         "nodes": list(nodes.values()),
         "edges": list(edges.values()),
+        "native_dependencies": native_links,
+        "dependency_evidence": native_evidence,
+        "dependency_source": "FalkorDB native PROVIDES/CONSUMED_BY + shortestPath",
     }

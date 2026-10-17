@@ -1,4 +1,4 @@
-// Agent-only dependencies must join real claims and preserve their provenance.
+// Agent-only dependencies must use native graph edges and preserve their provenance.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const script=fs.readFileSync('midflight/theater/graph.html','utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
 new vm.Script(script);
@@ -16,6 +16,7 @@ const raw={plan_version:2,nodes:[
  {source:'cb',target:'shared',kind:'consumes',fields:{total_cents:'integer'}},
  {source:'ca',target:'file',kind:'declares'},{source:'d',target:'b',kind:'notifies'},
 ]};
+raw.native_dependencies=[{provider:'a',consumer:'b',contract_id:'price',fields:{total_cents:'integer'}}];
 function layout(){
  context.raw=raw;
  const data=vm.runInContext('simplify(raw)',context);
@@ -26,9 +27,8 @@ const view=layout();
 assert.deepEqual(Array.from(view.nodes,n=>n.kind),['agent','agent','agent']);
 assert.equal(view.edges.length,1);
 assert.equal(view.edges[0].source,'a');assert.equal(view.edges[0].target,'b');
-assert.equal(view.edges[0].dependencies[0].provider_claim,'ca');
-assert.equal(view.edges[0].dependencies[0].consumer_claim,'cb');
-assert.equal(view.edges[0].dependencies[0].provided_fields.total_cents,'integer');
+assert.equal(view.edges[0].dependencies[0].contract_id,'price');
+assert.equal(view.edges[0].dependencies[0].fields.total_cents,'integer');
 assert.equal(view.edges[0].label,'B uses A’s output');
 assert(!view.edges.some(e=>e.source==='unrelated'||e.target==='unrelated'));
 assert.equal(view.nodes.find(n=>n.id==='a').files[0],'price.py');
@@ -48,4 +48,5 @@ for(const n of nodes.values()){assert.equal(n.fx,n.x);assert.equal(n.fy,n.y)}
 raw.nodes.push({id:'missing',kind:'interface',label:'No provider'});
 raw.edges.push({source:'cb',target:'missing',kind:'consumes',fields:{value:'string'}});
 const unmatched=layout();assert.equal(unmatched.edges.length,1);
+raw.native_dependencies=[];assert.equal(layout().edges.length,0);
 console.log('Agent-only graph checks passed: real dependency joins, provenance, no invented providers, selective colors, stable positions.');
