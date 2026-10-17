@@ -37,6 +37,7 @@ These are the proposed starting point for `graph-hacks`. The AWS documents below
 | [requirements.md](requirements.md) | Requirements, demo scenarios, definition of done |
 | [design-decisions.md](design-decisions.md) | Decisions D1 to D34 and open questions |
 | [pages/scenarios.html](pages/scenarios.html) | Every demo scenario traced through the code, written by `tests/scenario_report.py` |
+| [pages/memory-layer.html](pages/memory-layer.html) | How state is stored: the Store port, its three backends, atomic commits, the FalkorDB graph, and plan-change impact (open in a browser after cloning) |
 
 ## Try it with a teammate
 
