@@ -9,6 +9,24 @@ TEAM-07.
 (Compose v5.5.1), uv 0.11.28, Codex CLI 0.145.0, Claude Code 2.1.296. Fresh clone in
 `fresh/midflight`, new empty app repo `fresh/try-app`, default ports 8000/6379 free.
 
+## Status after the TEAM-04 changes
+
+Built on this branch: fixes 1, 2, 4, 5, 6, 7, 8 (`midflight status`; `/healthz` is unchanged,
+and `status` checks FalkorDB directly), 9, 11, 12 and 13, plus `midflight up` / `down`
+(fix 3). FalkorDB stays an optional extra: the install command names it, so the AWS
+Lambda bundle doesn't grow. Open: 10 (adding agents later) and 14 (single-server lock).
+
+Re-run of the new flow, via `uv tool install` from this branch into a fresh app repo with
+FalkorDB and the service stopped:
+- `midflight up --agents backend,frontend` started FalkorDB and the service and connected
+  the repo in 12.7 s.
+- `midflight worktree backend` refused until the files were committed, then created the
+  worktree.
+- The committed `.mcp.json` (`midflight mcp`) served backend's tools in the worktree and the
+  lead's tools in the main checkout. Claude Code listed it as pending approval.
+- `midflight down --db` then `midflight up` kept the credentials, and `status` passed in the
+  worktree.
+
 ## Baseline: what a new user does today
 
 Before the first agent can call `project_context`:

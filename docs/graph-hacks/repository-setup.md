@@ -1,17 +1,34 @@
 # Use MidFlight on an existing repository
 
-Follow the root README for install, database startup and `midflight serve`. This guide
-covers the reusable integration, not the synthetic four-agent presentation.
+Follow the root README for install and `midflight up`. This guide covers the reusable
+integration in more detail, not the synthetic four-agent presentation.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `midflight up` | Starts FalkorDB (Docker) and the service in the background if needed, then connects the current repository. Safe to rerun |
+| `midflight status` | Pass/fail checks for FalkorDB, the service, credentials and plan, each with its fix. `--json` prints raw project context. `doctor` is an alias |
+| `midflight worktree NAME [PATH]` | Creates a worktree for one agent, with its credentials and identity |
+| `midflight agent` | Starts Codex (or Claude Code with `--client claude`) connected as this checkout's identity |
+| `midflight mcp` | The stdio MCP server that clients run |
+| `midflight down [--db]` | Stops the background service (and FalkorDB); data is kept |
+| `midflight init` / `midflight serve` | The two halves of `up`, for a foreground service or custom setups |
+
+All of them default `--repo` to the Git repository containing the current directory.
+The identity defaults to the worktree's (written by `midflight worktree`), or `lead`
+in the main checkout. Pass `--identity` to override.
 
 ## Service and identities
 
-`midflight serve` creates a private `~/.local/share/midflight/setup.key` and starts one
-FalkorDB-backed service. `--home`, `--port`, `--db-port` and `--graph` select a different
+`midflight serve` (or `up`) creates a private `~/.local/share/midflight/setup.key` and
+starts one FalkorDB-backed service. `--home`, `--port`, `--db-port` and `--graph` select a different
 local installation. `init --home` must select the same administration-key directory;
 `init --url` must point at the same service. Both service and database stay on loopback.
 
-`init --repo PATH --repository owner/name --agents backend,frontend,tests` creates a lead
-plus the named agent identities. Names use lowercase letters, digits and hyphens.
+`init --agents backend,frontend,tests` creates a lead plus the named agent identities.
+`--repository owner/name` is only a label locally; it defaults to the `origin` remote,
+or `local/<folder>`. Names use lowercase letters, digits and hyphens.
 Each session uses one identity; tasks refer to the member IDs returned by
 `project_context`. The same person can operate several identities. The service stores
 token hashes; plaintext tokens stay in `.midflight/private.json` with mode 0600.
@@ -28,65 +45,67 @@ messages. It preserves an existing guide if the repository owner has edited it.
 
 ## Normal conversations
 
-Start `midflight agent --repo PATH --identity lead`. Describe the actual application and
+In the main checkout, start `claude` (via `.mcp.json`) or `midflight agent`. Describe the actual application and
 ask for a proposed plan. Review the requirements, task owners, acceptance criteria and
 contract fields before explicitly approving. Approval remains a human instruction to
 the lead, not a separate cryptographic proof of human consent.
 
-Start the other identities with the same command and their names. Ask them to implement
+Start the other identities the same way inside their worktrees. Ask them to implement
 their tasks. `project_context` supplies identity, members and the current plan; `get_plan`
 lets the lead inspect a draft. The standard claim/check-in/acknowledgement tools do the
 coordination. New product directions use `propose_plan` and `approve_plan`; there is no
 subscription-specific tool in this adapter.
 
-The launcher passes MCP configuration for that invocation only and leaves existing
-Codex settings and approvals in force by default. The optional explicit
+`midflight agent` passes MCP configuration for that invocation only and leaves existing
+client settings and approvals in force by default. `--client claude` uses Claude Code
+with `--mcp-config`; arguments after `--` go to the client (for example `-- -m MODEL`). The optional explicit
 `--approve-coordination-tools` flag preapproves only context, claim, check-in and
 acknowledgement tools in this session; plan writes are excluded. Complete the client's normal sign-in, workspace
 trust and tool approval prompts when asked. It doesn't choose a model or disable the
-sandbox. Its optional headless `--exec` run requests the workspace-write sandbox.
+sandbox; pass a model after `--` if your default one isn't available. Its optional headless `--exec` run requests the workspace-write sandbox.
 The `-c` override behavior follows [Codex configuration documentation](https://learn.chatgpt.com/docs/config-file/config-advanced).
 
-Other clients can start the same stdio adapter from the generated MCP snippet. Their
-configuration wrappers differ; the common data are its executable and argument list.
+Other clients run the same stdio adapter: `midflight mcp` inside the repository or
+worktree, or the absolute command in `.midflight/mcp-NAME.json`.
 Use a client that reads `AGENTS.md`, or install that managed section into the client's
 own persistent repository instructions. Merely connecting tools does not force an agent
 to call them.
 
 ## Parallel Git worktrees
 
-Initialize the main checkout first. For each simultaneous coding session, create a
-separate branch/worktree from an existing commit, for example:
+Commit the files `init` added (`AGENTS.md`, `.gitignore`, `.mcp.json`, `MIDFLIGHT.md`),
+then create one worktree per agent:
 
 ```sh
-git -C /path/to/repo worktree add -b backend-work /path/to/backend-work
+midflight worktree backend                 # ../<repo>-backend on branch backend-work
+midflight worktree frontend ~/work/web --branch web
 ```
 
-The instruction section must be present in each worktree: commit the non-secret
-`AGENTS.md`/`.gitignore` changes before creating them, or copy those two files carefully.
-Copy `.midflight/private.json` into the corresponding worktree's ignored `.midflight/`
-directory with permissions 0700 on the directory and 0600 on the file. Launch
-`midflight agent --repo /path/to/backend-work --identity backend`. The launcher uses
-that workspace for both Codex and MCP Git metadata. The identities still belong to
-the same shared project. Do not rerun `init` with a different project identity for each
-worktree. Generated MCP snippets contain absolute paths; regenerate/adapt their
-`--repo` argument if configuring another client in a different worktree.
+The command refuses to run until those files are committed, so every worktree gets
+the instructions. It copies `.midflight/private.json` with mode 0600, records the
+identity in `.midflight/identity`, and writes that worktree's client snippet. The
+identities still belong to the same shared project; do not rerun `init` in a worktree.
 
 MidFlight doesn't merge branches, grant shared-file ownership or eliminate conflicts.
 Normal review and integration testing remain necessary.
 
 ## Recovery and troubleshooting
 
-- `midflight doctor --repo PATH --identity NAME` authenticates and prints current project
-  context. It does not approve plans or claims. No approved plan is normal immediately
+- Start with `midflight status`: it says which part is down and what to run. It does not
+  approve plans or claims. No approved plan is normal immediately
   after initialization; ask the lead to propose one.
-- Connection refused: start the service and check `/healthz`, the URL and port. A healthy
+- Connection refused: run `midflight up`. The service log is `~/.local/share/midflight/serve.log`. A healthy
   HTTP process alone is not proof of a completed review; inspect the claim/job status.
 - Setup key missing: use the `--home` used by `serve`. The key must not enter Git or a
-  prompt. Repeated initialization uses saved credentials and preserves existing files.
-- Different setup/repository already registered: do not delete private config to retry.
-  Keep or restore the original private config. Automatic lost-credential recovery and
-  identity migration are not implemented.
+  prompt. `init` checks the key and the service before writing anything, so a failed
+  attempt leaves the repository untouched. Repeated initialization reuses saved credentials.
+- Different setup already registered: rerun with the saved values the error lists. If the
+  service never accepted the saved setup, `init` replaces it automatically. Adding agents to
+  a registered project, lost-credential recovery and identity migration are not implemented.
+- "Credentials rejected" after recloning MidFlight: the Compose project is pinned to
+  `midflight-agent-collaboration`, so every clone uses one volume. If you used a clone in
+  another folder before this change, set `COMPOSE_PROJECT_NAME=<that folder>` to reach
+  its old volume.
 - Unknown task/member: inspect `project_context`; plans use full participant IDs, not
   just `backend`. The agent must have an approved task before claiming work.
 - Idle agents don't react: ask them to continue/check in. There is no generic client
@@ -102,12 +121,15 @@ Normal review and integration testing remain necessary.
 
 ## What is installed
 
-- `MIDFLIGHT.md`: human-facing startup guide; existing owner edits are preserved.
 - `AGENTS.md`: one appended, marked section; existing instructions are retained.
+- `.mcp.json`: adds a `midflight` server running `midflight mcp`; other servers are kept.
+  No paths or tokens, so it is safe to commit.
+- `MIDFLIGHT.md`: human-facing start guide with portable commands; existing owner edits
+  are preserved.
 - `.gitignore`: excludes `.midflight/` before credentials are written.
 - `.midflight/private.json`: project URL/ID and separate lead/agent credentials.
-- `.midflight/mcp-NAME.json`: client snippets pointing at the stdio adapter; no tokens
-  in command arguments. Snippets are machine-local because paths are absolute.
+- `.midflight/identity`: in worktrees only; the identity `midflight mcp` uses there.
+- `.midflight/mcp-NAME.json`: machine-local client snippets with absolute paths and no tokens.
 
 No initial plan, example functions, artificial directives, generated code or global
 client configuration is installed. Agent work is normal work in your repository.

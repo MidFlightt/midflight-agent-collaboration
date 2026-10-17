@@ -124,6 +124,7 @@ Graph Hacks runtime (GH-03): see [setup and recovery](docs/graph-hacks/runtime-w
 Use `uv sync --locked --extra falkordb`, start `docker compose -f compose.graph-hacks.yml up -d`,
 and run `MIDFLIGHT_STORE=falkordb uv run --extra falkordb midflight-server`.
 Run the real-database suite with `uv run --extra falkordb pytest --falkordb`.
+Connecting another repository (GH-07): `midflight up` inside it; see the root README.
 
 ## Ownership
 

@@ -10,44 +10,54 @@ select affected tasks and explain why they must revisit their implementation.
 
 ## Run it on your own repository
 
-Prerequisites: Git, Docker with Compose, [uv](https://docs.astral.sh/uv/), Python 3.12+
-(uv can install it), and an MCP-capable coding client. The Codex launcher additionally
-requires Codex CLI installed and signed in. Model usage belongs to your coding client;
-the local service needs no LLM API key. Reviews default to deterministic rules.
+Prerequisites: Git, Docker, [uv](https://docs.astral.sh/uv/), and Claude Code or
+Codex CLI (signed in). Model usage belongs to your coding client; the local service
+needs no LLM API key. Reviews default to deterministic rules.
+
+**1. Install the `midflight` command** (once per machine):
 
 ```sh
-git clone https://github.com/MidFlightt/midflight-agent-collaboration.git
-cd midflight-agent-collaboration
-uv sync --python 3.12 --locked --extra falkordb
-docker compose -f compose.graph-hacks.yml up -d
-uv run --extra falkordb midflight serve
+uv tool install "midflight[falkordb] @ git+https://github.com/MidFlightt/midflight-agent-collaboration"
 ```
 
-Keep that terminal open. It serves on `http://127.0.0.1:8000`, using the persisted
-`midflight-local` FalkorDB graph. It creates **no demo project or predefined plan**.
-Run only one MidFlight server per graph. The API's `/healthz` reports service health.
+Until PR #7 is merged, add `@GH-07-repository-onboarding` to the end of that URL.
 
-In another terminal, from this checkout, initialize an existing Git repository:
+**2. Start MidFlight and connect your repository.** Run this inside your application's
+Git repository:
 
 ```sh
-uv run midflight init --repo /absolute/path/to/your-repo \
-  --repository your-name/your-repo --agents backend,frontend,tests
-uv run midflight doctor --repo /absolute/path/to/your-repo --identity lead
+cd ~/code/your-app
+midflight up --agents backend,frontend,tests
 ```
 
-`--repository` is an `owner/name` identifier; the local mode does not contact GitHub
-or require an installed GitHub App. Identities can be named for your actual team.
-Initialization appends one managed section to `AGENTS.md`, preserves existing content,
-and writes credentials/client snippets under the ignored `.midflight/` directory.
-Open the generated **MIDFLIGHT.md** in your application repo for exact commands and
-first messages for each identity. It is safe to retry with the same arguments after a lost response. Do not commit or
-share `private.json`; back it up securely to retain access after moving a working copy.
+`up` starts FalkorDB with Docker if it isn't running and waits until it's healthy.
+It then starts the MidFlight service in the background on `http://127.0.0.1:8000`
+and connects the repository. Running it again is safe: it reuses whatever is
+already running and connected. It creates **no demo project or predefined plan**.
+Name the identities after your actual team.
 
-Launch your normal Codex conversation as the lead:
+It adds these files to your repository:
+
+| File | What it is | Commit it? |
+| --- | --- | --- |
+| `AGENTS.md` | One managed section with the coordination instructions; existing content is kept | Yes |
+| `.mcp.json` | Connects Claude Code by running `midflight mcp`; no paths or tokens | Yes |
+| `MIDFLIGHT.md` | Your start guide, with the exact commands for each identity | Yes |
+| `.gitignore` | Ignores `.midflight/` | Yes |
+| `.midflight/` | Credentials (`private.json`) and machine-local client snippets | **Never** |
 
 ```sh
-uv run midflight agent --repo /absolute/path/to/your-repo --identity lead
+git add AGENTS.md .gitignore .mcp.json MIDFLIGHT.md && git commit -m "Connect MidFlight"
+midflight status
 ```
+
+`status` checks FalkorDB, the service, the repository's credentials and the plan, and
+prints the fix for anything that fails.
+
+**3. Start the lead** in the main checkout:
+
+- **Claude Code:** run `claude`. It finds `.mcp.json`; approve the `midflight` server.
+- **Codex:** run `midflight agent`.
 
 Give an ordinary product request, for example:
 
@@ -59,29 +69,33 @@ The lead calls `project_context`, proposes a structured plan and shows it to you
 Review it before telling the lead to approve it. No `TASK.md`, hardcoded pricing
 roles, special subscription phrase, or copied orchestration prompt is required.
 
-Open additional terminals for the other identities:
+**4. Start each agent in its own worktree:**
 
 ```sh
-uv run midflight agent --repo /absolute/path/to/your-repo --identity backend
-uv run midflight agent --repo /absolute/path/to/your-repo --identity frontend
-uv run midflight agent --repo /absolute/path/to/your-repo --identity tests
+midflight worktree backend          # creates ../your-app-backend on branch backend-work
+cd ../your-app-backend && claude    # or: midflight agent
 ```
 
-Ask each to implement its assigned task. They read their approved task and contracts,
-submit a claim, wait for approval, implement, test and check in. Use distinct Git
-worktrees/branches for simultaneous edits; see the [full setup guide](docs/graph-hacks/repository-setup.md).
-The launcher changes no global Codex configuration, credentials or trust settings.
-Normal client tool approvals apply. For an explicitly authorized unattended run,
-`--approve-coordination-tools` approves only this session’s context, claim, check-in
-and acknowledgement tools; it never preapproves plan proposal or approval.
+Each worktree records its identity, so the same `.mcp.json` connects it as `backend`
+and the main checkout as `lead`. Ask each agent to implement its assigned task. It
+reads its approved task and contracts, submits a claim, waits for approval, then
+implements, tests and checks in.
 
-For other clients, configure the stdio server using the generated
-`.midflight/mcp-<identity>.json` snippet, adapting its wrapper to the client's MCP format.
-The underlying command works independently of Codex:
-
-```sh
-uv run midflight mcp --repo /absolute/path/to/your-repo --identity backend
-```
+Notes:
+- `midflight agent` changes no global client configuration, credentials or trust
+  settings, and normal tool approvals apply.
+  - `--client claude` launches Claude Code instead of Codex.
+  - Anything after `--` goes to the client, for example `midflight agent -- -m MODEL`.
+  - For an explicitly authorized unattended run, `--approve-coordination-tools`
+    approves only this session's context, claim, check-in and acknowledgement tools.
+    It never preapproves plan proposal or approval.
+- **Other MCP clients:** use the stdio command `midflight mcp`, run inside the
+  repository or worktree. Machine-local snippets with absolute paths are in
+  `.midflight/mcp-<identity>.json`.
+- **Stopping:** `midflight down` stops the background service; `midflight down --db`
+  also stops FalkorDB. Data is kept either way, and `midflight up` brings both back.
+- **More:** the [full setup guide](docs/graph-hacks/repository-setup.md) covers
+  `serve` in the foreground, other ports and graphs, recovery and troubleshooting.
 
 ## Change direction
 
@@ -153,9 +167,9 @@ The local setup uses a private administration key and binds to loopback; do not
 publish it or expose FalkorDB. Public hosting requires the authenticated deployment
 path and configured GitHub credentials, and has not been validated by this walkthrough.
 
-FalkorDB uses a persistent Docker volume and AOF persistence. Stop the service with
-Ctrl+C; restart the same command to recover queued/running work. `docker compose down`
-retains database state. `down -v` deletes it. Keep the local setup key and repository
+FalkorDB uses a persistent Docker volume and AOF persistence. `midflight down` and
+`midflight up` stop and restart the service, recovering queued/running work.
+`docker compose down` retains database state. `down -v` deletes it. Keep the local setup key and repository
 private config to retain identities across restarts.
 
 [Submission checklist and video outline](docs/graph-hacks/submission.md) track the
