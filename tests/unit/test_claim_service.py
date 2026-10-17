@@ -458,6 +458,37 @@ def test_without_a_retrying_runner_a_review_that_keeps_losing_fails_with_a_reaso
     assert store.get_claim(result.claim_id).state is ClaimState.PENDING  # type: ignore[union-attr]
 
 
+def test_inline_reviews_in_one_project_run_one_at_a_time() -> None:
+    running, most = 0, 0
+    lock = threading.Lock()
+
+    def slow(_request: ClaimReviewRequest) -> list[Any]:
+        nonlocal running, most
+        with lock:
+            running += 1
+            most = max(most, running)
+        time.sleep(0.02)
+        with lock:
+            running -= 1
+        return []
+
+    env = make_env(ScriptedReviewer(*[slow] * 4))
+    barrier = threading.Barrier(2)
+
+    def claim(task: str) -> None:
+        barrier.wait()
+        env.service.submit(env.agent(task), submission(task))
+
+    threads = [threading.Thread(target=claim, args=(t,)) for t in ("T1", "T2")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert most == 1
+    assert all(j.state is JobState.SUCCEEDED for j in env.store.list_jobs(PROJECT))
+
+
 # Retries and duplicates (UC-05 *a, NFR-02, INV-13) -------------------------------------
 
 
