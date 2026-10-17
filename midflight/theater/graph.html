@@ -12,7 +12,10 @@ const $=id=>document.getElementById(id);
 let key='',project='',busy=false,polling=false,signature='',selected=null,hovered=null,fitTimer,needsFit=false;
 const nodes=new Map(),links=new Map();
 const color=n=>n.kind==='directive'?'#f3b183':n.kind==='claim'?(n.state==='approved'?'#a6d3ad':n.state==='pending'?'#9fabb7':'#f3b183'):n.kind==='file'?'#9fabb7':'#80cadf';
-const radius=n=>n.kind==='agent'?12: n.kind==='interface'?8:n.kind==='claim'?4:3.5;
+// Radius grows slowly and is capped, so busy agents remain distinct without dominating.
+const radius=n=>n.kind==='agent'?32+Math.min(14,3*Math.sqrt(n.context_count||0)):
+ n.kind==='interface'?12+Math.min(10,3*Math.sqrt(n.shared_by||0)):
+ n.kind==='directive'?10:n.kind==='claim'?8:7;
 function inspect(item){selected=item;$('detail').hidden=!item;if(!item)return;$('detail-title').textContent=item.label||item.kind;const copy={};for(const [k,v] of Object.entries(item))if(!['x','y','vx','vy','fx','fy','index','born','__indexColor'].includes(k))copy[k]=(k==='source'||k==='target')&&typeof v==='object'?v.id:v;$('detail-body').textContent=JSON.stringify(copy,null,2)}
 const graph=new ForceGraph($('canvas'))
  .width(innerWidth).height(innerHeight).backgroundColor('#090f14')
@@ -23,16 +26,20 @@ const graph=new ForceGraph($('canvas'))
  .nodeCanvasObjectMode(()=> 'after').nodeCanvasObject((n,ctx,scale)=>{
    const r=radius(n),age=Date.now()-n.born;
    if(age<1400){ctx.beginPath();ctx.arc(n.x,n.y,r+age/120,0,2*Math.PI);ctx.strokeStyle=color(n);ctx.globalAlpha=.35*(1-age/1400);ctx.lineWidth=1/scale;ctx.stroke();ctx.globalAlpha=1}
+   if(n.kind==='agent'){
+     ctx.beginPath();ctx.arc(n.x,n.y,r+4/scale,0,2*Math.PI);ctx.strokeStyle='#80cadf55';ctx.lineWidth=1/scale;ctx.stroke();
+     ctx.font=`${8/scale}px ui-monospace,Menlo,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#090f14';ctx.fillText('AGENT',n.x,n.y);
+   }
    if(n.kind==='claim'&&hovered!==n&&selected!==n)return;
-   const size=11/scale;ctx.font=`${size}px system-ui`;ctx.textAlign='center';ctx.textBaseline='bottom';
+   const size=(n.kind==='agent'?14:11)/scale;ctx.font=`${n.kind==='agent'?'600 ':''}${size}px system-ui`;ctx.textAlign='center';ctx.textBaseline='bottom';
    ctx.lineWidth=3/scale;ctx.strokeStyle='#090f14';ctx.strokeText(n.label,n.x,n.y-r-3/scale);ctx.fillStyle='#f0eee7';ctx.fillText(n.label,n.x,n.y-r-3/scale);
  })
  .onEngineStop(()=>{if(needsFit){needsFit=false;fit()}})
  .onNodeClick(inspect).onLinkClick(inspect).onBackgroundClick(()=>inspect(null))
  .onNodeHover(n=>{hovered=n;document.body.style.cursor=n?'grab':'default'})
  .onNodeDragEnd(n=>{needsFit=true;n.fx=undefined;n.fy=undefined;graph.d3ReheatSimulation()});
-graph.d3Force('charge').strength(-220).distanceMax(550);
-graph.d3Force('link').distance(l=>l.kind==='claims'?48:l.kind==='declares'?40:85);
+graph.d3Force('charge').strength(-300).distanceMax(550);
+graph.d3Force('link').distance(l=>l.kind==='claims'?95:l.kind==='declares'?55:110);
 function fit(){graph.zoomToFit(650,Math.min(innerWidth,innerHeight)*.15)}
 async function connection(){const r=await fetch('/connection');if(!r.ok)throw Error('Connection unavailable');key=(await r.json()).key}
 async function post(url){const r=await fetch(url,{method:'POST',headers:{'x-demo-key':key}});if(!r.ok)throw Error('Request failed ('+r.status+')');return r.json()}
@@ -45,6 +52,14 @@ function draw(data){
    const parent=data.edges.find(l=>l.target===n.id&&nodes.has(l.source));const p=parent&&nodes.get(parent.source);
    nodes.set(n.id,{...n,born:Date.now(),...(p?{x:p.x+Math.random()*24-12,y:p.y+Math.random()*24-12}:{})});
  }}
+ for(const n of nodes.values()){
+   if(n.kind==='agent'){
+     const owned=new Set(data.edges.filter(e=>e.source===n.id&&e.kind==='claims').map(e=>e.target));
+     n.context_count=new Set(data.edges.filter(e=>owned.has(e.source)&&['declares','provides','consumes'].includes(e.kind)).map(e=>e.target)).size;
+   }else if(n.kind==='interface'){
+     n.shared_by=new Set(data.edges.filter(e=>e.target===n.id&&['provides','consumes'].includes(e.kind)).map(e=>e.source)).size;
+   }
+ }
  for(const l of data.edges){const existing=links.get(l.id);if(existing){const {source,target,...details}=l;Object.assign(existing,details)}else links.set(l.id,{...l})}
  const next=JSON.stringify([data.nodes.map(n=>n.id).sort(),data.edges.map(l=>l.id).sort()]);
  if(next!==signature){signature=next;needsFit=true;graph.graphData({nodes:[...nodes.values()],links:[...links.values()]});graph.d3ReheatSimulation();clearTimeout(fitTimer);fitTimer=setTimeout(fit,1800)}

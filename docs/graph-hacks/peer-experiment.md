@@ -103,3 +103,10 @@ It runs locally without a separate visualization service or CDN.
 The visualization is a semantic view of coordination data stored in FalkorDB, not a
 raw dump of all storage nodes. Control and graph-state requests require the current
 local run key. MCP arrivals require the session's participant token.
+
+Node size encodes declared scope: agents are always the largest circles, with a
+small capped increase for the number of distinct files/interfaces their claims
+declare. Interface circles grow with the number of distinct claims providing or
+consuming them. Files, claims and directives stay smaller. Size does not indicate
+code correctness or agent performance. Agent rings, bold labels and an AGENT mark
+keep them recognizable even when an agent has no declarations yet.
