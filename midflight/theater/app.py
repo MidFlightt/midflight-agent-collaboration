@@ -298,7 +298,11 @@ for n in ('pricing','checkout','reporting','notifications'):
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);modules[n]=module
 price=modules['pricing'].price(); assert price['total_cents']==1200
 if sys.argv[2]=='changed': assert isinstance(price['currency'],str) and price['currency']
+if sys.argv[2]=='subscription': assert price['billing_interval']=='monthly'
 order=modules['checkout'].checkout(price); assert order['total_cents']==1200
+if sys.argv[2]=='subscription':
+    assert order['billing_interval']=='monthly'
+    assert isinstance(order['subscription_id'],str) and order['subscription_id']
 assert modules['reporting'].report(order)==1200
 assert modules['notifications'].notify('demo@example.com')=='Subscribed: demo@example.com'
 print('Commerce integration passed')
@@ -311,7 +315,11 @@ print('Commerce integration passed')
                     "-c",
                     script,
                     str(self.root),
-                    "changed" if self.changed else "initial",
+                    "subscription"
+                    if getattr(self, "subscription", False)
+                    else "changed"
+                    if self.changed
+                    else "initial",
                 ],
                 capture_output=True,
                 text=True,

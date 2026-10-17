@@ -84,3 +84,48 @@ def change(services, project):
     )
     services.plans.approve(lead, proposed.version, "pricing now includes currency")
     return datetime.now(UTC).isoformat()
+
+
+def subscription_direction(services, project, actor, direction):
+    """One explicit product pivot for the synthetic commerce acceptance scenario."""
+    from midflight.domain.models import Requirement
+
+    if "subscription" not in direction.lower():
+        raise ValueError("This demo supports the direction: We will do subscription based")
+    current = services.plans.current(project)
+    requirement = Requirement(
+        id="subscription-billing",
+        description=direction,
+        acceptance_criteria=[
+            'Pricing returns total_cents=1200 and billing_interval="monthly".',
+            "Checkout creates a subscription order with a nonempty subscription_id "
+            'and billing_interval="monthly".',
+            "Reporting accepts the subscription order and returns its monthly total_cents.",
+        ],
+    )
+    tasks = [
+        t.model_copy(update={"requirement_ids": [*t.requirement_ids, requirement.id]})
+        if t.id != "notifications"
+        else t
+        for t in current.tasks
+    ]
+    contracts = [
+        c.model_copy(
+            update={
+                "fields": {
+                    **c.fields,
+                    "billing_interval": FieldType.STRING,
+                    **({"subscription_id": FieldType.STRING} if c.id == "order" else {}),
+                }
+            }
+        )
+        for c in current.contracts
+    ]
+    proposed = services.plans.propose(
+        actor,
+        PlanDraft(
+            requirements=[*current.requirements, requirement], tasks=tasks, contracts=contracts
+        ),
+    )
+    services.plans.approve(actor, proposed.version, direction)
+    return services.plans.current(project)
