@@ -37,10 +37,17 @@ from midflight.theater.scenario import NAMES, subscription_direction
 
 
 class InteractiveTheater:
+    names = NAMES
     mcp_module = "midflight.theater.agent_mcp"
 
     def initial_prompt(self, name, default):
         return default
+
+    def permission_args(self, name):
+        return ["-s", "workspace-write"]
+
+    def extra_agent_args(self, name):
+        return []
 
     def plan_tools(self, name):
         return ["set_direction"] if name == "pricing" else []
@@ -53,8 +60,8 @@ class InteractiveTheater:
         self.changed = False
         self.controller_port = controller_port
         self.direction = None
-        self.cues = dict.fromkeys(NAMES, "unchanged")
-        self.check_ins = dict.fromkeys(NAMES, 0)
+        self.cues = dict.fromkeys(self.names, "unchanged")
+        self.check_ins = dict.fromkeys(self.names, 0)
         self.events = []
         self.guard = threading.RLock()
         self.stop_event = threading.Event()
@@ -88,7 +95,7 @@ class InteractiveTheater:
 
     def launch(self):
         theater = self.theater
-        for i, name in enumerate(NAMES):
+        for i, name in enumerate(self.names):
             config = (
                 "mcp_servers.theater_midflight={command="
                 + json.dumps(sys.executable)
@@ -135,8 +142,7 @@ class InteractiveTheater:
             command = [
                 "codex",
                 "--no-daemon",
-                "-s",
-                "workspace-write",
+                *self.permission_args(name),
                 "-a",
                 "never",
                 "-c",
@@ -146,6 +152,7 @@ class InteractiveTheater:
                 "-C",
                 str(theater.root / name),
             ]
+            command.extend(self.extra_agent_args(name))
             tools = ["check_in", "submit_claim", "acknowledge_directive"]
             tools.extend(self.plan_tools(name))
             for tool in tools:
@@ -218,10 +225,16 @@ class InteractiveTheater:
             self.panes[name] = pane
             self.tmux("select-pane", "-t", pane, "-T", name.title())
             self.tmux("select-layout", "-t", self.session, "tiled")
-        self.tmux("swap-pane", "-s", self.panes["checkout"], "-t", self.panes["notifications"])
-        self.tmux("select-pane", "-t", self.panes["pricing"])
+        self.tmux("swap-pane", "-s", self.panes[self.names[1]], "-t", self.panes[self.names[3]])
+        self.tmux("select-pane", "-t", self.panes[self.names[0]])
         self.tmux(
-            "select-pane", "-t", self.panes["pricing"], "-T", "PRICING / LEAD — type direction here"
+            "select-pane",
+            "-t",
+            self.panes[self.names[0]],
+            "-T",
+            "PRICING / LEAD — type direction here"
+            if self.names == NAMES
+            else self.names[0].title(),
         )
         self.poller = threading.Thread(target=self._checkpoints, daemon=True)
         self.poller.start()
@@ -283,7 +296,7 @@ class InteractiveTheater:
             out.write(json.dumps(event) + "\n")
 
     def observed(self, name):
-        if name not in NAMES:
+        if name not in self.names:
             raise HTTPException(403, "Not a demo task")
         with self.guard:
             self.check_ins[name] += 1
