@@ -28,7 +28,7 @@ from midflight.theater.scenario import NAMES, change, seed
 
 
 class Theater:
-    def __init__(self, root: Path, db_port: int, api_port: int, *, plan_draft=None):
+    def __init__(self, root: Path, db_port: int, api_port: int, *, plan_draft=None, reviewer=None):
         self.repo = Path(__file__).resolve().parents[2]
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=False, mode=0o700)
@@ -41,7 +41,8 @@ class Theater:
                 falkor_graph=self.project,
                 public_url=f"http://127.0.0.1:{api_port}",
                 worker_poll_interval=0.2,
-            )
+            ),
+            reviewer=reviewer,
         )
         self.tokens = seed(self.server.services, self.project, plan_draft)
         self.api_port = api_port

@@ -31,8 +31,10 @@ Pass the latest since marker to request only changes."""
 
 PEER_SUBMIT_CLAIM = """Declare files, requirements, exact provided/consumed contracts, assumptions,
 and acceptance criteria before implementing. Check in first to obtain task context.
-Wait for approval. To revise, pass the existing claim_id and changed fields; omitted
-fields are preserved. A successful approval permits implementation without another
+Wait for approval. To revise, pass the existing claim_id and the complete claim,
+including provides, consumes, files, assumptions and acceptance_criteria; this local
+endpoint replaces the submission rather than merging omitted fields.
+A successful approval permits implementation without another
 immediate check-in. Use status withdrawn or closed only when appropriate.
 Pass the current plan version, branch and starting commit SHA."""
 

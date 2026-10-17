@@ -18,8 +18,11 @@ Each composer is prefilled, unsent, with a direct request:
 - Reporting: “Add a revenue summary.”
 - Notifications: “Add signup confirmations.”
 
-All workspaces start from the same small Python shop application, with an HTTP router,
-module interfaces, baseline tests and README. Each agent owns its module and tests. The promo catalog defines SAVE10 as 10% off,
+Workspaces start from the small Python shop application, with an HTTP router,
+module interfaces, baseline tests and README. Each agent owns its module and tests. Pricing and Checkout deliberately start with
+different proposed public return shapes for get_promo_codes(): a dictionary on the
+Pricing branch and a list on the Checkout branch. These are explicit prototype
+interfaces, not product requirements or injected agent claims. The promo catalog defines SAVE10 as 10% off,
 so a basic prompt does not require the agent to invent a coupon.
 Requirements are seeded into plan v1; agents do not need to republish these assignments.
 The prompts contain no coordination choreography. AGENTS.md and MCP supply the protocol.
@@ -218,3 +221,37 @@ There are no automatic idle wake-ups. Each new work request starts with a check-
 that discovers outstanding relevant directives.
 
 Live discount-prompt experiments and their actual outcomes: [trial results](discount-prompt-trials.md).
+
+## Semantic interface rehearsal
+
+The peer launcher now injects the hosted AI reviewer and conservative public-interface
+policy adapted from the local PigeonPost demo. The original harness and production
+reviewer configuration retain their defaults. Reviewer transport uses the installed
+Codex CLI with saved sign-in, ephemeral read-only execution in a temporary directory,
+structured output and no inherited project MCP configuration. It uses account model
+capacity. An unavailable reviewer does not become a successful review.
+
+Start Pricing first with “Add volume discounts.” Once its claim is APPROVED, start
+Checkout with “Add promo codes.” No bad claim or verdict is injected. Agents declare
+what their local prototypes provide or consume, and may notice and fix the drift early.
+A rejection is an observed outcome, not a guaranteed output for every autonomous run.
+
+Only approved peer assumptions can guide another task. Technical corrections preserve
+earlier approved claims while asking a later incompatible claimant to adapt. This is
+an isolated demo coordination policy, not a change to the core domain service.
+Semantic review uses a second contradiction check and a technical/product ruling.
+It distinguishes public output from private storage and accepts an explicit conversion.
+
+A live control review rejected an explicit dictionary/list conflict and accepted a
+private dictionary converted to the required public list. The first full real-agent
+rehearsal approved Pricing, returned NEEDS_REVISION with semantic_mismatch for Checkout,
+and approved Checkout's corrected mapping-based claim. There was an intermediate DRAFT
+because a partial claim revision omitted fields; peer instructions now require complete
+revision submissions to match the local endpoint's behavior. Pricing stayed approved.
+Both agents used two check-ins. Independently combined generated modules passed the
+actual catalog → discounted quote → promo checkout integration.
+
+Artifacts and timing for fresh interface trials are retained locally under
+~/.local/share/midflight-demo/interface-trials/. These are actual agent sessions, unlike
+PigeonPost's historical recorded-claim backend replay results. See interface-trials.md
+for all completed attempts, including unsuccessful ones.

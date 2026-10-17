@@ -72,3 +72,21 @@ else:
         cwd=tmp_path,
         check=True,
     )
+
+
+def test_reset_starters_have_explicit_incompatible_catalog_prototypes(tmp_path):
+    for agent in ("pricing", "checkout"):
+        folder = tmp_path / agent
+        folder.mkdir()
+        write_starter(folder, agent)
+        expected = "dict" if agent == "pricing" else "list"
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from pricing import get_promo_codes; "
+                f"assert type(get_promo_codes()).__name__ == '{expected}'",
+            ],
+            cwd=folder,
+            check=True,
+        )

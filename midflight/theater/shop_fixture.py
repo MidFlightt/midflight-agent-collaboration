@@ -20,6 +20,8 @@ def initial_plan():
             [
                 "quote(unit_cents, quantity) returns total_cents in integer cents.",
                 "Quantities of 10 or more receive 10% off the subtotal; round down to cents.",
+                "Pricing owns the shared get_promo_codes() catalog. Declare its public "
+                "return shape in the claim; its technical representation is not fixed by policy.",
             ],
         ),
         "checkout": (
@@ -100,6 +102,9 @@ Each agent edits its owned module and tests in its own workspace. Keep public
 function names stable; Midflight provides current requirements and data contracts.
 The app passes JSON-compatible dictionaries between modules, using integer cents.
 
+The catalog callable is get_promo_codes(), owned by Pricing. Branch prototypes may
+have different proposed return shapes; state the actual boundary in claim assumptions
+and settle it through Midflight before building on an incompatible shape.
 The promo catalog has one code: SAVE10 gives 10% off the supplied quote.
 The initial code has basic undiscounted pricing. Checkout, reporting and signup
 confirmation are unfinished. See Midflight for acceptance criteria.
@@ -192,8 +197,52 @@ class BaselinePricing(unittest.TestCase):
 }
 
 
-def write_starter(folder):
+def write_starter(folder, agent=None):
     for name, source in FILES.items():
         path = folder / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source)
+    # Branch-local prototypes intentionally disagree about this technical boundary.
+    # Neither a rejection nor an agent claim is scripted.
+    if agent == "checkout":
+        (folder / "pricing.py").write_text(FILES["pricing.py"] + LIST_CATALOG)
+        (folder / "checkout.py").write_text(CHECKOUT_PROTOTYPE)
+    else:
+        (folder / "pricing.py").write_text(FILES["pricing.py"] + MAPPING_CATALOG)
+
+
+MAPPING_CATALOG = '''
+
+def get_promo_codes() -> dict[str, int]:
+    """Public catalog prototype: code -> percent; callers look up codes directly.
+
+    This is a proposed technical interface, subject to coordination.
+    """
+    return {"SAVE10": 10}
+'''
+
+LIST_CATALOG = '''
+
+def get_promo_codes() -> list[dict]:
+    """Caller-side catalog prototype: a flat list of code/percent records.
+
+    This is a proposed technical interface, subject to coordination.
+    """
+    return [{"code": "SAVE10", "percent": 10}]
+'''
+
+CHECKOUT_PROTOTYPE = '''"""Order prototype; validation and promo application remain unfinished."""
+from pricing import get_promo_codes
+
+
+def find_promo(code: str) -> dict:
+    """Catalog boundary: get_promo_codes() returns list[dict], iterated as records.
+
+    The public technical shape can change through coordination.
+    """
+    return next(record for record in get_promo_codes() if record["code"] == code)
+
+
+def create_order(price: dict, promo_code: str | None = None) -> dict:
+    raise NotImplementedError("Order creation and promo application are not implemented")
+'''
