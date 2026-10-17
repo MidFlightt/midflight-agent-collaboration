@@ -116,32 +116,20 @@ def test_startup_prefills_editable_drafts_without_enter():
     assert not any("Enter" in call for call in calls)
 
 
-def test_idle_wakes_only_for_unread_relevant_directives(peers):
+def test_plan_changes_do_not_start_idle_agent_turns(peers):
     from types import SimpleNamespace
-
-    from midflight.domain.models import DirectiveState
 
     peer = PeerTheater.__new__(PeerTheater)
     peer.theater = SimpleNamespace(project="peers", server=SimpleNamespace(services=peers.services))
-    peer.checkpoint_counts = {}
-    assert peer.pending_checkpoint("pricing") is None
+
+    def unexpected_terminal_input(*args):
+        pytest.fail(f"Idle agent received terminal input: {args}")
+
+    peer.tmux = unexpected_terminal_input
     peers.publish("pricing", 1, "Prices need currency", changed(peers, "currency"))
-    assert peer.pending_checkpoint("notifications") is None
-    assert peer.pending_checkpoint("reporting") is None
-    key = peer.pending_checkpoint("checkout")
-    assert key is not None
-    peer.checkpoint_counts[key] = 1
-    assert peer.pending_checkpoint("checkout") is None
-    # An agent that already read an update must not be nudged again on becoming idle.
-    directive = peers.services.store.list_directives("peers", "pricing")[0]
-    peers.services.store.commit(
-        Commit(
-            "peers",
-            "read-directive",
-            puts=[directive.model_copy(update={"state": DirectiveState.DELIVERED})],
-        )
-    )
-    assert peer.pending_checkpoint("pricing") is None
-    # A later substantive change can wake an agent again.
-    peers.publish("pricing", 2, "Prices need region", changed(peers, "region"))
-    assert peer.pending_checkpoint("checkout") is not None
+    peer._checkpoints()
+    assert {d.task_id for d in peers.services.store.list_directives("peers")} == {
+        "pricing",
+        "checkout",
+    }
+    assert all(d.state.value == "queued" for d in peers.services.store.list_directives("peers"))

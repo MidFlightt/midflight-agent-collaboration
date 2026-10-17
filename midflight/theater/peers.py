@@ -3,9 +3,7 @@
 import argparse
 import json
 import os
-import re
 import socket
-import subprocess
 import time
 import uuid
 from datetime import UTC, datetime
@@ -100,7 +98,6 @@ class PeerTheater(InteractiveTheater):
                 self.record(
                     "direction_accepted", name, direction=direction, plan_version=plan.version
                 )
-                self.checkpoint_wake.set()
             return {
                 "plan_version": plan.version,
                 "replayed": replayed,
@@ -108,46 +105,9 @@ class PeerTheater(InteractiveTheater):
                 "next": "Check in for your own task.",
             }
 
-    def pending_checkpoint(self, name):
-        """Only wake for directives this agent has not read, across all plan versions."""
-        directives = self.theater.server.services.store.list_directives(self.theater.project, name)
-        unseen = tuple(sorted(d.id for d in directives if d.state.value == "queued"))
-        key = (name, unseen)
-        return key if unseen and key not in self.checkpoint_counts else None
-
     def _checkpoints(self):
-        # Generic wake-up only after a real plan change; never inserts product instructions.
-        while not self.stop_event.is_set():
-            self.checkpoint_wake.wait(5)
-            self.checkpoint_wake.clear()
-            if self.version == 1:
-                continue
-            for name in NAMES:
-                if self.stop_event.is_set():
-                    return
-                key = self.pending_checkpoint(name)
-                if key is None:
-                    continue
-                try:
-                    tail = "\n".join(
-                        self.tmux("capture-pane", "-p", "-t", self.panes[name]).splitlines()[-14:]
-                    )
-                    if "Ask Codex to do anything" not in tail or re.search(
-                        r"esc to interrupt|Starting MCP|Working \(", tail, re.I
-                    ):
-                        continue
-                    self.tmux(
-                        "send-keys",
-                        "-t",
-                        self.panes[name],
-                        "-l",
-                        "Check MidFlight for updates to your task.",
-                    )
-                    time.sleep(0.5)
-                    self.tmux("send-keys", "-t", self.panes[name], "Enter")
-                    self.checkpoint_counts[key] = 1
-                except subprocess.CalledProcessError:
-                    continue
+        """No automatic turns: outstanding directives wait for the next agent check-in."""
+        return
 
     def report(self):
         services = self.theater.server.services

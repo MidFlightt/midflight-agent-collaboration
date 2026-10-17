@@ -36,13 +36,11 @@ normal claim/check-in protocol lives in MCP; the additional peer instructions ex
 how to publish a human-requested plan update. Product choices are made by the agent
 from the request, not by a hidden demo script. The agent may ask a clarifying question.
 
-Busy agents discover changes at normal check-ins. After a plan version changes, the
-local harness sends only peers with unread relevant directives a neutral message: “Check MidFlight for
-updates to your task.” It does not include the change, dictate an affected set, or
-periodically prompt agents during the initial build. Peers that already read their
-directives are not nudged again merely because they become idle. It waits while a terminal is
-working or has a typed draft. Sessions persist between stages; Reset starts a fresh
-isolated project with the same peer capabilities and preserves earlier run files.
+Agents discover changes at task checkpoints. The harness never sends automatic
+checkpoint prompts or starts an idle agent turn. Outstanding directives remain queued
+until the agent next checks in, including when the human next gives it work.
+Sessions persist between stages; Reset starts a fresh isolated project with the same
+peer capabilities and preserves earlier run files.
 
 ## Guarantees and limits
 
@@ -199,5 +197,5 @@ after approval or directive acknowledgement. Additional checks remain appropriat
 pending review, changed assumptions or scope, and relevant dependency updates. Two is
 a normal-case target, not a hard limit. Initial human requests may still add genuinely
 missing requirements; requests already represented in the plan should not republish it.
-Automatic wake-ups are keyed by unread directive IDs, rather than every plan version.
-Unrelated, delivered, acknowledged and superseded directives do not trigger a wake-up.
+There are no automatic idle wake-ups. Each new work request starts with a check-in
+that discovers outstanding relevant directives.

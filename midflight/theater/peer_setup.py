@@ -1,7 +1,8 @@
 """Shared coordination policy for peer workspaces and their MCP tools."""
 
 CHECKPOINT_POLICY = """Use Midflight at meaningful checkpoints, not after every tool call.
-- Start with one check_in to read your task, requirements and shared contracts.
+- On each new work request, start with one check_in to read your task, outstanding
+  directives, requirements and shared contracts.
   Then submit_claim with files, exact contracts, assumptions and acceptance criteria.
   Approval covers implementation against those contracts: do not immediately check
   again before coding, after approval, or merely after acknowledging a directive.
