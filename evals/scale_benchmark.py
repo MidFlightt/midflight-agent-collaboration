@@ -198,6 +198,20 @@ def percentile(values: list[float], p: float) -> float:
     return ordered[min(len(ordered) - 1, round(p * (len(ordered) - 1)))]
 
 
+class ConcurrentRunner:
+    """Runs each job in its caller's thread with no lock: reviews side by side, as worker
+    Lambdas reading different stream shards would."""
+
+    def __init__(self) -> None:
+        self._handlers: dict[JobKind, Callable[[Any], None]] = {}
+
+    def register(self, kind: JobKind, handler: Callable[[Any], None]) -> None:
+        self._handlers[kind] = handler
+
+    def submit(self, job: Any) -> None:
+        self._handlers[job.kind](job)
+
+
 class SlowReviewer:
     """Stands in for the AI reviewer: takes as long as a model call and finds nothing."""
 
@@ -215,26 +229,31 @@ class SlowReviewer:
 def run_once(
     make_store: Callable[[], tuple[Any, Callable[[], None]]],
     n: int,
-    worker: bool,
+    runner_kind: str,
     review_s: float = 0,
     spread_s: float = 0,
     seed_value: int = 0,
 ) -> dict:
-    """`review_s` > 0 adds a reviewer that takes that long; `spread_s` > 0 has agents
-    submit at random moments over that many seconds instead of all at once."""
+    """`runner_kind` is "inline" (the local server's InlineRunner), "concurrent" (reviews
+    side by side) or "worker" (RecoverableWorker). `review_s` > 0 adds a reviewer that
+    takes that long; `spread_s` > 0 has agents submit at random moments over that many
+    seconds instead of all at once."""
     raw, cleanup = make_store()
     rng = random.Random(seed_value)
     runner = None
     try:
         clock = SystemClock()
         seed(raw, n, clock.now())
-        if worker:
+        if runner_kind == "worker":
             # As the Graph Hacks server runs it: one worker thread, the database as queue.
             runner = RecoverableWorker(raw, clock, poll_interval=0.05, retry_delay=0.05)
+        elif runner_kind == "concurrent":
+            runner = ConcurrentRunner()
         reviewer = SlowReviewer(review_s) if review_s else None
         services = build_services(raw, clock, reviewer, runner=runner)
         if runner is not None:
             runner.register(JobKind.CLAIM_REVIEW, services.claims.run_review)
+        if isinstance(runner, RecoverableWorker):
             runner.start()
         tasks, _, _ = plan_for(n)
 
@@ -262,7 +281,7 @@ def run_once(
             t.start()
         for t in threads:
             t.join()
-        while runner is not None and any(
+        while isinstance(runner, RecoverableWorker) and any(
             j.state not in (JobState.SUCCEEDED, JobState.FAILED) for j in raw.list_jobs(PROJECT)
         ):
             time.sleep(0.02)
@@ -318,7 +337,7 @@ def run_once(
             "directed": directed,
         }
     finally:
-        if runner is not None:
+        if isinstance(runner, RecoverableWorker):
             runner.stop()
         cleanup()
 
@@ -401,33 +420,32 @@ def main() -> None:
     parser.add_argument("--slow-max", type=int, default=32, help="largest team, slow runs")
     args = parser.parse_args()
 
-    # (name, store, one worker?, reviewer seconds, submit spread seconds, sizes)
+    # (name, store, runner, reviewer seconds, submit spread seconds, sizes)
     slow = [n for n in args.sizes if n <= args.slow_max]
+    later = f"{args.review}s reviewer, claims over {args.spread}s"
     configs = [
-        ("memory, reviews inline (local server)", memory, False, 0, 0, args.sizes),
-        (
-            f"memory, reviews inline, {args.review}s reviewer, claims over {args.spread}s",
-            memory, False, args.review, args.spread, slow,
-        ),
-    ]  # fmt: skip
+        ("memory, reviews inline (local server)", memory, "inline", 0, 0, args.sizes),
+        (f"memory, reviews inline, {later}", memory, "inline", args.review, args.spread, slow),
+    ]
     if args.falkordb:
         configs += [
-            ("FalkorDB, one worker (Graph Hacks server)", falkordb, True, 0, 0, args.sizes),
+            ("FalkorDB, one worker (Graph Hacks server)", falkordb, "worker", 0, 0, args.sizes),
             (
                 "FalkorDB, concurrent reviews (like many Lambda workers)",
-                falkordb, False, 0, 0, args.sizes,
+                falkordb, "concurrent", 0, 0, args.sizes,
             ),
+            (f"FalkorDB, one worker, {later}", falkordb, "worker", args.review, args.spread, slow),
             (
-                f"FalkorDB, one worker, {args.review}s reviewer, claims over {args.spread}s",
-                falkordb, True, args.review, args.spread, slow,
+                f"FalkorDB, concurrent reviews, {later}",
+                falkordb, "concurrent", args.review, args.spread, slow,
             ),
         ]  # fmt: skip
     results: dict[str, list[dict]] = {}
-    for name, make, worker, review_s, spread_s, sizes in configs:
+    for name, make, runner_kind, review_s, spread_s, sizes in configs:
         rows = []
         for n in sizes:
             runs = [
-                run_once(make, n, worker, review_s, spread_s, seed_value=n * 100 + rep)
+                run_once(make, n, runner_kind, review_s, spread_s, seed_value=n * 100 + rep)
                 for rep in range(args.repeat)
             ]
             row = summarize(runs)
