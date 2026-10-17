@@ -11,6 +11,8 @@ import json
 import time
 from typing import Any
 
+from midflight.adapters.dependency_graph import DependencyQueries, projection, projection_clauses
+from midflight.domain.graph import DependencyImpact
 from midflight.domain.models import (
     AuditEvent,
     Claim,
@@ -21,6 +23,7 @@ from midflight.domain.models import (
     Model,
     Participant,
     Plan,
+    PlanStatus,
     Project,
     User,
     Verification,
@@ -80,6 +83,9 @@ class FalkorStore:
             ("MFCounter", "prefix"),
             ("MFAuth", "key"),
             ("MFAuditEvent", "project_id"),
+            ("MFPlanGraph", "key"),
+            ("MFContext", "key"),
+            ("MFContext", "scope"),
         ):
             self._ensure_index(label, field)
 
@@ -193,6 +199,9 @@ class FalkorStore:
                     f"SET identity{i}.project = $project",
                 ]
             )
+            if isinstance(entity, Plan):
+                params[f"graph{i}"] = projection(entity)
+                mutations.extend(projection_clauses(i))
         for i, event in enumerate(commit.audit):
             params[f"audit{i}"] = event.model_dump_json()
             mutations.extend(
@@ -345,6 +354,34 @@ class FalkorStore:
 
     def get_job(self, job_id: str) -> Job | None:
         return self._one(Job, "n.id=$id", id=job_id)
+
+    def materialize_approved_plan(self, project_id: str, version: int) -> CommitResult:
+        """Backfill a pre-GH-04 approved plan using the same guarded atomic commit."""
+        plan = self.get_plan(project_id, version)
+        if plan is None or plan.status is not PlanStatus.APPROVED:
+            raise ValueError("backfill requires an existing approved plan")
+        return self.commit(Commit(project_id, f"graph-v1:{_key(plan)}", puts=[plan]))
+
+    def dependency_impact(
+        self,
+        project_id: str,
+        old_version: int,
+        new_version: int,
+        changed: list[str],
+        *,
+        max_depth: int = 32,
+        max_nodes: int = 1000,
+        max_edges: int = 5000,
+    ) -> DependencyImpact:
+        return DependencyQueries(self._query).impact(
+            project_id,
+            old_version,
+            new_version,
+            changed,
+            max_depth=max_depth,
+            max_nodes=max_nodes,
+            max_edges=max_edges,
+        )
 
     def list_unfinished_jobs(self) -> list[Job]:
         """Operational recovery scan across projects; never exposed as agent context."""

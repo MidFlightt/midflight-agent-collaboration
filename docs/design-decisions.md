@@ -120,3 +120,11 @@ An explicit `MIDFLIGHT_STORE` setting selects the backend and matching runner. F
 uses one background worker that recovers queued/running jobs from durable storage, with
 bounded retries and persisted backoff. Existing default selection remains compatible.
 See [runtime setup, behavior and limits](graph-hacks/runtime-worker.md).
+
+
+## Graph Hacks GH-04: immutable plan graph snapshots
+
+Plan commits atomically materialize a project/version/content-scoped graph snapshot.
+Queries traverse old and new snapshots independently, return versioned evidence and
+fail explicitly on missing data or exhausted limits. Draft replacement selects a new
+snapshot. See [graph model and query semantics](graph-hacks/dependency-graph.md).

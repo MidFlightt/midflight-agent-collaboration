@@ -1,6 +1,6 @@
 # MidFlight for Graph Hacks — full development plan
 
-Status: implementation underway, October 16, 2026. GH-01 and GH-02 are merged. GH-03 adds runtime wiring and recovery for review; graph-based impact remains pending.
+Status: implementation underway, October 16, 2026. GH-01 through GH-03 are merged. GH-04 adds the versioned dependency graph and impact-query layer for review; service propagation integration remains pending.
 
 This is the Graph Hacks starting point for the official [MidFlight repository](https://github.com/MidFlightt/MidFlight), based on inspected commit `2b6a31bf62e09c127d33b325131b4dbcb912be43`. Its existing test suite and lint checks passed during inspection; that is baseline evidence, not validation of this proposed migration.
 
@@ -13,7 +13,8 @@ For the short version, see the [teammate overview](teammate-overview.md). This p
 Implementation checkpoint: **GH-01** (isolated persistence proof) is merged.
 **GH-02** implements the full existing Store interface and real-database contract tests;
 see [adapter design and verification](falkor-store.md). GH-03 adds [runtime selection and the recoverable worker](runtime-worker.md).
-Task/contract dependency materialization remains follow-up work.
+[GH-04](dependency-graph.md) materializes task/contract relationships and adds bounded impact queries.
+Using this evidence in plan propagation and agent replies remains follow-up work.
 
 ## 1. Objective
 
