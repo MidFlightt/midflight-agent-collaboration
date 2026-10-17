@@ -16,9 +16,9 @@ uv run --extra falkordb python -m midflight.theater.app --port 8895 --api-port 8
 
 Open `http://127.0.0.1:8895`. Click **Start agents**, wait for the initial build, then
 click **Introduce pricing change**. The lead approves one change; the second round's
-agents get its content only through MidFlight check-in. Pricing and Checkout should
-receive directives; Notifications should keep its implementation. Reporting's indirect
-notification remains pending dependency-graph integration and is not counted as passed.
+agents get its content only through MidFlight check-in. Pricing, Checkout and downstream Reporting should
+receive directives with graph evidence; Notifications should keep its implementation.
+Reporting's indirect notification and all affected acknowledgements are required checks.
 
 The panes stream actual agent messages, MCP tool calls and command results. An agent
 exit alone does not establish acceptance: **Run evidence** checks claims, scoped
@@ -100,3 +100,10 @@ requires a per-run key for terminal/control access. Only trusted local users sho
 access to its URL: typing into a pane controls a real coding agent. **Test evidence**
 checks stored claims and the independent integration test rather than treating a still
 running TUI process as unfinished work. The subscription-specific integration also checks billing interval and subscription identity.
+
+## Combined graph acceptance
+
+The [GH-06 integration checks](demo-graph-integration.md) verify both this manual
+subscription flow and a pricing-only change against FalkorDB. Test evidence now requires
+Reporting's directive, graph explanations and affected-agent acknowledgements. A queued
+directive stays in the waiting colour until a real check-in saves delivery.

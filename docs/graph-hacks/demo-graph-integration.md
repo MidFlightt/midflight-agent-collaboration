@@ -8,10 +8,15 @@ The demo uses `create_server` with `store_backend="falkordb"`. Its plan approval
 select direct and downstream recipients through `GraphPlanStore`; no second impact
 calculation or manual list of recipients is needed in the controller.
 
-The test uses the demo's actual seed and pricing-only change. Reporting's task and order
+The pricing-only test uses the demo's actual seed and pricing-only change. Reporting's task and order
 contract remain unchanged, but its check-in receives the saved path from Price through
 Checkout and Order. Notifications receives no directive. This isolates graph traversal
 from the subscription scenario, which also directly changes the order contract and tasks.
+
+A second real-database test exercises the latest manual `/direction` and `/observed`
+controller routes. Only the lead may change the plan, retries do not duplicate approval,
+and cues move from waiting to received to acknowledged based on persisted directive
+state. A telemetry request alone cannot turn a queued directive into a received cue.
 
 The Test evidence report now checks the current plan's Reporting directive, saved graph
 explanations for all three affected tasks, and their acknowledgements. Old-version or

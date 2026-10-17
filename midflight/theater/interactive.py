@@ -285,11 +285,14 @@ class InteractiveTheater:
                 if d.plan_version == self.version
             ]
             if self.changed and directives:
-                self.cues[name] = (
-                    "acknowledged"
-                    if all(d.state.value == "acknowledged" for d in directives)
-                    else "received"
-                )
+                if all(d.state.value == "acknowledged" for d in directives):
+                    self.cues[name] = "acknowledged"
+                elif any(
+                    d.state.value
+                    in {"delivered", "acknowledged", "rejected", "needs_clarification"}
+                    for d in directives
+                ):
+                    self.cues[name] = "received"
             self.record("check_in", name, cue=self.cues[name], count=self.check_ins[name])
             return {"observed": True}
 

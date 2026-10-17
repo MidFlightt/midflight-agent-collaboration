@@ -59,3 +59,62 @@ def test_demo_price_change_delivers_downstream_evidence(falkor_store, tmp_path):
     assert report["checks"]["graph_evidence_saved"]
     assert report["checks"]["affected_agents_acknowledged"]
     assert report["checks"]["notifications_unaffected"]
+
+
+def test_manual_subscription_direction_and_cues_use_saved_graph_state(falkor_store, tmp_path):
+    import threading
+
+    from fastapi.testclient import TestClient
+
+    from midflight.domain.models import Role
+    from midflight.ports import Commit
+    from midflight.theater.interactive import InteractiveTheater, terminal_app
+
+    services = build_services(falkor_store, FixedClock(NOW))
+    tokens = seed(services, "demo")
+    actor = falkor_store.get_participant("pricing").model_copy(update={"role": Role.LEAD})
+    falkor_store.commit(Commit("demo", "demo-lead", puts=[actor]))
+    live = InteractiveTheater.__new__(InteractiveTheater)
+    live.changed, live.direction, live.version = False, None, 1
+    live.guard = threading.RLock()
+    live.checkpoint_wake = threading.Event()
+    live.cues = dict.fromkeys(NAMES, "unchanged")
+    live.check_ins = dict.fromkeys(NAMES, 0)
+    live.events = []
+    live.close = lambda: None
+    live.theater = SimpleNamespace(
+        root=tmp_path,
+        project="demo",
+        tokens=tokens,
+        server=SimpleNamespace(services=services),
+        save_report=lambda: {},
+    )
+    with TestClient(terminal_app(live), base_url="http://localhost") as client:
+
+        def headers(name):
+            return {"Authorization": "Bearer " + tokens[name]}
+
+        body = {"direction": "We will do subscription based"}
+        assert client.post("/direction", headers=headers("checkout"), json=body).status_code == 403
+        result = client.post("/direction", headers=headers("pricing"), json=body)
+        assert result.status_code == 200 and result.json()["plan_version"] == 2
+        assert client.post("/direction", headers=headers("pricing"), json=body).status_code == 200
+        assert len(live.events) == 1
+        # A telemetry request alone cannot prove that the agent received a queued directive.
+        client.post("/observed", headers=headers("reporting"))
+        assert live.cues["reporting"] == "waiting"
+        for name in NAMES:
+            actor = falkor_store.get_participant(name)
+            reply = services.check_ins.check_in(actor, task_id=name)
+            client.post("/observed", headers=headers(name))
+            if name == "notifications":
+                assert not reply.directives and live.cues[name] == "unchanged"
+                continue
+            assert live.cues[name] == "received"
+            assert "Graph evidence" in check_in_text(check_in_json(reply))
+            services.directives.acknowledge(
+                actor, reply.directives[0].id, DirectiveResponse.ACKNOWLEDGED
+            )
+            services.check_ins.check_in(actor, task_id=name)
+            client.post("/observed", headers=headers(name))
+            assert live.cues[name] == "acknowledged"
