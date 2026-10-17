@@ -57,3 +57,22 @@ def test_integration_is_independent_and_fails_missing_or_wrong_code(tmp_path):
         'def price(): return {"total_cents":1200,"currency":"USD"}'
     )
     assert theater.integration()["passed"]
+
+
+def test_subscription_integration_requires_interval_and_subscription_identity(tmp_path):
+    theater = Theater.__new__(Theater)
+    theater.root, theater.changed, theater.subscription = tmp_path, True, True
+    code = {
+        "pricing": 'def price(): return {"total_cents":1200,"billing_interval":"monthly"}',
+        "checkout": "def checkout(price): return dict(price)",
+        "reporting": 'def report(order): return order["total_cents"]',
+        "notifications": 'def notify(email): return "Subscribed: " + email',
+    }
+    for name, source in code.items():
+        (tmp_path / name).mkdir()
+        (tmp_path / name / (name + ".py")).write_text(source)
+    assert not theater.integration()["passed"]
+    (tmp_path / "checkout" / "checkout.py").write_text(
+        'def checkout(price): return {**price,"subscription_id":"sub-demo"}'
+    )
+    assert theater.integration()["passed"]

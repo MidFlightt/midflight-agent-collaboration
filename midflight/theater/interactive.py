@@ -8,6 +8,7 @@ import fcntl
 import json
 import os
 import pty
+import re
 import secrets
 import shlex
 import shutil
@@ -17,6 +18,7 @@ import struct
 import subprocess
 import sys
 import termios
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager, suppress
@@ -28,17 +30,50 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from midflight.domain.models import Role
+from midflight.ports import Commit
 from midflight.theater.app import Theater
-from midflight.theater.scenario import NAMES, change
+from midflight.theater.scenario import NAMES, subscription_direction
 
 
 class InteractiveTheater:
-    def __init__(self, root: Path, db_port: int, api_port: int):
+    def __init__(self, root: Path, db_port: int, api_port: int, controller_port: int = 8897):
         self.theater = Theater(root, db_port, api_port)
         self.session = "midflight-" + uuid.uuid4().hex[:8]
         self.key = secrets.token_urlsafe(24)
         self.panes = {}
         self.changed = False
+        self.controller_port = controller_port
+        self.direction = None
+        self.cues = dict.fromkeys(NAMES, "unchanged")
+        self.check_ins = dict.fromkeys(NAMES, 0)
+        self.events = []
+        self.guard = threading.RLock()
+        self.stop_event = threading.Event()
+        self.checkpoint_wake = threading.Event()
+        self.poller = None
+        self.checkpoint_counts = {}
+        self.version = 1
+        store = self.theater.server.services.store
+        pricing = store.get_participant("pricing").model_copy(update={"role": Role.LEAD})
+        project = store.get_project(self.theater.project).model_copy(update={"lead_id": "pricing"})
+        store.commit(Commit(self.theater.project, "demo-pricing-lead", puts=[pricing, project]))
+        specifications = {
+            "pricing": 'price() -> dict, initially {"total_cents": 1200}. '
+            "You also serve as team lead.",
+            "checkout": "checkout(price: dict) -> dict. Initially copy total_cents into an order.",
+            "reporting": 'report(order: dict) -> int. Initially return order["total_cents"].',
+            "notifications": 'notify(email: str) -> str. Return exactly "Subscribed: " + email.',
+        }
+        for name, spec in specifications.items():
+            (self.theater.root / name / "TASK.md").write_text(
+                f"You own {name}. Implement {name}.py. {spec}\n"
+                "Obtain shared contracts only through MidFlight. Use only this workspace.\n"
+                "Check in before each implementation step and after testing. Handle relevant "
+                "directives with acknowledgement and a revised claim before changing code.\n"
+                "Avoid assumptions about unrelated tasks; "
+                "do not name unrelated tasks in assumptions.\n"
+            )
 
     def tmux(self, *args):
         return subprocess.check_output(["tmux", *args], text=True).strip()
@@ -49,7 +84,7 @@ class InteractiveTheater:
             config = (
                 "mcp_servers.theater_midflight={command="
                 + json.dumps(sys.executable)
-                + ',args=["-m","midflight.mcp.local.adapter"],env={'
+                + ',args=["-m","midflight.theater.agent_mcp"],env={'
                 + ",".join(
                     json.dumps(k) + "=" + json.dumps(v)
                     for k, v in {
@@ -57,6 +92,8 @@ class InteractiveTheater:
                         "MIDFLIGHT_TOKEN": theater.tokens[name],
                         "MIDFLIGHT_PROJECT": theater.project,
                         "PYTHONPATH": str(theater.repo),
+                        "MIDFLIGHT_DEMO_CONTROLLER": f"http://127.0.0.1:{self.controller_port}",
+                        "MIDFLIGHT_DEMO_AGENT": name,
                     }.items()
                 )
                 + "}}"
@@ -71,6 +108,19 @@ class InteractiveTheater:
                 "and a short summary. Do not commit, push, delegate or access other workspaces. "
                 "Stay in this same session for later stages; finish this turn when done."
             )
+            if name == "pricing":
+                prompt += (
+                    " You are also the team lead. The HUMAN will type product directions here. "
+                    "When they do, FIRST call set_direction with their exact words; then check in "
+                    "for your own pricing task and handle its directive. Do not invent a direction "
+                    "during this initial build. "
+                    "Do not distribute the change to other agents yourself."
+                )
+            else:
+                prompt += (
+                    " At each checkpoint, use check_in and handle relevant directives before "
+                    "continuing. Periodic neutral checkpoint requests may arrive while you work."
+                )
             command = [
                 "codex",
                 "--no-daemon",
@@ -85,7 +135,10 @@ class InteractiveTheater:
                 "-C",
                 str(theater.root / name),
             ]
-            for tool in ("check_in", "submit_claim", "acknowledge_directive"):
+            tools = ["check_in", "submit_claim", "acknowledge_directive"]
+            if name == "pricing":
+                tools.append("set_direction")
+            for tool in tools:
                 command += [
                     "-c",
                     f'mcp_servers.theater_midflight.tools.{tool}.approval_mode="approve"',
@@ -97,6 +150,10 @@ class InteractiveTheater:
             launcher = theater.root / (name + "-launch.py")
             codex_profile_dir = theater.root / (name + "-codex-profile")
             codex_profile_dir.mkdir(mode=0o700)
+            (codex_profile_dir / "config.toml").write_text(
+                f"[projects.{json.dumps(str((theater.root / name).resolve()))}]\n"
+                'trust_level="trusted"\n'
+            )
             auth_file = Path.home() / ".codex" / "auth.json"
             if not auth_file.exists():
                 raise RuntimeError("Sign in using codex login before launching the demo")
@@ -153,6 +210,11 @@ class InteractiveTheater:
             self.tmux("select-layout", "-t", self.session, "tiled")
         self.tmux("swap-pane", "-s", self.panes["checkout"], "-t", self.panes["notifications"])
         self.tmux("select-pane", "-t", self.panes["pricing"])
+        self.tmux(
+            "select-pane", "-t", self.panes["pricing"], "-T", "PRICING / LEAD — type direction here"
+        )
+        self.poller = threading.Thread(target=self._checkpoints, daemon=True)
+        self.poller.start()
         metadata = {
             "session": self.session,
             "panes": self.panes,
@@ -162,35 +224,142 @@ class InteractiveTheater:
         }
         (theater.root / "interactive.json").write_text(json.dumps(metadata, indent=2))
 
-    def introduce_change(self):
-        if self.changed:
-            raise HTTPException(409, "Change already introduced")
-        report = self.theater.save_report()
-        if not (
-            report["checks"]["four_claims"]
-            and report["checks"]["all_claims_approved"]
-            and report["checks"]["application_integration"]
-        ):
-            raise HTTPException(
-                409, "Wait for all four approved claims and the integrated initial build"
+    def actor_for(self, authorization):
+        token = authorization.removeprefix("Bearer ")
+        for name, saved in self.theater.tokens.items():
+            if secrets.compare_digest(token, saved):
+                return name
+        raise HTTPException(401, "Invalid demo identity")
+
+    def set_direction(self, name, direction):
+        if name != "pricing":
+            raise HTTPException(403, "Only the lead can change direction")
+        if not isinstance(direction, str) or not 1 <= len(direction) <= 1000:
+            raise HTTPException(422, "Supply the human direction as text")
+        with self.guard:
+            if self.changed:
+                if direction == self.direction:
+                    return {"plan_version": self.version, "direction": self.direction}
+                raise HTTPException(409, "Reset the demo before another product pivot")
+            # Preserve a baseline if the independent implementation already exists.
+            self.theater.save_report()
+            services = self.theater.server.services
+            actor = services.store.get_participant(name)
+            if actor.role is not Role.LEAD or not actor.active:
+                raise HTTPException(403, "The lead membership is not active")
+            try:
+                plan = subscription_direction(services, self.theater.project, actor, direction)
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from error
+            self.changed = self.theater.changed = self.theater.subscription = True
+            self.direction, self.version = direction, plan.version
+            self.cues.update(pricing="direction", checkout="waiting", reporting="waiting")
+            self.record(
+                "direction_accepted", "pricing", direction=direction, plan_version=plan.version
             )
-        change(self.theater.server.services, self.theater.project)
-        self.changed = self.theater.changed = True
-        for pane in self.panes.values():
-            self.tmux(
-                "send-keys",
-                "-t",
-                pane,
-                "-l",
-                "Checkpoint: use MidFlight check_in now. Obtain new context only from MidFlight. "
-                "Handle relevant directives, acknowledge them and revise your "
-                "existing claim before "
-                "changing code. If unaffected preserve your code. Test, check in and summarize.",
+            self.checkpoint_wake.set()
+            return {
+                "plan_version": self.version,
+                "direction": self.direction,
+                "note": "Other agents learn this at their own MidFlight check-ins.",
+            }
+
+    def record(self, kind, name, **details):
+        from datetime import UTC, datetime
+
+        event = {"type": kind, "agent": name, "time": datetime.now(UTC).isoformat(), **details}
+        self.events.append(event)
+        with (self.theater.root / "events.jsonl").open("a") as out:
+            out.write(json.dumps(event) + "\n")
+
+    def observed(self, name):
+        if name not in NAMES:
+            raise HTTPException(403, "Not a demo task")
+        with self.guard:
+            self.check_ins[name] += 1
+            directives = [
+                d
+                for d in self.theater.server.services.store.list_directives(
+                    self.theater.project, name
+                )
+                if d.plan_version == self.version
+            ]
+            if self.changed and directives:
+                self.cues[name] = (
+                    "acknowledged"
+                    if all(d.state.value == "acknowledged" for d in directives)
+                    else "received"
+                )
+            self.record("check_in", name, cue=self.cues[name], count=self.check_ins[name])
+            return {"observed": True}
+
+    def status(self):
+        with self.guard:
+            return {
+                "session": self.session,
+                "direction": self.direction,
+                "version": self.version,
+                "cues": dict(self.cues),
+                "check_ins": dict(self.check_ins),
+                "events": list(self.events[-30:]),
+                "layout": self.layout(),
+            }
+
+    def layout(self):
+        names = {pane: name for name, pane in self.panes.items()}
+        output = self.tmux(
+            "list-panes",
+            "-t",
+            self.session,
+            "-F",
+            "#{pane_id} #{pane_left} #{pane_top} #{pane_width} #{pane_height}",
+        )
+        return {
+            names[parts[0]]: dict(
+                zip(("x", "y", "width", "height"), map(int, parts[1:]), strict=True)
             )
-            # Codex groups fast terminal input as pasted text. Wait for that
-            # buffer to settle so Enter submits rather than inserting a newline.
-            time.sleep(0.5)
-            self.tmux("send-keys", "-t", pane, "Enter")
+            for line in output.splitlines()
+            if (parts := line.split()) and parts[0] in names
+        }
+
+    def _checkpoints(self):
+        while not self.stop_event.is_set():
+            self.checkpoint_wake.wait(15)
+            self.checkpoint_wake.clear()
+            if self.stop_event.is_set():
+                return
+            for name in ("checkout", "reporting", "notifications"):
+                if self.stop_event.is_set():
+                    return
+                counter = (self.version, name)
+                if self.checkpoint_counts.get(counter, 0) >= 6:
+                    continue  # Bound model usage while waiting for a human direction.
+                if self.changed and self.cues[name] == "acknowledged":
+                    continue
+                if self.changed and name == "notifications" and self.checkpoint_counts.get(counter):
+                    continue
+                try:
+                    screen = self.tmux("capture-pane", "-p", "-t", self.panes[name])
+                    tail = "\n".join(screen.splitlines()[-14:])
+                    if "Ask Codex to do anything" not in tail or re.search(
+                        r"esc to interrupt|Starting MCP|Working \(", tail, re.IGNORECASE
+                    ):
+                        continue
+                    self.tmux(
+                        "send-keys",
+                        "-t",
+                        self.panes[name],
+                        "-l",
+                        "Scheduled checkpoint: call theater_midflight.check_in for your task. "
+                        "Handle any relevant directives: acknowledge, revise your existing claim, "
+                        "then update/test if needed. If unaffected preserve your work. "
+                        "Do not infer or invent a change; use MidFlight context only.",
+                    )
+                    time.sleep(0.5)
+                    self.tmux("send-keys", "-t", self.panes[name], "Enter")
+                    self.checkpoint_counts[counter] = self.checkpoint_counts.get(counter, 0) + 1
+                except subprocess.CalledProcessError:
+                    continue
 
     def report(self):
         report = self.theater.save_report()
@@ -199,6 +368,15 @@ class InteractiveTheater:
         report["checks"].pop("all_agents_finished", None)
         report["mode"] = "persistent-interactive"
         report["phase"] = "changed" if self.changed else "initial"
+        report["human_direction"] = self.direction
+        report["visual_events"] = list(self.events)
+        if self.changed:
+            directives = self.theater.server.services.store.list_directives(self.theater.project)
+            report["checks"]["subscription_tasks_notified"] = {
+                "pricing",
+                "checkout",
+                "reporting",
+            } <= {d.task_id for d in directives}
         report["agents"] = {
             name: {
                 "pane": pane,
@@ -214,6 +392,10 @@ class InteractiveTheater:
         return report
 
     def close(self):
+        self.stop_event.set()
+        self.checkpoint_wake.set()
+        if self.poller is not None and self.poller is not threading.current_thread():
+            self.poller.join(5)
         with suppress(subprocess.CalledProcessError):
             self.tmux("kill-session", "-t", self.session)
         self.theater.close()
@@ -225,6 +407,7 @@ def terminal_app(live):
         yield
         live.close()
 
+    control_lock = threading.RLock()
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
     app.mount("/vendor", StaticFiles(directory=Path(__file__).with_name("vendor")), name="vendor")
@@ -239,12 +422,39 @@ def terminal_app(live):
             raise HTTPException(403)
         return {"key": live.key, "commit": live.theater.commit[:10], "session": live.session}
 
-    @app.post("/change")
-    def plan_change(request: Request):
+    @app.get("/status")
+    def status(request: Request):
         if request.headers.get("x-demo-key") != live.key:
             raise HTTPException(403)
-        live.introduce_change()
-        return {"changed": True}
+        return live.status()
+
+    @app.post("/direction")
+    def direction(request: Request, body: dict):
+        with control_lock:
+            name = live.actor_for(request.headers.get("authorization", ""))
+            return live.set_direction(name, body.get("direction"))
+
+    @app.post("/observed")
+    def observed(request: Request):
+        with control_lock:
+            name = live.actor_for(request.headers.get("authorization", ""))
+            return live.observed(name)
+
+    @app.post("/reset")
+    def reset(request: Request):
+        nonlocal live
+        with control_lock:
+            if request.headers.get("x-demo-key") != live.key:
+                raise HTTPException(403)
+            old = live
+            old.report()
+            old.close()
+            root = old.theater.root.parent / ("interactive-" + uuid.uuid4().hex[:10])
+            live = InteractiveTheater(
+                root, old.theater.db_port, old.theater.api_port, old.controller_port
+            )
+            live.launch()
+            return {"reset": True, "session": live.session}
 
     @app.get("/report")
     def report():
@@ -328,7 +538,7 @@ def main():
             parser.error(f"Port {port} is busy; choose another port before launching agents")
     os.umask(0o077)
     root = Path.home() / ".local/share/midflight-demo" / ("interactive-" + uuid.uuid4().hex[:10])
-    live = InteractiveTheater(root, args.db_port, args.api_port)
+    live = InteractiveTheater(root, args.db_port, args.api_port, args.port)
     try:
         live.launch()
         print(

@@ -55,17 +55,34 @@ uv run --extra falkordb --extra demo python -m midflight.theater.interactive
 
 Open `http://127.0.0.1:8897`. The four panes are actual interactive Codex TUIs inside
 PTYs owned by tmux, displayed through a locally served terminal emulator. Click a pane
-to select it and type normally. On first launch, approve access to each newly generated
-synthetic workspace. The default layout is Pricing/Checkout above Reporting/Notifications.
+to select it and type normally. Only the newly generated synthetic workspaces are
+marked trusted in their private profiles. The default layout is Pricing/Checkout above Reporting/Notifications.
 `Ctrl-b` then an arrow changes pane; `Ctrl-b` then `z` zooms the selected pane.
 
-The initial prompt starts all agents. Once their initial work is complete, **Introduce
-plan change** approves the shared change and sends a neutral checkpoint request to those
-same four TUIs. The actual change is obtained through MidFlight MCP. Model processes
-remain alive at their prompts after both stages, ready for further interaction. Browser
-refresh/disconnection detaches the view without restarting the agents. Stopping the
-harness ends its tmux session and local API; this mode has no unattended loop sending
-repeated prompts and no ten-minute per-turn cutoff.
+The initial prompt starts all four agents. In **Pricing / Lead**, type your own message:
+
+> We will do subscription based
+
+The lead calls the demo-only `set_direction` MCP tool with your exact words. MidFlight
+approves plan version 2: monthly pricing, a subscription order, and monthly reporting.
+The same running agents discover their directives through actual `check_in` calls.
+Notifications has no dependency on those contracts and receives no directive. This
+is a scoped subscription scenario, not a general natural-language plan compiler.
+Both price and order contracts change explicitly; this demonstration does not claim
+that indirect graph traversal is implemented.
+
+Amber marks direction acceptance; purple marks an affected agent's check-in; green
+marks acknowledgement observed at its next check-in. Notifications stays uncolored.
+The controller sends neutral checkpoint prompts to idle peer terminals every 15 seconds,
+up to six per agent per plan version. It never broadcasts the direction itself or types
+into the lead's prompt. After acknowledgement it stops prompting that affected agent.
+Notifications receives at most one scheduled checkpoint after the pivot. To check again
+later, simply ask the agent to check in. These bounded prompts consume model usage.
+
+**Reset** archives the current report and starts a fresh isolated project, workspaces
+and four conversations. Previous files, graph and event evidence remain under the old
+run directory. Reset intentionally ends the old sessions; browser refresh/disconnection
+only detaches the view and preserves them. There is no change-injection button.
 
 Native terminal attachment is also possible: `tmux attach -t <session>`. The exact session,
 pane IDs, workspace and tested commit are in the run's `interactive.json`. The view is
@@ -82,4 +99,4 @@ The terminal bridge binds to loopback, checks allowed hosts and WebSocket Origin
 requires a per-run key for terminal/control access. Only trusted local users should have
 access to its URL: typing into a pane controls a real coding agent. **Test evidence**
 checks stored claims and the independent integration test rather than treating a still
-running TUI process as unfinished work. Downstream graph propagation remains pending.
+running TUI process as unfinished work. The subscription-specific integration also checks billing interval and subscription identity.
