@@ -59,6 +59,17 @@ to select it and type normally. Only the newly generated synthetic workspaces ar
 marked trusted in their private profiles. The default layout is Pricing/Checkout above Reporting/Notifications.
 `Ctrl-b` then an arrow changes pane; `Ctrl-b` then `z` zooms the selected pane.
 
+**Fullscreen** expands all four panes; press Escape or **Exit fullscreen** to leave it.
+If the embedded browser does not support fullscreen, open the same URL in Chrome.
+**Test results** opens the raw run report: saved claim approvals, targeted directives,
+independent integration results and process liveness. A claim approval alone does not
+prove the generated code works; the integration result is checked separately.
+
+No individual initialization prompts are needed. Startup (and **Reset**) creates the
+shared plan, gives each agent its task, workspace and MCP identity, then starts its
+initial check-in, claim, implementation and test cycle automatically. Pricing is also
+the lead; Checkout and Reporting consume contracts; Notifications is independent.
+
 The initial prompt starts all four agents. In **Pricing / Lead**, type your own message:
 
 > We will do subscription based
