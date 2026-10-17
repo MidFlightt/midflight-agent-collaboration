@@ -63,7 +63,8 @@ marked trusted in their private profiles. The default layout is Pricing/Checkout
 If the embedded browser does not support fullscreen, open the same URL in Chrome.
 **Test results** opens a readable view (`/?view=results`) of claim approvals, targeted
 directives, independent integration results and process liveness. It refreshes every
-five seconds, with manual refresh and a secondary **Raw JSON** link to `/report`. A claim approval alone does not
+five seconds, with manual refresh and a secondary **Raw JSON** link to `/report`. The view uses
+the same monospace terminal styling as the live coding screen. A claim approval alone does not
 prove the generated code works; the integration result is checked separately.
 
 No individual initialization prompts are needed. Startup (and **Reset**) creates the
@@ -83,7 +84,8 @@ is a scoped subscription scenario, not a general natural-language plan compiler.
 Both price and order contracts change explicitly; this demonstration does not claim
 that indirect graph traversal is implemented.
 
-Amber marks direction acceptance; purple marks an affected agent's check-in; green
+Only status words light up; pane outlines stay unchanged. Amber marks direction
+acceptance; purple marks an affected agent's check-in; green
 marks acknowledgement observed at its next check-in. Notifications stays uncolored.
 The controller sends neutral checkpoint prompts to idle peer terminals every 15 seconds,
 up to six per agent per plan version. It never broadcasts the direction itself or types
