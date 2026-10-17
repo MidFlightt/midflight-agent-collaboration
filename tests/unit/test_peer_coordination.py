@@ -86,8 +86,9 @@ def test_unregistered_identity_and_task_reassignment_are_refused(peers):
     assert peers.read("pricing").version == 1
 
 
-def test_every_peer_has_same_short_prompt_and_tools():
+def test_every_peer_has_direct_short_prompt_and_same_tools():
     peer = PeerTheater.__new__(PeerTheater)
     prompts = {peer.initial_prompt(n, "old script") for n in NAMES}
-    assert len(prompts) == 1 and len(prompts.pop().split()) < 15
+    assert len(prompts) == 4
+    assert all("TASK.md" not in prompt and len(prompt.split()) < 25 for prompt in prompts)
     assert all(peer.plan_tools(n) == ["read_shared_plan", "publish_shared_plan"] for n in NAMES)

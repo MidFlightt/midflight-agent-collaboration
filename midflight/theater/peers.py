@@ -24,10 +24,12 @@ from midflight.theater.peer_coordination import PeerCoordination
 from midflight.theater.scenario import NAMES
 
 TASKS = {
-    "pricing": 'Implement pricing.py: price() returns {"total_cents": 1200}.',
-    "checkout": "Implement checkout.py: checkout(price) returns an order with total_cents.",
-    "reporting": "Implement reporting.py: report(order) returns its total_cents.",
-    "notifications": 'Implement notifications.py: notify(email) returns "Subscribed: " + email.',
+    "pricing": "Build pricing for a product that costs $12.",
+    "checkout": "Build checkout that creates an order using the product price.",
+    "reporting": "Build reporting that returns the total from an order.",
+    "notifications": (
+        'Build a signup confirmation that says "Subscribed: " followed by the email address.'
+    ),
 }
 
 
@@ -52,7 +54,7 @@ class PeerTheater(InteractiveTheater):
             (self.theater.root / name / "TASK.md").write_text(brief + "\n")
 
     def initial_prompt(self, name, default):
-        return "Build your task in TASK.md. Coordinate with the team through MidFlight."
+        return f"{TASKS[name]} Coordinate with the team through MidFlight."
 
     def plan_tools(self, name):
         return ["read_shared_plan", "publish_shared_plan"]

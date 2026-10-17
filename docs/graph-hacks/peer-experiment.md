@@ -10,11 +10,16 @@ uv sync --locked --extra falkordb --extra demo
 uv run --extra falkordb --extra demo python -m midflight.theater.peers
 ```
 
-Open http://127.0.0.1:8907 (API 8908). All four windows start with:
+Open http://127.0.0.1:8907 (API 8908). Each window starts with a direct request:
 
-> Build your task in TASK.md. Coordinate with the team through MidFlight.
+- Pricing: “Build pricing for a product that costs $12.”
+- Checkout: “Build checkout that creates an order using the product price.”
+- Reporting: “Build reporting that returns the total from an order.”
+- Notifications: ‘Build a signup confirmation that says "Subscribed: " followed by the email address.’
 
-Each TASK.md contains just a one-line implementation brief. The commerce tasks are
+Each appends “Coordinate with the team through MidFlight.” No prompt asks the agent
+to read TASK.md. The shared plan supplies the existing interface details, and TASK.md
+retains the same short brief for reference. The commerce tasks are
 still a small example project; this experiment generalizes coordination, not project
 creation or task allocation. It is not yet an arbitrary-repository installer.
 
