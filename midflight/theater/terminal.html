@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><title>MidFlight · live coding team</title><link rel="stylesheet" href="/vendor/xterm.css"><style>
-html,body{margin:0;height:100%;background:#101114;color:#ddd;font:13px system-ui}header{height:48px;display:flex;align-items:center;gap:16px;padding:0 15px}button,a{background:#273041;color:#eee;border:0;border-radius:4px;padding:7px 12px;cursor:pointer;text-decoration:none}button:disabled{opacity:.5;cursor:wait}#terminal{height:calc(100% - 48px);padding:0 8px}#note{margin-left:auto;font-size:12px;color:#c4c4cf}#overlays{position:absolute;top:49px;bottom:17px;left:7px;right:9px;pointer-events:none}.cue{position:absolute;pointer-events:none}.cue span{position:absolute;right:8px;top:0;padding:1px 5px;font:600 12px Menlo,monospace;background:#101114;display:none}.cue.direction span{--light:#f7ba55}.cue.received span{--light:#c4aaff}.cue.acknowledged span{--light:#65d8ac}.cue.direction span,.cue.received span,.cue.acknowledged span{color:var(--light);display:block;text-shadow:0 0 9px var(--light)}.cue.lit span{animation:word-light 1.5s ease-out}body.pivot #note{color:#f7ba55;text-shadow:0 0 9px #f7ba55}@keyframes word-light{0%{background:color-mix(in srgb,var(--light) 30%,#101114);text-shadow:0 0 15px var(--light)}100%{background:#101114;text-shadow:0 0 9px var(--light)}}@media(prefers-reduced-motion:reduce){.cue.lit span{animation:none}}small{color:#9c9ca8}
-</style><header><b>MidFlight · live coding team</b><small>Type your direction in <strong>Pricing / Lead</strong></small><button id="reset">Reset</button><button id="fullscreen" title="Expand all four coding panes">Fullscreen</button><a href="/?view=results" target="_blank" title="Claims, directives, and independent integration checks">Test results</a><span id="note">Connecting…</span></header><div id="terminal"></div><div id="overlays"><div class="cue" data-agent="pricing"><span></span></div><div class="cue" data-agent="checkout"><span></span></div><div class="cue" data-agent="reporting"><span></span></div><div class="cue" data-agent="notifications"><span></span></div></div><template id="results-view">
+html,body{margin:0;height:100%;background:#101114;color:#ddd;font:13px system-ui}header{height:48px;display:flex;align-items:center;gap:16px;padding:0 15px}button,a{background:#273041;color:#eee;border:0;border-radius:4px;padding:7px 12px;cursor:pointer;text-decoration:none}button:disabled{opacity:.5;cursor:wait}#terminal{height:calc(100% - 48px);padding:0 8px}#note{margin-left:auto;font-size:12px;color:#c4c4cf}small{color:#9c9ca8}
+</style><header><b>MidFlight · live coding team</b><small>Type your direction in <strong>Pricing / Lead</strong></small><button id="reset">Reset</button><button id="fullscreen" title="Expand all four coding panes">Fullscreen</button><a href="/?view=results" target="_blank" title="Claims, directives, and independent integration checks">Test results</a><span id="note">Connecting…</span></header><div id="terminal"></div><template id="results-view">
 <style>
 body.results{height:auto;min-height:100vh;background:#101114;color:#ddd;font:13px/1.55 Menlo,Monaco,Consolas,monospace}body.results main{max-width:1160px;margin:auto;padding:18px 22px}body.results nav{display:flex;gap:18px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #46484c;padding-bottom:12px}body.results a,body.results button{background:transparent;border:0;border-radius:0;padding:0;color:#c4c4cf;font:inherit;text-decoration:none}body.results a::before,body.results button::before{content:'[ '}body.results a::after,body.results button::after{content:' ]'}body.results a:hover,body.results button:hover{color:#fff;text-decoration:underline}body.results h1{font:600 15px/1.5 Menlo,monospace;margin:20px 0 6px}body.results h1::before{content:'> ';color:#65d8ac}body.results h2{font:600 13px/1.5 Menlo,monospace;margin:0 0 10px;color:#c4c4cf}body.results h2::before{content:'── '}body.results p{margin:6px 0 12px}body.results .muted{color:#91959e;font-size:12px}body.results .cards{margin:16px 0}body.results .card{display:grid;grid-template-columns:22ch 25ch 1fr;gap:10px;padding:5px 0}body.results .metric{font-size:13px;font-weight:600;margin:0}body.results section{border-top:1px solid #46484c;padding:14px 0 0;margin:14px 0}body.results .good{color:#65d8ac}body.results .pending{color:#f7ba55}body.results .purple{color:#c4aaff}body.results table{border-collapse:collapse;width:100%;font:inherit}body.results th,body.results td{text-align:left;padding:6px 12px 6px 0;border-bottom:1px solid #26282d;vertical-align:top}body.results th{color:#91959e;font-weight:400}body.results .table-wrap{overflow:auto}body.results ul{padding:0;list-style:none;margin:6px 0}body.results li{margin:3px 0}body.results li::before{content:'· ';color:#91959e}body.results pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:10px 0;font:inherit;color:#acb1bb}body.results details{margin-top:10px}body.results summary{cursor:pointer;color:#91959e}body.results #refresh-state{margin-left:auto}body.results blockquote{margin:8px 0 12px;padding:4px 0;color:#f7ba55}body.results blockquote::before{content:'lead > ';color:#91959e}body.results .legend{display:flex;gap:20px;flex-wrap:wrap}body.results .error{color:#ffa999}@media(max-width:700px){body.results .card{grid-template-columns:18ch 1fr}body.results .card>:last-child{grid-column:1/-1}body.results main{padding:14px}}
 </style>
@@ -10,7 +10,7 @@ body.results{height:auto;min-height:100vh;background:#101114;color:#ddd;font:13p
 <div class="cards"><div class="card"><div class="muted">Shared plan</div><div class="metric" id="plan-summary">—</div><div id="plan-detail" class="muted"></div></div><div class="card"><div class="muted">Agent claims</div><div class="metric" id="claims-summary">—</div><div class="muted">MidFlight’s approval of declared scope and contracts.</div></div><div class="card"><div class="muted">Code integration</div><div class="metric" id="integration-summary">—</div><div class="muted">A separate test runs the four agents’ functions together.</div></div></div>
 <section><h2>Direction and affected agents</h2><div id="direction-summary"></div><blockquote id="human-direction" hidden></blockquote><div class="table-wrap"><table><thead><tr><th>Agent</th><th>Session</th><th>Latest claim</th><th>Change delivery</th></tr></thead><tbody id="agent-results"></tbody></table></div><p class="muted">Acknowledgement means the agent accepted a directive. The integration check separately tests the resulting code.</p></section>
 <section><h2>Acceptance checks</h2><ul id="acceptance-checks"></ul><details><summary>Integration test output</summary><pre id="integration-output"></pre></details></section>
-<section><h2>How the screen colors work</h2><div class="legend"><span class="pending">● Amber: direction accepted</span><span class="purple">● Purple: received at check-in</span><span class="good">● Green: acknowledgement observed</span></div><p class="muted">Only the status words light up; terminal outlines stay unchanged. Notifications stays uncolored when it has no directive. Green status text does not mean the code passed.</p><details><summary>Coordination timeline</summary><ul id="event-timeline"></ul></details></section>
+<section><h2>How the screen colors work</h2><div class="legend"><span style="color:#79bdff">● Blue: MCP calls</span><span style="color:#7cdae7">● Cyan: plan version</span><span class="pending">● Amber: subscription requirements / fields</span><span class="purple">● Purple: directives / revision needed</span><span class="good">● Green: approved / acknowledged / passed</span><span style="color:#9499a3">● Gray: unchanged / unaffected</span><span style="color:#ff8d91">● Red: blocked / failed / error</span></div><p class="muted">Colors apply to matching words in the actual terminal output, including expanded tool replies. They are syntax highlighting, not computed verdicts: an agent can mention “passed” without proving it. Use the acceptance checks above to verify the run. Pane outlines and agent output are unchanged.</p><details><summary>Coordination timeline</summary><ul id="event-timeline"></ul></details></section>
 <details><summary>Run details</summary><pre id="run-details"></pre><p class="muted">The commit identifies the backend source at run startup. Earlier runs are preserved in their own local directories.</p></details>
 </main>
 </template>
@@ -44,10 +44,79 @@ el('refresh-results').onclick=refresh;await refresh();setInterval(()=>{if(!docum
 }
 </script>
 <script src="/vendor/xterm.js"></script><script src="/vendor/addon-fit.js"></script><script>
-(async()=>{if(new URLSearchParams(location.search).get("view")==="results"){await startResults();return}let connection,ws,generation=0,session=null,seenDirection=null,resetting=false;const note=document.getElementById('note'),button=document.getElementById('reset');const term=new Terminal({fontSize:12,fontFamily:'Menlo,monospace',cursorBlink:true,theme:{background:'#101114'}});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('terminal'));fit.fit();term.onData(data=>{if(ws?.readyState===1)ws.send(JSON.stringify({type:'input',data}))});function resize(){fit.fit();if(ws?.readyState===1)ws.send(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows}))}window.addEventListener('resize',resize);
+// BEGIN DEMO TEXT COLORS — presentation only; never edits the terminal stream.
+function demoColorRanges(text) {
+  const rules = [
+    ['#79bdff', /\btheater_midflight\.(?:check_in|set_direction|submit_claim|acknowledge_directive)\b/g],
+    ['#7cdae7', /\bplan\s+v?\d+\b/gi],
+    ['#f7ba55', /\b(?:We will do subscription based|subscription-billing|subscription_id|billing_interval|monthly)\b/gi],
+    ['#c4aaff', /\b(?:D-\d+|directives?|needs_revision|needs revision)\b/gi],
+    ['#65d8ac', /\b(?:APPROVED|approved|ACKNOWLEDGED|[Aa]cknowledged|PASS(?:ED)?|[Pp]assed|[Tt]ests? passed)\b/g],
+    ['#9499a3', /\b(?:No changes since your last check-in|Requirements and contracts: unchanged|unchanged since the check-in you named|no (?:findings|open directives)|unaffected|preserved)\b/gi],
+    ['#ff8d91', /\b(?:BLOCKED|[Bb]locked|REJECTED|[Rr]ejected|CONFLICT|[Cc]onflict|FAILED|[Ff]ailed|ERROR|Error)\b/g],
+  ];
+  const cells = Array(text.length).fill(null);
+  for (const [color, pattern] of rules) {
+    for (const match of text.matchAll(pattern)) cells.fill(color, match.index, match.index + match[0].length);
+  }
+  const ranges = [];
+  for (let start = 0; start < cells.length;) {
+    let end = start + 1;
+    while (end < cells.length && cells[end] === cells[start]) end++;
+    if (cells[start]) ranges.push({start, end, color: cells[start]});
+    start = end;
+  }
+  return ranges;
+}
+// END DEMO TEXT COLORS
+function installDemoTextColors(term) {
+  let pending = false, previousBuffer, previousCols;
+  const decorated = new Map();
+  function dispose(entry) { for (const decoration of entry.decorations) decoration.dispose(); entry.marker.dispose(); }
+  function paint() {
+    pending = false;
+    const buffer = term.buffer.active;
+    if (buffer !== previousBuffer || term.cols !== previousCols) {
+      for (const entry of decorated.values()) dispose(entry);
+      decorated.clear(); previousBuffer = buffer; previousCols = term.cols;
+    }
+    const visible = new Set();
+    for (let row = 0; row < term.rows; row++) {
+      const y = buffer.viewportY + row, line = buffer.getLine(y);
+      if (!line) continue;
+      visible.add(y);
+      let text = ''; const columns = [], ends = [];
+      for (let x = 0; x < line.length; x++) {
+        const cell = line.getCell(x); if (!cell || cell.getWidth() === 0) continue;
+        const chars = cell.getChars() || ' ';
+        for (let i = 0; i < chars.length; i++) { columns.push(x); ends.push(x + cell.getWidth()); }
+        text += chars;
+      }
+      const old = decorated.get(y);
+      if (old?.text === text && !old.marker.isDisposed && old.marker.line === y) continue;
+      if (old) { dispose(old); decorated.delete(y); }
+      const ranges = demoColorRanges(text); if (!ranges.length) continue;
+      const marker = term.registerMarker(y - buffer.baseY - buffer.cursorY);
+      if (!marker) continue;
+      const decorations = [];
+      for (const range of ranges) {
+        const x = columns[range.start], width = ends[range.end - 1] - x;
+        const decoration = term.registerDecoration({marker, x, width, foregroundColor: range.color, layer: 'bottom'});
+        if (decoration) decorations.push(decoration);
+      }
+      decorated.set(y, {text, marker, decorations});
+    }
+    for (const [y, entry] of decorated) if (!visible.has(y)) { dispose(entry); decorated.delete(y); }
+  }
+  function schedule() { if (!pending) { pending = true; requestAnimationFrame(paint); } }
+  term.onWriteParsed(schedule); term.onResize(schedule); term.onScroll(schedule);
+  schedule();
+}
+
+(async()=>{if(new URLSearchParams(location.search).get("view")==="results"){await startResults();return}let connection,ws,generation=0,session=null,seenDirection=null,resetting=false;const note=document.getElementById('note'),button=document.getElementById('reset');const term=new Terminal({fontSize:12,fontFamily:'Menlo,monospace',cursorBlink:true,allowProposedApi:true,theme:{background:'#101114'}});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('terminal'));installDemoTextColors(term);fit.fit();term.onData(data=>{if(ws?.readyState===1)ws.send(JSON.stringify({type:'input',data}))});function resize(){fit.fit();if(ws?.readyState===1)ws.send(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows}))}window.addEventListener('resize',resize);
 const fullscreen=document.getElementById('fullscreen');fullscreen.onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch(e){fullscreen.title='Fullscreen is unavailable here. Use Control–Command–F in Chrome on macOS, or open this URL in your browser.';note.textContent=fullscreen.title}};document.addEventListener('fullscreenchange',()=>{fullscreen.textContent=document.fullscreenElement?'Exit fullscreen':'Fullscreen';requestAnimationFrame(resize)});
 
 async function connect(){const current=++generation;try{connection=await(await fetch('/connection')).json();if(current!==generation)return;if(session!==connection.session){term.reset();session=connection.session;seenDirection=null}ws=new WebSocket('ws://'+location.host+'/terminal?key='+encodeURIComponent(connection.key));ws.binaryType='arraybuffer';ws.onopen=()=>{resize();term.focus()};ws.onmessage=e=>{if(current===generation)term.write(new Uint8Array(e.data))};ws.onclose=()=>{if(current===generation&&!resetting)setTimeout(connect,1500)}}catch(e){if(current===generation&&!resetting)setTimeout(connect,1500)}}
-async function status(){if(!connection||resetting)return;try{const r=await fetch('/status',{headers:{'X-Demo-Key':connection.key}});if(!r.ok)return;const s=await r.json();note.textContent=s.direction?'Direction accepted · plan '+s.version:'One-off sales · waiting for your direction';if(s.direction&&s.direction!==seenDirection){seenDirection=s.direction;document.body.classList.remove('pivot');void document.body.offsetWidth;document.body.classList.add('pivot')}for(const pane of document.querySelectorAll('.cue')){const state=s.cues[pane.dataset.agent];if(pane.dataset.state!==state){pane.className='cue '+state;void pane.offsetWidth;pane.classList.add('lit');pane.dataset.state=state}const box=s.layout?.[pane.dataset.agent],screen=document.querySelector('.xterm-screen');if(box&&screen){const cw=screen.clientWidth/term.cols,ch=screen.clientHeight/term.rows;Object.assign(pane.style,{left:(box.x*cw)+'px',top:((box.y-1)*ch)+'px',width:(box.width*cw)+'px',height:((box.height+1)*ch)+'px'})}pane.querySelector('span').textContent=state==='direction'?'Direction accepted':state==='received'?'New direction received':state==='acknowledged'?'Update acknowledged':''}}catch(e){note.textContent='Reconnecting…'}}
-button.onclick=async()=>{if(resetting||!connection)return;resetting=true;button.disabled=true;button.textContent='Resetting…';note.textContent='Starting a fresh team; prior evidence is retained';try{const r=await fetch('/reset',{method:'POST',headers:{'X-Demo-Key':connection.key}});if(!r.ok)throw Error((await r.json()).detail);generation++;ws?.close();term.reset();for(const pane of document.querySelectorAll('.cue'))pane.className='cue';resetting=false;await connect()}catch(e){note.textContent=e.message;resetting=false}finally{button.disabled=false;button.textContent='Reset'}};await connect();setInterval(status,750);status();})();
+async function status(){if(!connection||resetting)return;try{const r=await fetch('/status',{headers:{'X-Demo-Key':connection.key}});if(!r.ok)return;const s=await r.json();note.textContent=s.direction?'Direction accepted · plan '+s.version:'One-off sales · waiting for your direction';}catch(e){note.textContent='Reconnecting…'}}
+button.onclick=async()=>{if(resetting||!connection)return;resetting=true;button.disabled=true;button.textContent='Resetting…';note.textContent='Starting a fresh team; prior evidence is retained';try{const r=await fetch('/reset',{method:'POST',headers:{'X-Demo-Key':connection.key}});if(!r.ok)throw Error((await r.json()).detail);generation++;ws?.close();term.reset();resetting=false;await connect()}catch(e){note.textContent=e.message;resetting=false}finally{button.disabled=false;button.textContent='Reset'}};await connect();setInterval(status,750);status();})();
 </script></html>

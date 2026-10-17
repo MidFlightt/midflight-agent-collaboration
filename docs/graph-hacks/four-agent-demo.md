@@ -84,9 +84,28 @@ is a scoped subscription scenario, not a general natural-language plan compiler.
 Both price and order contracts change explicitly; this demonstration does not claim
 that indirect graph traversal is implemented.
 
-Only status words light up; pane outlines stay unchanged. Amber marks direction
-acceptance; purple marks an affected agent's check-in; green
-marks acknowledgement observed at its next check-in. Notifications stays uncolored.
+The browser colors actual words in the terminal buffer using xterm cell decorations:
+
+| Color | Words shown in the demo |
+| --- | --- |
+| Blue | MidFlight MCP calls (`check_in`, `set_direction`, claim/acknowledgement tools) |
+| Cyan | Plan versions, such as `plan v2` |
+| Amber | `subscription-billing`, the human subscription direction, `billing_interval`, `monthly`, `subscription_id` |
+| Purple | Directive IDs, directives and `NEEDS_REVISION` |
+| Green | `APPROVED`, `Acknowledged`, `PASS` / `Passed` |
+| Gray | Unchanged, unaffected and no-new-findings messages |
+| Red | Blocked, rejected, conflict, failed and error messages |
+
+There are no additional pane outlines or corner status labels. The underlying PTY
+bytes, agent context and copied transcript are unchanged. Colors follow visible
+text, including older messages, scrollback and expanded tool replies; expand a
+collapsed MCP result in Codex to see its contents. Highlighting is lexical, not a
+verification result: an agent mentioning “passed” does not establish acceptance.
+The independent results page supplies that evidence. The browser refreshes cell
+colors after writes, scrolling and resizing; wide characters are mapped to cell
+columns. Run the deterministic matcher checks with
+`node tests/browser/terminal-colors.cjs` (no paid agents).
+
 The controller sends neutral checkpoint prompts to idle peer terminals every 15 seconds,
 up to six per agent per plan version. It never broadcasts the direction itself or types
 into the lead's prompt. After acknowledgement it stops prompting that affected agent.
