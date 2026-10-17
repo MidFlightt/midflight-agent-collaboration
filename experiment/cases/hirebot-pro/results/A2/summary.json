@@ -1,0 +1,62 @@
+{
+  "case": "hirebot-pro",
+  "run": "A2",
+  "approach": "team-chat file",
+  "model": "sonnet",
+  "merge": [
+    "t1-catalog: merged",
+    "t2-pricing: merged",
+    "t3-bookings: merged",
+    "t4-reports: merged",
+    "t5-cli: merged"
+  ],
+  "scores": [
+    {
+      "passed": 14,
+      "of": 14,
+      "failed": []
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 8.0713,
+    "warmup_cost": 0.0,
+    "turns": 276,
+    "input": 476,
+    "output": 210446,
+    "cache_read": 21208331,
+    "cache_write": 429569,
+    "agent_minutes": 38.0,
+    "tool_calls": 308,
+    "midflight_calls": {},
+    "cost_by_agent": {
+      "t1": 0.4226441999999999,
+      "t2": 1.0795608,
+      "t3": 2.7749841999999996,
+      "t4": 1.2163216000000001,
+      "t5": 2.577838400000001
+    },
+    "chat_calls": {},
+    "lead_actions": 0,
+    "turns_by_call": {
+      "01-t1-p1": 16,
+      "02-t2-p1": 30,
+      "03-t3-p1": 41,
+      "04-t4-p1": 28,
+      "05-t5-p1": 7,
+      "06-t1-p2": 6,
+      "07-t2-p2": 13,
+      "08-t3-p2": 17,
+      "09-t4-p2": 10,
+      "10-t5-p2": 34,
+      "11-t3-say1792234366": 12,
+      "12-t4-say1792234434": 11
+    },
+    "lead_cost": 0.0
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 7227a92, the `sonnet` alias of that day. ",
+    "The lead answered once in the chat, after: Reports: built `GET /report` in app/reports.py \u2192 `{revenue, confirmed, cancelled, hours: {handle: hours}}`. revenue and hours only count confirmed bookings (cancelled bookings just add to the cancelled count). @Bookings \u2014 I need `app.bookings.list_bookings()` to return an iterable of dicts shaped li",
+    "Wall time 16 minutes."
+  ]
+}

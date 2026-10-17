@@ -1,0 +1,113 @@
+{
+  "case": "pigeonpost",
+  "run": "A2",
+  "approach": "team-chat file",
+  "model": "sonnet",
+  "merge": [
+    "t1-roost: merged",
+    "t2-pricing: merged",
+    "t3-dispatch: merged",
+    "t4-billing: merged",
+    "t5-cli: merged",
+    "t6-tracking: merged"
+  ],
+  "scores": [
+    {
+      "passed": 20,
+      "of": 20,
+      "failed": [],
+      "events": {
+        "plain build": {
+          "passed": 8,
+          "of": 8,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a note against the plan": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a unit quietly changed": {
+          "passed": 3,
+          "of": 3,
+          "held": true
+        },
+        "late joiner": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "nobody planned it": {
+          "passed": 1,
+          "of": 1,
+          "held": true
+        }
+      }
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 7.3523,
+    "warmup_cost": 0.0,
+    "turns": 297,
+    "input": 516,
+    "output": 185756,
+    "cache_read": 19901029,
+    "cache_write": 428332,
+    "agent_minutes": 36.2,
+    "tool_calls": 275,
+    "midflight_calls": {},
+    "cost_by_agent": {
+      "t1": 0.8913276000000001,
+      "t3": 1.7547502000000004,
+      "t2": 1.5266562000000006,
+      "t4": 0.8866356,
+      "t5": 1.6893308000000002,
+      "t6": 0.603559
+    },
+    "chat_calls": {
+      "read": 25,
+      "post": 22
+    },
+    "lead_actions": 3,
+    "turns_by_call": {
+      "01-t1-p1": 25,
+      "02-t3-p1": 31,
+      "03-t2-p1": 32,
+      "04-t1-p2": 8,
+      "05-t2-p2": 9,
+      "06-t3-p2": 3,
+      "07-t4-p2": 28,
+      "08-t5-p2": 39,
+      "09-lead-answer": 4,
+      "10-t1-p3": 4,
+      "11-t3-p3": 15,
+      "12-t2-p3": 9,
+      "13-t4-p3": 10,
+      "14-t5-p3": 19,
+      "15-t6-p3": 20,
+      "16-lead-answer": 3,
+      "17-t1-p4": 5,
+      "18-t2-p4": 6,
+      "19-t3-p4": 4,
+      "20-t4-p4": 6,
+      "21-t5-p4": 12,
+      "22-t6-p4": 5
+    },
+    "lead_cost": 0.2087
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 7227a92, the `sonnet` alias of that day. ",
+    "Wall time 20 minutes."
+  ]
+}

@@ -1,0 +1,159 @@
+{
+  "case": "pigeonpost",
+  "run": "N2",
+  "approach": "no channel",
+  "model": "sonnet",
+  "merge": [
+    "t1-roost: merged",
+    "t2-pricing: merged",
+    "t3-dispatch: merged",
+    "t4-billing: merged",
+    "t5-cli: merged",
+    "t6-tracking: merged"
+  ],
+  "scores": [
+    {
+      "passed": 15,
+      "of": 20,
+      "failed": [
+        "C9",
+        "C11",
+        "C18",
+        "C19",
+        "C20"
+      ],
+      "events": {
+        "plain build": {
+          "passed": 8,
+          "of": 8,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 0,
+          "of": 2,
+          "held": false
+        },
+        "a note against the plan": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a unit quietly changed": {
+          "passed": 0,
+          "of": 3,
+          "held": false
+        },
+        "late joiner": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "nobody planned it": {
+          "passed": 1,
+          "of": 1,
+          "held": true
+        }
+      }
+    },
+    {
+      "passed": 20,
+      "of": 20,
+      "failed": [],
+      "events": {
+        "plain build": {
+          "passed": 8,
+          "of": 8,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a note against the plan": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a unit quietly changed": {
+          "passed": 3,
+          "of": 3,
+          "held": true
+        },
+        "late joiner": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "nobody planned it": {
+          "passed": 1,
+          "of": 1,
+          "held": true
+        }
+      }
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 7.9594,
+    "warmup_cost": 0.0,
+    "turns": 323,
+    "input": 486,
+    "output": 184295,
+    "cache_read": 17713285,
+    "cache_write": 641000,
+    "agent_minutes": 35.2,
+    "tool_calls": 302,
+    "midflight_calls": {},
+    "cost_by_agent": {
+      "t3": 1.6683184,
+      "t2": 1.192173,
+      "t1": 0.7371606,
+      "t5": 1.1533448000000002,
+      "t4": 1.06774,
+      "t6": 1.0514876000000004,
+      "main": 1.0891356
+    },
+    "chat_calls": {},
+    "lead_actions": 0,
+    "turns_by_call": {
+      "01-t3-p1": 28,
+      "02-t2-p1": 20,
+      "03-t1-p1": 17,
+      "04-t1-p2": 7,
+      "05-t5-p2": 31,
+      "06-t4-p2": 23,
+      "07-t3-p2": 5,
+      "08-t2-p2": 7,
+      "09-t2-p3": 11,
+      "10-t3-p3": 15,
+      "11-t1-p3": 2,
+      "12-t4-p3": 5,
+      "13-t5-p3": 8,
+      "14-t6-p3": 37,
+      "15-t1-p4": 4,
+      "16-t3-p4": 9,
+      "17-t2-p4": 7,
+      "18-t4-p4": 11,
+      "19-t5-p4": 10,
+      "20-t6-p4": 13,
+      "21-main-fix1": 53
+    },
+    "lead_cost": 0.0
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 9c0a55d, the `sonnet` alias of that day. ",
+    "The first attempt stopped in phase 2 when an agent thread read state.json while another was writing it (a driver bug, fixed in 9c0a55d). The trial was resumed at 03:55 with the agents that hadn't finished phase 2; nothing was rerun or discarded.",
+    "Wall time 13 minutes."
+  ]
+}

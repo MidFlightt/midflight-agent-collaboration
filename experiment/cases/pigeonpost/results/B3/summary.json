@@ -1,0 +1,170 @@
+{
+  "case": "pigeonpost",
+  "run": "B3",
+  "approach": "Midflight",
+  "model": "sonnet",
+  "merge": [
+    "t1-roost: merged",
+    "t2-pricing: merged",
+    "t3-dispatch: merged",
+    "t4-billing: merged",
+    "t5-cli: merged",
+    "t6-tracking: merged"
+  ],
+  "scores": [
+    {
+      "passed": 17,
+      "of": 20,
+      "failed": [
+        "C9",
+        "C10",
+        "C11"
+      ],
+      "events": {
+        "plain build": {
+          "passed": 8,
+          "of": 8,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 0,
+          "of": 2,
+          "held": false
+        },
+        "a note against the plan": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a unit quietly changed": {
+          "passed": 3,
+          "of": 3,
+          "held": true
+        },
+        "late joiner": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "nobody planned it": {
+          "passed": 0,
+          "of": 1,
+          "held": false
+        }
+      }
+    },
+    {
+      "passed": 20,
+      "of": 20,
+      "failed": [],
+      "events": {
+        "plain build": {
+          "passed": 8,
+          "of": 8,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a note against the plan": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a unit quietly changed": {
+          "passed": 3,
+          "of": 3,
+          "held": true
+        },
+        "late joiner": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "nobody planned it": {
+          "passed": 1,
+          "of": 1,
+          "held": true
+        }
+      }
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 8.9638,
+    "warmup_cost": 0.6555272000000001,
+    "turns": 341,
+    "input": 600,
+    "output": 230358,
+    "cache_read": 24364233,
+    "cache_write": 539824,
+    "agent_minutes": 48.7,
+    "tool_calls": 315,
+    "midflight_calls": {
+      "project_status": 8,
+      "propose_plan": 2,
+      "approve_plan": 2,
+      "my_projects": 6,
+      "check_in": 35,
+      "submit_claim": 15,
+      "resolve_escalation": 5,
+      "acknowledge_directive": 4
+    },
+    "cost_by_agent": {
+      "t1": 0.8365469999999999,
+      "t2": 1.8285237999999997,
+      "t3": 1.8545553999999997,
+      "t4": 1.0178129999999999,
+      "t5": 2.0134507999999993,
+      "t6": 0.64996,
+      "main": 0.7629088
+    },
+    "chat_calls": {},
+    "lead_actions": 5,
+    "turns_by_call": {
+      "01-lead-plan": 5,
+      "02-t1-p1": 16,
+      "03-t2-p1": 33,
+      "04-t3-p1": 31,
+      "05-t1-p2": 10,
+      "06-t2-p2": 4,
+      "07-t3-p2": 4,
+      "08-t4-p2": 18,
+      "09-t5-p2": 50,
+      "10-lead-answer": 4,
+      "11-lead-change": 4,
+      "12-t1-p3": 4,
+      "13-t2-p3": 18,
+      "14-t4-p3": 4,
+      "15-t3-p3": 5,
+      "16-t5-p3": 18,
+      "17-t6-p3": 13,
+      "18-lead-answer": 2,
+      "19-t1-p4": 3,
+      "20-t4-p4": 15,
+      "21-t2-p4": 6,
+      "22-t3-p4": 13,
+      "23-t5-p4": 7,
+      "24-t6-p4": 15,
+      "25-main-fix1": 39
+    },
+    "lead_cost": 0.3851
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 7227a92, the `sonnet` alias of that day. Run against a Midflight on the same machine (experiment/local_midflight.py): everything in memory, one person signed in who leads and owns every task; reviewer: claude.",
+    "Reviewer: {\"model\": \"haiku\", \"calls\": 24, \"cost_usd\": 0.4479, \"seconds\": 191.6}",
+    "Wall time 28 minutes."
+  ]
+}

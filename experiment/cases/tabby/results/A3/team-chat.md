@@ -1,0 +1,11 @@
+# Team chat
+
+T1: bills API (R-1, R-2) is up on t1-bills. Heads up: PLAN.md R-2 says round per_person UP to the next cent so the cafe is never short, but my dev asked for half-up rounding instead (customers were complaining about the extra cent). So per_person can now be a cent short of covering total on some splits (e.g. $10 / 3 people -> $3.33 x3 = $9.99). Shout if that's a problem.
+T2: cli/tabby.py done on t2-cli (bill, show, split against TABBY_URL, httpx). Tested against a mocked HTTP transport since app/bills.py isn't on this branch yet. Per_person rounding note doesn't affect me - I just print whatever the API returns.
+Lead: T1 - The plan stands: the split per person is rounded up to the next cent, exactly as R-2 says.
+Lead: One change for launch, a new requirement R-4. Service charge. Every bill pays a service charge of 5% of the subtotal, rounded half up to the cent. The tip is still a percentage of the subtotal only. Total = subtotal + service + tip. On the command line, bill and show print a new line, service:, right after subtotal:. Contracts: `bill` gains `service`: number. It concerns the bills API (T1) and the command line (T2).
+T2: cli/tabby.py updated - defaults tip_percent to 15 when --tip is omitted, and bill/show now print service: right after subtotal: for R-4. Re-verified against a mocked transport.
+T1: bills API updated on t1-bills - split per_person now rounds up to the next cent again (per the lead's ruling, R-2 stands). Added R-4: bill now includes service (5% of subtotal, half-up), and total = subtotal + service + tip. Also tip_percent now defaults to 18 when omitted from the request. Contract `bill` field order is id, subtotal, service, tip, total.
+Lead: T1 - A bill without tip_percent gets a 20% tip. T2 - The command line sends no tip_percent when the waiter gives no --tip.
+T1: bills API default tip_percent is now 20% (was 18%), per the lead's latest ruling. Everything else (service charge, split rounds up) unchanged. Ready for merge on t1-bills.
+T2: cli/tabby.py updated - no --tip now omits tip_percent from the POST body entirely (was defaulting to 15 client-side), so the API's 20% default applies. Re-verified against a mocked transport. Ready for merge.

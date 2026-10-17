@@ -1,0 +1,73 @@
+{
+  "case": "hirebot-pro",
+  "run": "N2",
+  "approach": "no channel",
+  "model": "sonnet",
+  "merge": [
+    "t1-catalog: merged",
+    "t2-pricing: merged",
+    "t3-bookings: merged",
+    "t4-reports: merged",
+    "t5-cli: merged"
+  ],
+  "scores": [
+    {
+      "passed": 8,
+      "of": 14,
+      "failed": [
+        "C7",
+        "C8",
+        "C9",
+        "C11",
+        "C13",
+        "C14"
+      ]
+    },
+    {
+      "passed": 14,
+      "of": 14,
+      "failed": []
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 6.094,
+    "warmup_cost": 0.0,
+    "turns": 250,
+    "input": 388,
+    "output": 171856,
+    "cache_read": 14757079,
+    "cache_write": 354044,
+    "agent_minutes": 31.0,
+    "tool_calls": 244,
+    "midflight_calls": {},
+    "cost_by_agent": {
+      "t1": 0.5992466000000001,
+      "t2": 0.7029689999999998,
+      "t3": 1.0177712,
+      "t4": 0.6691072,
+      "t5": 1.4176506000000002,
+      "main": 1.6872512
+    },
+    "chat_calls": {},
+    "lead_actions": 0,
+    "turns_by_call": {
+      "01-t1-p1": 22,
+      "02-t2-p1": 23,
+      "03-t3-p1": 22,
+      "04-t4-p1": 22,
+      "05-t5-p1": 63,
+      "06-t1-p2": 2,
+      "07-t2-p2": 9,
+      "08-t3-p2": 11,
+      "09-t4-p2": 7,
+      "10-t5-p2": 18,
+      "11-main-fix1": 51
+    },
+    "lead_cost": 0.0
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 7227a92, the `sonnet` alias of that day. ",
+    "Wall time 15 minutes."
+  ]
+}

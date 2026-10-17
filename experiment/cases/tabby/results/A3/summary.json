@@ -1,0 +1,76 @@
+{
+  "case": "tabby",
+  "run": "A3",
+  "approach": "team-chat file",
+  "model": "sonnet",
+  "merge": [
+    "t1-bills: merged",
+    "t2-cli: merged"
+  ],
+  "scores": [
+    {
+      "passed": 9,
+      "of": 9,
+      "failed": [],
+      "events": {
+        "plain build": {
+          "passed": 4,
+          "of": 4,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a note against the plan": {
+          "passed": 1,
+          "of": 1,
+          "held": true
+        }
+      }
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 1.9749,
+    "warmup_cost": 0.0,
+    "turns": 98,
+    "input": 184,
+    "output": 43977,
+    "cache_read": 6005026,
+    "cache_write": 122596,
+    "agent_minutes": 9.2,
+    "tool_calls": 90,
+    "midflight_calls": {},
+    "cost_by_agent": {
+      "t2": 1.0725522,
+      "t1": 0.9023469999999999
+    },
+    "chat_calls": {
+      "read": 10,
+      "post": 8
+    },
+    "lead_actions": 2,
+    "turns_by_call": {
+      "01-t2-p1": 27,
+      "02-t1-p1": 17,
+      "03-lead-answer": 3,
+      "04-t1-p2": 15,
+      "05-t2-p2": 12,
+      "06-lead-answer": 3,
+      "07-t1-p3": 10,
+      "08-t2-p3": 11
+    },
+    "lead_cost": 0.1603
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 9c0a55d, the `sonnet` alias of that day. ",
+    "Wall time 6 minutes."
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "case": "tabby",
+  "run": "N3",
+  "approach": "no channel",
+  "model": "sonnet",
+  "merge": [
+    "t1-bills: merged",
+    "t2-cli: merged"
+  ],
+  "scores": [
+    {
+      "passed": 6,
+      "of": 9,
+      "failed": [
+        "C7",
+        "C8",
+        "C9"
+      ],
+      "events": {
+        "plain build": {
+          "passed": 4,
+          "of": 4,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 0,
+          "of": 2,
+          "held": false
+        },
+        "a note against the plan": {
+          "passed": 0,
+          "of": 1,
+          "held": false
+        }
+      }
+    },
+    {
+      "passed": 9,
+      "of": 9,
+      "failed": [],
+      "events": {
+        "plain build": {
+          "passed": 4,
+          "of": 4,
+          "held": true
+        },
+        "plan change": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "two developers disagree": {
+          "passed": 2,
+          "of": 2,
+          "held": true
+        },
+        "a note against the plan": {
+          "passed": 1,
+          "of": 1,
+          "held": true
+        }
+      }
+    }
+  ],
+  "agent_starts_without_midflight": 0,
+  "stats": {
+    "cost": 2.5514,
+    "warmup_cost": 0.0,
+    "turns": 125,
+    "input": 226,
+    "output": 54003,
+    "cache_read": 7166501,
+    "cache_write": 143533,
+    "agent_minutes": 11.2,
+    "tool_calls": 118,
+    "midflight_calls": {},
+    "cost_by_agent": {
+      "t1": 0.7325993999999999,
+      "t2": 0.8656839999999999,
+      "main": 0.9531598000000001
+    },
+    "chat_calls": {},
+    "lead_actions": 0,
+    "turns_by_call": {
+      "01-t1-p1": 21,
+      "02-t2-p1": 27,
+      "03-t1-p2": 10,
+      "04-t2-p2": 6,
+      "05-t1-p3": 8,
+      "06-t2-p3": 7,
+      "07-main-fix1": 46
+    },
+    "lead_cost": 0.0
+  },
+  "notes": [
+    "Run unattended by experiment/matrix.py on October 17, 2026, Midflight at 9c0a55d, the `sonnet` alias of that day. ",
+    "Wall time 9 minutes."
+  ]
+}
