@@ -21,6 +21,7 @@ demo = [
 ]
 
 [project.scripts]
+midflight = "midflight.repository.cli:main"
 midflight-server = "midflight.main:run"
 
 [dependency-groups]
