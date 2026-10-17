@@ -11,6 +11,8 @@ import json
 import time
 from typing import Any
 
+from midflight.adapters.dependency_graph import DependencyQueries, projection, projection_clauses
+from midflight.domain.graph import DependencyImpact, GraphChanged
 from midflight.domain.models import (
     AuditEvent,
     Claim,
@@ -21,6 +23,7 @@ from midflight.domain.models import (
     Model,
     Participant,
     Plan,
+    PlanStatus,
     Project,
     User,
     Verification,
@@ -80,8 +83,12 @@ class FalkorStore:
             ("MFCounter", "prefix"),
             ("MFAuth", "key"),
             ("MFAuditEvent", "project_id"),
+            ("MFPlanGraph", "key"),
+            ("MFContext", "key"),
+            ("MFContext", "scope"),
         ):
             self._ensure_index(label, field)
+        self.backfill_plan_graphs()
 
     def _ensure_index(self, label: str, field: str) -> None:
         from redis.exceptions import ResponseError
@@ -120,7 +127,24 @@ class FalkorStore:
     def _query(self, query: str, params: dict[str, Any] | None = None) -> list:
         return self.graph.query(query, params or {}).result_set
 
-    def commit(self, commit: Commit) -> CommitResult:
+    def commit_graph_approval(
+        self, commit: Commit, expected_graphs: dict[int, str]
+    ) -> CommitResult:
+        if not expected_graphs:
+            raise ValueError("graph approval requires snapshot guards")
+        for entity in commit.puts:
+            if isinstance(entity, Plan) and expected_graphs.get(
+                entity.version
+            ) != self.plan_graph_key(entity):
+                raise GraphChanged("approval content does not match the analyzed graph")
+        return self.commit(commit, expected_graphs=expected_graphs)
+
+    def plan_graph_key(self, plan: Plan) -> str:
+        return projection(plan)["key"]
+
+    def commit(
+        self, commit: Commit, *, expected_graphs: dict[int, str] | None = None
+    ) -> CommitResult:
         params: dict[str, Any] = {
             "project": commit.project_id,
             "receipt": commit.idempotency_key,
@@ -158,6 +182,15 @@ class FalkorStore:
         guards = []
         mutations = []
         variables = ["p", "r"]
+        for i, (version, scope) in enumerate((expected_graphs or {}).items()):
+            params[f"guard_key{i}"] = _json(["Plan", commit.project_id, version])
+            params[f"guard_scope{i}"] = scope
+            query.append(f"OPTIONAL MATCH (guard{i}:MFPlan {{key:$guard_key{i}}})")
+            variables.append(f"guard{i}")
+            guards.append(
+                f"WHEN guard{i}.graph_key IS NULL OR "
+                f"guard{i}.graph_key <> $guard_scope{i} THEN 'graph'"
+            )
         for i, entity in enumerate(entities.values()):
             if isinstance(entity, Project):
                 continue
@@ -193,6 +226,9 @@ class FalkorStore:
                     f"SET identity{i}.project = $project",
                 ]
             )
+            if isinstance(entity, Plan):
+                params[f"graph{i}"] = projection(entity)
+                mutations.extend(projection_clauses(i))
         for i, event in enumerate(commit.audit):
             params[f"audit{i}"] = event.model_dump_json()
             mutations.extend(
@@ -237,6 +273,8 @@ class FalkorStore:
             raise RevisionConflict(commit.expected_coord_rev, actual)
         if outcome == "missing":
             raise LookupError(f"unknown project {commit.project_id}")
+        if outcome == "graph":
+            raise GraphChanged("analyzed plan graph changed before approval")
         if outcome == "plan":
             raise ValueError("plan is approved and can't change")
         if outcome == "claim":
@@ -345,6 +383,82 @@ class FalkorStore:
 
     def get_job(self, job_id: str) -> Job | None:
         return self._one(Job, "n.id=$id", id=job_id)
+
+    def materialize_approved_plan(self, project_id: str, version: int) -> CommitResult:
+        """Backfill a pre-GH-04 approved plan using the same guarded atomic commit."""
+        plan = self.get_plan(project_id, version)
+        if plan is None or plan.status is not PlanStatus.APPROVED:
+            raise ValueError("backfill requires an existing approved plan")
+        return self.commit(Commit(project_id, f"graph-v1:{_key(plan)}", puts=[plan]))
+
+    def backfill_plan_graphs(self) -> None:
+        """Upgrade pre-graph deployments before serving requests, without resetting data."""
+        for plan in self._read(Plan, "n.graph_key IS NULL"):
+            project = self.get_project(plan.project_id)
+            if project is None:
+                raise GraphChanged("plan has no owning project during graph migration")
+            self.commit(
+                Commit(
+                    plan.project_id,
+                    f"native-backfill:{self.plan_graph_key(plan)}",
+                    puts=[plan],
+                    expected_coord_rev=project.coord_rev,
+                )
+            )
+            rows = self._query(
+                "MATCH (p:MFPlan {key:$key}) RETURN p.graph_key", {"key": _key(plan)}
+            )
+            if rows != [[self.plan_graph_key(plan)]]:
+                raise GraphChanged("graph migration could not select the saved plan")
+
+    def dependency_links(self, project_id: str, version: int) -> list[dict]:
+        """Read viewer arrows from native current-plan relationships, not claim JSON."""
+        plan = self.get_plan(project_id, version)
+        if plan is None:
+            raise GraphChanged("viewer plan is missing")
+        scope = self.plan_graph_key(plan)
+        roots = self._query("MATCH (p:MFPlan {key:$key}) RETURN p.graph_key", {"key": _key(plan)})
+        if roots != [[scope]]:
+            raise GraphChanged("viewer plan graph is missing or stale")
+        rows = self._query(
+            "MATCH (a:MFContext)-[:PROVIDES]->(c:MFContext)-[:CONSUMED_BY]->(b:MFContext) "
+            "WHERE a.scope=$scope AND b.scope=$scope AND c.scope=$scope "
+            "RETURN DISTINCT a.item_id, a.payload, b.item_id, b.payload, c.item_id, c.payload "
+            "ORDER BY a.item_id, b.item_id, c.item_id",
+            {"scope": scope},
+        )
+        return [
+            {
+                "provider_task": a,
+                "provider": json.loads(ap)["owner"],
+                "consumer_task": b,
+                "consumer": json.loads(bp)["owner"],
+                "contract_id": c,
+                "fields": json.loads(cp)["fields"],
+            }
+            for a, ap, b, bp, c, cp in rows
+        ]
+
+    def dependency_impact(
+        self,
+        project_id: str,
+        old_version: int,
+        new_version: int,
+        changed: list[str],
+        *,
+        max_depth: int = 32,
+        max_nodes: int = 1000,
+        max_edges: int = 5000,
+    ) -> DependencyImpact:
+        return DependencyQueries(self._query).impact(
+            project_id,
+            old_version,
+            new_version,
+            changed,
+            max_depth=max_depth,
+            max_nodes=max_nodes,
+            max_edges=max_edges,
+        )
 
     def list_unfinished_jobs(self) -> list[Job]:
         """Operational recovery scan across projects; never exposed as agent context."""

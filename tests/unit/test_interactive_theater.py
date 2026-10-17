@@ -150,7 +150,9 @@ def test_reset_archives_old_run_and_replaces_sessions_and_key(tmp_path, monkeypa
 def test_observed_check_in_colors_only_affected_agents(tmp_path):
     live = live_fixture(tmp_path)
     live.set_direction("pricing", "We will do subscription based")
+    services = live.theater.server.services
     for name in NAMES:
+        services.check_ins.check_in(services.store.get_participant(name), task_id=name)
         live.observed(name)
     assert live.cues["checkout"] == "received"
     assert live.cues["reporting"] == "received"

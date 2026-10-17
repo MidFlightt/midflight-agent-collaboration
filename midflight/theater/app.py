@@ -24,6 +24,7 @@ from fastapi.responses import HTMLResponse
 
 from midflight.config import Settings
 from midflight.main import create_server
+from midflight.theater.evidence import coordination_checks
 from midflight.theater.scenario import NAMES, change, seed
 
 
@@ -260,17 +261,13 @@ class Theater:
         store = self.server.services.store
         claims = store.list_claims(self.project)
         directives = store.list_directives(self.project)
+        version = self.server.services.plans.current(self.project).version
         checks = {
             "four_claims": {c.task_id for c in claims} == set(NAMES),
             "all_agents_finished": all(s == "done" for s in self.status.values()),
         }
         if self.changed:
-            checks["pricing_and_checkout_notified"] = {"pricing", "checkout"} <= {
-                d.task_id for d in directives
-            }
-            checks["notifications_unaffected"] = not any(
-                d.task_id == "notifications" for d in directives
-            )
+            checks.update(coordination_checks(directives, version))
         checks["all_claims_approved"] = bool(claims) and all(
             c.state.value == "approved" for c in claims
         )
@@ -291,7 +288,11 @@ class Theater:
             "time": datetime.now(UTC).isoformat(),
             "checks": checks,
             "integration": integration,
-            "downstream_reporting": "pending dependency-graph integration",
+            "downstream_reporting": [
+                d.model_dump(mode="json")
+                for d in directives
+                if d.task_id == "reporting" and d.plan_version == version
+            ],
             "agents": self.status,
             "claims": [c.model_dump(mode="json") for c in claims],
             "directives": [d.model_dump(mode="json") for d in directives],
