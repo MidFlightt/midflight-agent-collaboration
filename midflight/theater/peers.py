@@ -205,6 +205,7 @@ def main():
     args = parser.parse_args()
     for port in (args.port, args.api_port):
         with socket.socket() as listener:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind(("127.0.0.1", port))
     os.umask(0o077)
     root = Path.home() / ".local/share/midflight-demo" / ("peers-" + uuid.uuid4().hex[:10])
