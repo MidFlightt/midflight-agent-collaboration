@@ -53,8 +53,12 @@ TOOLS = [
 ]  # fmt: skip
 MIDFLIGHT_TOOLS = [
     f"mcp__midflight-live__{name}"
-    for name in ("check_in", "submit_claim", "acknowledge_directive", "project_status")
-]
+    for name in (
+        "check_in", "submit_claim", "acknowledge_directive", "project_status",
+        # Read-only. Newer models look the project up first; denying it stalled agents (B5).
+        "my_projects",
+    )
+]  # fmt: skip
 # Which Midflight run B's agents use: the live one, or another (experiment/local_midflight.py).
 MCP_CONFIG = Path(
     os.environ.get("MIDFLIGHT_MCP_CONFIG") or HERE / "midflight-only.mcp.json"
