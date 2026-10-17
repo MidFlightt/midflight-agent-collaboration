@@ -3,7 +3,9 @@
 `submit` saves the claim and its review job in one commit, then hands the job to the
 runner. `run_review` is the job handler: rules first, then the AI reviewer, then a
 pure decision, saved only if the project's coord_rev hasn't moved since the review
-read it (INV-02). If it moved, the review reruns from a fresh read.
+read it (INV-02). If it moved, the review reruns from a fresh read. The rerun asks the AI
+reviewer again only if what it would be asked changed; otherwise it reuses the answer,
+so an unrelated claim landing first costs milliseconds, not another model call.
 
 A product question two people answer differently opens an escalation for the lead in
 the same commit (UC-12); `midflight.services.escalations` resolves it (UC-13). A
@@ -15,6 +17,7 @@ the other task saw and didn't object to is recorded as agreed (D30). See
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -84,7 +87,8 @@ from midflight.services.errors import InvalidRequest, NotFound, PermissionDenied
 from midflight.services.review import parse_reviewer_findings, reviewer_unavailable
 
 # How many times a review rereads and reruns when another change lands first (UC-05 6a).
-MAX_REVIEW_RUNS = 3
+# A rerun whose reviewer input is unchanged doesn't call the model, so most are cheap.
+MAX_REVIEW_RUNS = 10
 # How many times the reviewer is asked before the review counts as incomplete (UC-05 4a).
 MAX_REVIEWER_ATTEMPTS = 2
 
@@ -320,6 +324,8 @@ class ClaimService:
         if stored_job is not None and stored_job.state in (JobState.SUCCEEDED, JobState.FAILED):
             return
         claim_id, revision = parse_review_subject(job.subject_id)
+        # What the AI reviewer was last asked in this job, and what it answered.
+        asked: tuple[str, list[Finding]] | None = None
         for run in range(1, MAX_REVIEW_RUNS + 1):
             project = self._project(job.project_id)
             claim = self._store.get_claim(claim_id, revision)
@@ -347,7 +353,10 @@ class ClaimService:
                 known = plan.model_copy(
                     update={"requirements": [*plan.requirements, *as_requirements(decided)]}
                 )
-                findings += self._reviewer_findings(claim, known, others, findings)
+                question = _reviewer_input(claim, known, others, findings)
+                if asked is None or asked[0] != question:
+                    asked = (question, self._reviewer_findings(claim, known, others, findings))
+                findings += asked[1]
                 findings = self._set_aside_dismissed(project, claim, findings)
             target = decide_claim(claim, findings, stale=project.sync_state is SyncState.STALE)
             if target is not claim.state:
@@ -774,6 +783,32 @@ def review_subject(claim_id: str, revision: int) -> str:
 def parse_review_subject(subject_id: str) -> tuple[str, int]:
     claim_id, _, revision = subject_id.rpartition("/")
     return claim_id, int(revision)
+
+
+def _reviewer_input(
+    claim: Claim, plan: Plan, others: Sequence[Claim], rule_findings: Sequence[Finding]
+) -> str:
+    """What the AI reviewer is asked about `claim`, as one comparable string.
+
+    The plan (with the decisions in force), what this claim and the claims it's compared
+    with declare, and the rules' findings. Another claim's state and verdict aren't part
+    of what it declares, so one being approved in between doesn't count as a change; a
+    claim joining or leaving the compared set, or any revision, does.
+    """
+    verdict = {"state", "findings"}
+    related = sorted(
+        (o for o in others if o.id != claim.id and o.state in _COMPARED_STATES),
+        key=lambda o: (o.id, o.revision),
+    )
+    return json.dumps(
+        {
+            "plan": plan.model_dump(mode="json"),
+            "claim": claim.model_dump(mode="json", exclude=verdict),
+            "others": [o.model_dump(mode="json", exclude=verdict) for o in related],
+            "rules": [f.model_dump(mode="json") for f in rule_findings],
+        },
+        sort_keys=True,
+    )
 
 
 def _only_between_people(

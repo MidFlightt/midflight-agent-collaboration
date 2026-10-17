@@ -100,7 +100,9 @@ def test_review_rechecks_revision_when_context_changes(falkor_store):
     worker.register(JobKind.CLAIM_REVIEW, services.claims.run_review)
     result = services.claims.submit(falkor_store.get_participant("p-t1"), submission("T1"))
     worker.run_once()
-    assert reviewer.calls == 2
+    # The rerun reads the new revision but reuses the reviewer's answer: the change
+    # touched nothing the reviewer was asked about.
+    assert reviewer.calls == 1
     assert falkor_store.get_job(result.job_id).state is JobState.SUCCEEDED
     events = [e for e in falkor_store.list_audit(PROJECT) if e.action == "claim.reviewed"]
     assert len(events) == 1
