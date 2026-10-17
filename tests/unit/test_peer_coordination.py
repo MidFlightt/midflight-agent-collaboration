@@ -1,0 +1,93 @@
+from concurrent.futures import ThreadPoolExecutor
+
+import pytest
+from fastapi import HTTPException
+
+from demo_fixture import NOW
+from midflight.adapters.clock import FixedClock
+from midflight.adapters.memory_store import MemoryStore
+from midflight.api.app import build_services
+from midflight.domain.models import FieldType, Role
+from midflight.ports import Commit
+from midflight.services.plans import PlanDraft
+from midflight.theater.peer_coordination import PeerCoordination
+from midflight.theater.peers import PeerTheater
+from midflight.theater.scenario import NAMES, seed
+
+
+@pytest.fixture
+def peers():
+    services = build_services(MemoryStore(), FixedClock(NOW))
+    seed(services, "peers")
+    services.store.commit(
+        Commit(
+            "peers",
+            "permissions",
+            puts=[
+                services.store.get_participant(n).model_copy(update={"role": Role.LEAD})
+                for n in NAMES
+            ],
+        )
+    )
+    return PeerCoordination(services, "peers")
+
+
+def changed(peers, field):
+    draft = PlanDraft.model_validate(
+        peers.read("pricing").model_dump(include={"tasks", "requirements", "contracts"})
+    )
+    draft.contracts[0].fields[field] = FieldType.STRING
+    return draft
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_any_peer_can_publish_a_non_subscription_change(peers, name):
+    plan, replayed = peers.publish(name, 1, "Prices need a currency", changed(peers, "currency"))
+    assert plan.version == 2 and plan.approved_by == name and not replayed
+    assert {d.task_id for d in peers.services.store.list_directives("peers")} == {
+        "pricing",
+        "checkout",
+    }
+
+
+def test_retries_do_not_create_extra_versions(peers):
+    draft = changed(peers, "currency")
+    peers.publish("reporting", 1, "Currency", draft)
+    plan, replayed = peers.publish("reporting", 1, "Currency", draft)
+    assert replayed and plan.version == 2
+    assert peers.read("checkout").version == 2
+
+
+def test_concurrent_peer_edits_refuse_stale_overwrite(peers):
+    a, b = changed(peers, "currency"), changed(peers, "region")
+
+    def publish(name, draft):
+        try:
+            return peers.publish(name, 1, name, draft)[0].version
+        except HTTPException as error:
+            return error.status_code
+
+    with ThreadPoolExecutor(2) as pool:
+        results = list(pool.map(lambda pair: publish(*pair), [("checkout", a), ("reporting", b)]))
+    assert sorted(results) == [2, 409]
+    plan = peers.read("notifications")
+    assert ("currency" in plan.contracts[0].fields) != ("region" in plan.contracts[0].fields)
+
+
+def test_unregistered_identity_and_task_reassignment_are_refused(peers):
+    with pytest.raises(HTTPException) as error:
+        peers.publish("lead", 1, "Currency", changed(peers, "currency"))
+    assert error.value.status_code == 403
+    draft = changed(peers, "currency")
+    draft.tasks[0] = draft.tasks[0].model_copy(update={"owner": "notifications"})
+    with pytest.raises(HTTPException) as error:
+        peers.publish("reporting", 1, "Currency", draft)
+    assert error.value.status_code == 422
+    assert peers.read("pricing").version == 1
+
+
+def test_every_peer_has_same_short_prompt_and_tools():
+    peer = PeerTheater.__new__(PeerTheater)
+    prompts = {peer.initial_prompt(n, "old script") for n in NAMES}
+    assert len(prompts) == 1 and len(prompts.pop().split()) < 15
+    assert all(peer.plan_tools(n) == ["read_shared_plan", "publish_shared_plan"] for n in NAMES)

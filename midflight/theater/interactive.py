@@ -37,6 +37,14 @@ from midflight.theater.scenario import NAMES, subscription_direction
 
 
 class InteractiveTheater:
+    mcp_module = "midflight.theater.agent_mcp"
+
+    def initial_prompt(self, name, default):
+        return default
+
+    def plan_tools(self, name):
+        return ["set_direction"] if name == "pricing" else []
+
     def __init__(self, root: Path, db_port: int, api_port: int, controller_port: int = 8897):
         self.theater = Theater(root, db_port, api_port)
         self.session = "midflight-" + uuid.uuid4().hex[:8]
@@ -84,7 +92,9 @@ class InteractiveTheater:
             config = (
                 "mcp_servers.theater_midflight={command="
                 + json.dumps(sys.executable)
-                + ',args=["-m","midflight.theater.agent_mcp"],env={'
+                + ',args=["-m",'
+                + json.dumps(self.mcp_module)
+                + "],env={"
                 + ",".join(
                     json.dumps(k) + "=" + json.dumps(v)
                     for k, v in {
@@ -121,6 +131,7 @@ class InteractiveTheater:
                     " At each checkpoint, use check_in and handle relevant directives before "
                     "continuing. Periodic neutral checkpoint requests may arrive while you work."
                 )
+            prompt = self.initial_prompt(name, prompt)
             command = [
                 "codex",
                 "--no-daemon",
@@ -136,8 +147,7 @@ class InteractiveTheater:
                 str(theater.root / name),
             ]
             tools = ["check_in", "submit_claim", "acknowledge_directive"]
-            if name == "pricing":
-                tools.append("set_direction")
+            tools.extend(self.plan_tools(name))
             for tool in tools:
                 command += [
                     "-c",
@@ -401,7 +411,7 @@ class InteractiveTheater:
         self.theater.close()
 
 
-def terminal_app(live):
+def terminal_app(live, *, factory=None):
     @asynccontextmanager
     async def lifespan(app):
         yield
@@ -409,6 +419,8 @@ def terminal_app(live):
 
     control_lock = threading.RLock()
     app = FastAPI(lifespan=lifespan)
+    app.state.live = live
+    app.state.control_lock = control_lock
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
     app.mount("/vendor", StaticFiles(directory=Path(__file__).with_name("vendor")), name="vendor")
 
@@ -450,10 +462,11 @@ def terminal_app(live):
             old.report()
             old.close()
             root = old.theater.root.parent / ("interactive-" + uuid.uuid4().hex[:10])
-            live = InteractiveTheater(
+            live = (factory or InteractiveTheater)(
                 root, old.theater.db_port, old.theater.api_port, old.controller_port
             )
             live.launch()
+            app.state.live = live
             return {"reset": True, "session": live.session}
 
     @app.get("/report")

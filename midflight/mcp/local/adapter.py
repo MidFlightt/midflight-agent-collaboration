@@ -57,13 +57,14 @@ def build_server(
     api: MidflightApi | None,
     *,
     config_error: str | None = None,
+    instructions: str = INSTRUCTIONS,
     wait_seconds: float = 60.0,
     poll_seconds: float = 2.0,
     sleep: Callable[[float], None] = time.sleep,
     git: Git | None = None,
 ) -> MCPServer:
     """The MCP server around one Midflight API connection."""
-    server = MCPServer("midflight", instructions=INSTRUCTIONS, version="0.1.0")
+    server = MCPServer("midflight", instructions=instructions, version="0.1.0")
     run_git = git or _git
 
     def guarded(action: Callable[[MidflightApi], str]) -> str:
