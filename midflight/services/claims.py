@@ -18,8 +18,10 @@ the other task saw and didn't object to is recorded as agreed (D30). See
 from __future__ import annotations
 
 import json
+import random
 import re
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from pydantic import ValidationError
@@ -83,12 +85,22 @@ from midflight.services.decisions import (
     is_agreement,
     revision_requests,
 )
-from midflight.services.errors import InvalidRequest, NotFound, PermissionDenied, StateConflict
+from midflight.services.errors import (
+    InvalidRequest,
+    NotFound,
+    PermissionDenied,
+    ReviewBusy,
+    StateConflict,
+)
 from midflight.services.review import parse_reviewer_findings, reviewer_unavailable
 
 # How many times a review rereads and reruns when another change lands first (UC-05 6a).
 # A rerun whose reviewer input is unchanged doesn't call the model, so most are cheap.
 MAX_REVIEW_RUNS = 10
+# Between reruns a review waits a random moment, up to this long, doubling from the base,
+# so reviews that collided don't collide again in step.
+RERUN_WAIT_BASE = 0.01
+RERUN_WAIT_MAX = 0.5
 # How many times the reviewer is asked before the review counts as incomplete (UC-05 4a).
 MAX_REVIEWER_ATTEMPTS = 2
 
@@ -150,11 +162,13 @@ class ClaimService:
         runner: JobRunner,
         clock: Clock,
         reviewer: Reviewer | None = None,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._store = store
         self._runner = runner
         self._clock = clock
         self._reviewer = reviewer
+        self._sleep = sleep
 
     # Submit and revise (UC-04, UC-06) --------------------------------------------------
 
@@ -413,7 +427,13 @@ class ClaimService:
                 )
                 return
             except RevisionConflict:
-                continue  # another change landed first: reread and rerun (UC-05 6a)
+                # Another change landed first: wait a random moment, reread, rerun (UC-05 6a).
+                self._sleep(random.uniform(0, min(RERUN_WAIT_MAX, RERUN_WAIT_BASE * 2**run)))
+                continue
+        if getattr(self._runner, "retries_later", False):
+            # The runner tries the job again later with its own backoff, and fails it for
+            # good when its attempts run out (RecoverableWorker). The job stays open.
+            raise ReviewBusy(f"other changes kept landing; review {job.id} will run again")
         project = self._project(job.project_id)
         self._close_job(
             job,

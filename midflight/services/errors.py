@@ -37,3 +37,8 @@ class StateConflict(ServiceError):
     """The entity's current state doesn't allow this, e.g. closing a pending claim."""
 
     status = 409
+
+
+class ReviewBusy(Exception):
+    """A review lost every rerun to other changes. Raised only to a runner that retries
+    jobs later (`retries_later`); the job stays open, so nothing is decided (INV-03)."""

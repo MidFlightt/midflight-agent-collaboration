@@ -25,6 +25,10 @@ class RecoverableStore(Store, Protocol):
 
 
 class RecoverableWorker(_Dispatch):
+    # A handler may raise to have its job run again after the retry delay; the claim
+    # review does this when other changes keep landing first (services.claims).
+    retries_later = True
+
     def __init__(
         self,
         store: RecoverableStore,
