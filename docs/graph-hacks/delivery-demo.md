@@ -93,7 +93,7 @@ under ~/.local/share/midflight-demo/. Automated suite: 483 passed, 47 skipped.
 
 ## Visible review status
 
-Each coding-pane header has a compact badge driven by saved claim state: READY,
+Each coding-pane header has a compact badge driven by saved claim state: NO CLAIM,
 REVIEWING, APPROVED, NEEDS REVISION, INCOMPLETE CLAIM or HUMAN REVIEW. It is separate
 from the raw terminal transcript and does not parse words in agent prose. Click it
 to read the claim ID/revision, review explanation and proposed correction without

@@ -118,13 +118,13 @@ function installDemoTextColors(term) {
 // Claim badges use structured backend verdicts, never words in an agent transcript.
 function installClaimBadges(term) {
   const host=document.getElementById('claim-badges'), panel=document.getElementById('claim-detail');
-  const labels={ready:'READY',pending:'REVIEWING',approved:'APPROVED',needs_revision:'NEEDS REVISION',human_review_required:'HUMAN REVIEW',draft:'INCOMPLETE CLAIM',closed:'CLOSED',withdrawn:'WITHDRAWN'};
+  const labels={ready:'NO CLAIM',pending:'REVIEWING',approved:'APPROVED',needs_revision:'NEEDS REVISION',human_review_required:'HUMAN REVIEW',draft:'INCOMPLETE CLAIM',closed:'CLOSED',withdrawn:'WITHDRAWN'};
   let selected=null, lastStatus=null;
   function add(tag,text,cls){const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;panel.append(e);return e}
   function details(name,data,button){
     panel.hidden=false;const detailKey=JSON.stringify({name,data});
     if(panel.dataset.key!==detailKey){panel.dataset.key=detailKey;panel.replaceChildren();
-    const close=add('button','Close ×');close.onclick=()=>{selected=null;panel.hidden=true;button.focus()};
+    const close=add('button','Close ×');close.onclick=()=>{selected=null;panel.hidden=true;button.setAttribute('aria-expanded','false');button.focus()};
     add('h2',name+' / '+(labels[data.state]||data.state));
     add('p',data.claim_id?data.claim_id+' · revision '+data.revision+' · plan v'+data.plan_version:'No claim submitted yet.','muted');
     if(data.state==='approved')add('p','Declared plan and interfaces approved. This does not mean implementation or tests have passed.');
@@ -149,7 +149,7 @@ function installClaimBadges(term) {
       button.title=name+': '+(labels[data.state]||data.state)+(previous.length?' (previous revision needed correction)':'')+'. Click for why and the suggested fix.';
       button.setAttribute('aria-label',button.title);button.setAttribute('aria-expanded',String(selected===name&&!panel.hidden));
       button.style.left=(box.left+(geometry.x+geometry.width)*cw-4)+'px';button.style.top=(box.top+Math.max(0,geometry.y-1)*ch)+'px';button.style.transform='translateX(-100%)';button.style.maxWidth=(geometry.width*cw*.78)+'px';button.style.height=ch+'px';
-      button.onclick=()=>{if(selected===name&&!panel.hidden){selected=null;panel.hidden=true}else{selected=name;details(name,data,button)}};
+      button.onclick=()=>{if(selected===name&&!panel.hidden){selected=null;panel.hidden=true}else{selected=name;details(name,data,button)}button.setAttribute('aria-expanded',String(selected===name&&!panel.hidden))};
       if(selected===name&&!panel.hidden)details(name,data,button);
     }
     for(const e of Array.from(host.children))if(!active.has(e.dataset.agent))e.remove();
