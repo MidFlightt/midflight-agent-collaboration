@@ -128,3 +128,11 @@ Plan commits atomically materialize a project/version/content-scoped graph snaps
 Queries traverse old and new snapshots independently, return versioned evidence and
 fail explicitly on missing data or exhausted limits. Draft replacement selects a new
 snapshot. See [graph model and query semantics](graph-hacks/dependency-graph.md).
+
+
+## Graph Hacks GH-05: snapshot-guarded propagation
+
+FalkorDB approval uses graph impact and atomically checks both analyzed snapshots and
+the coordination revision. Versioned evidence is retained in directive reasons and
+shown by the existing check-in/MCP interfaces. Missing or incomplete graph analysis
+never falls back to direct-only propagation. See [details](graph-hacks/graph-propagation.md).

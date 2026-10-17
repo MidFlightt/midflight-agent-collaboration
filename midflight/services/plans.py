@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from midflight.domain.graph import GraphChanged, GraphNotReady, ImpactPath, IncompleteImpact
 from midflight.domain.impact import affected_tasks, changed_ids
 from midflight.domain.models import (
     AuditEvent,
@@ -40,6 +41,7 @@ from midflight.domain.models import (
 from midflight.domain.models import Task as PlanTask
 from midflight.domain.rules import validate_plan
 from midflight.domain.states import SUPERSEDABLE_DIRECTIVE_STATES, move_claim, move_directive
+from midflight.graph_ports import GraphPlanStore
 from midflight.ports import Clock, Commit, JobRunner, RevisionConflict, Store
 from midflight.services.audit import audit_event, new_correlation_id
 from midflight.services.claims import review_subject
@@ -63,11 +65,13 @@ class Propagation:
     puts: list[Entity] = field(default_factory=list)
     audit: list[AuditEvent] = field(default_factory=list)
     jobs: list[Job] = field(default_factory=list)
+    graph_snapshots: dict[int, str] = field(default_factory=dict)
 
 
 class PlanService:
     def __init__(self, store: Store, clock: Clock, runner: JobRunner | None = None) -> None:
         self._store = store
+        self._graph = store if isinstance(store, GraphPlanStore) else None
         self._clock = clock
         self._runner = runner
 
@@ -152,6 +156,11 @@ class PlanService:
                     f"plan v{project.current_plan_version} was approved after this draft",
                     "Propose the change again on top of the current version (UC-03 4a).",
                 )
+            previous = (
+                self._store.get_plan(project.id, project.current_plan_version)
+                if project.current_plan_version is not None
+                else None
+            )
             approved = Plan.model_validate(
                 plan.model_dump()
                 | {
@@ -159,6 +168,7 @@ class PlanService:
                     "approved_by": lead.id,
                     "approved_at": self._clock.now(),
                     "change_reason": reason,
+                    "changed_ids": changed_ids(previous, plan),
                 }
             )
             current = project.model_copy(update={"current_plan_version": version})
@@ -169,26 +179,35 @@ class PlanService:
                 project_id=project.id,
                 actor=lead.id,
                 action="plan.approved",
-                entity_ids=[f"plan:v{version}", *plan.changed_ids],
+                entity_ids=[f"plan:v{version}", *approved.changed_ids],
                 reason=reason,
                 correlation_id=new_correlation_id(),
                 idempotency_key=key,
                 versions={"plan": version},
             )
-            change = self._propagation(project, approved, lead)
             try:
-                self._store.commit(
-                    Commit(
-                        project_id=project.id,
-                        idempotency_key=key,
-                        puts=[approved, current, *change.puts],
-                        audit=[event, *change.audit],
-                        expected_coord_rev=project.coord_rev,
-                        bump_coord_rev=True,
-                    )
+                change = self._propagation(project, approved, lead)
+                write = Commit(
+                    project_id=project.id,
+                    idempotency_key=key,
+                    puts=[approved, current, *change.puts],
+                    audit=[event, *change.audit],
+                    expected_coord_rev=project.coord_rev,
+                    bump_coord_rev=True,
                 )
-            except RevisionConflict:
+                if change.graph_snapshots:
+                    assert self._graph is not None
+                    committed = self._graph.commit_graph_approval(write, change.graph_snapshots)
+                else:
+                    committed = self._store.commit(write)
+            except (RevisionConflict, GraphChanged):
                 continue
+            except (GraphNotReady, IncompleteImpact) as error:
+                raise StateConflict(
+                    "graph impact unavailable or incomplete; plan was not approved", str(error)
+                ) from error
+            if committed.duplicate:
+                raise StateConflict(f"plan v{version} was already approved by another request")
             for job in change.jobs:
                 self._submit(job)
             return approved
@@ -197,11 +216,26 @@ class PlanService:
     def _propagation(self, project: Project, plan: Plan, lead: Participant) -> Propagation:
         """Directives, superseded directives, and re-reviews for the affected tasks."""
         change = Propagation()
+        if self._graph is not None:
+            change.graph_snapshots[plan.version] = self._graph.plan_graph_key(plan)
         if project.current_plan_version is None:
             return change  # the first plan changes nothing anyone built on
         previous = self._store.get_plan(project.id, project.current_plan_version)
         assert previous is not None
-        affected = affected_tasks(previous, plan, plan.changed_ids)
+        changed = changed_ids(previous, plan)
+        paths = ()
+        if self._graph is not None:
+            result = self._graph.dependency_impact(
+                project.id, previous.version, plan.version, changed
+            )
+            scopes = dict(zip((previous.version, plan.version), result.snapshots, strict=True))
+            if scopes[plan.version] != change.graph_snapshots[plan.version]:
+                raise GraphChanged("draft changed before graph analysis; reread it")
+            change.graph_snapshots = scopes
+            affected = result.affected_tasks
+            paths = result.paths
+        else:
+            affected = affected_tasks(previous, plan, changed)
         if not affected:
             return change
         now = self._clock.now()
@@ -226,7 +260,7 @@ class PlanService:
                 plan_version=plan.version,
                 changed_ids=ids,
                 requested_adjustment=_adjustment(previous, plan, task_id, ids),
-                reason=plan.change_reason or "plan changed",
+                reason=(plan.change_reason or "plan changed") + _graph_reason(paths, task_id),
                 created_at=now,
             )
             change.puts.append(directive)
@@ -282,6 +316,8 @@ def _adjustment(previous: Plan, plan: Plan, task_id: str, ids: list[str]) -> str
             parts.append(f"{label} {i}: {requirement.description}")
         elif i == task_id:
             parts.append(f"your task {i} changed")
+        elif plan.task(i) is not None:
+            parts.append(f"task {i} changed; review its effect on your task")
         else:
             parts.append(f"{i} was removed")
     return (
@@ -293,3 +329,22 @@ def _adjustment(previous: Plan, plan: Plan, task_id: str, ids: list[str]) -> str
 def _require_lead(actor: Participant) -> None:
     if actor.role is not Role.LEAD:
         raise PermissionDenied("only the lead can propose or approve plans (INV-08)")
+
+
+def _graph_reason(paths: tuple[ImpactPath, ...], task_id: str) -> str:
+    """Persist versioned evidence in the existing directive reason/check-in contract."""
+    grouped = {}
+    for path in paths:
+        if path.task_id == task_id:
+            grouped.setdefault((path.nodes, path.relationships), set()).add(path.plan_version)
+    lines = []
+    for (nodes, relationships), versions in grouped.items():
+        route = f"{nodes[0].kind} {nodes[0].item_id}"
+        for relationship, node in zip(relationships, nodes[1:], strict=True):
+            arrow = (
+                " <-PROVIDES- " if relationship == "PROVIDES_REVERSE" else f" -{relationship}-> "
+            )
+            route += arrow + f"{node.kind} {node.item_id}"
+        labels = ", ".join(f"v{version}" for version in sorted(versions))
+        lines.append(f"Graph evidence (plan {labels}): {route}.")
+    return ("\n" + "\n".join(lines)) if lines else ""

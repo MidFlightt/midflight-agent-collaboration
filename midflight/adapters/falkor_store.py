@@ -12,7 +12,7 @@ import time
 from typing import Any
 
 from midflight.adapters.dependency_graph import DependencyQueries, projection, projection_clauses
-from midflight.domain.graph import DependencyImpact
+from midflight.domain.graph import DependencyImpact, GraphChanged
 from midflight.domain.models import (
     AuditEvent,
     Claim,
@@ -126,7 +126,24 @@ class FalkorStore:
     def _query(self, query: str, params: dict[str, Any] | None = None) -> list:
         return self.graph.query(query, params or {}).result_set
 
-    def commit(self, commit: Commit) -> CommitResult:
+    def commit_graph_approval(
+        self, commit: Commit, expected_graphs: dict[int, str]
+    ) -> CommitResult:
+        if not expected_graphs:
+            raise ValueError("graph approval requires snapshot guards")
+        for entity in commit.puts:
+            if isinstance(entity, Plan) and expected_graphs.get(
+                entity.version
+            ) != self.plan_graph_key(entity):
+                raise GraphChanged("approval content does not match the analyzed graph")
+        return self.commit(commit, expected_graphs=expected_graphs)
+
+    def plan_graph_key(self, plan: Plan) -> str:
+        return projection(plan)["key"]
+
+    def commit(
+        self, commit: Commit, *, expected_graphs: dict[int, str] | None = None
+    ) -> CommitResult:
         params: dict[str, Any] = {
             "project": commit.project_id,
             "receipt": commit.idempotency_key,
@@ -164,6 +181,15 @@ class FalkorStore:
         guards = []
         mutations = []
         variables = ["p", "r"]
+        for i, (version, scope) in enumerate((expected_graphs or {}).items()):
+            params[f"guard_key{i}"] = _json(["Plan", commit.project_id, version])
+            params[f"guard_scope{i}"] = scope
+            query.append(f"OPTIONAL MATCH (guard{i}:MFPlan {{key:$guard_key{i}}})")
+            variables.append(f"guard{i}")
+            guards.append(
+                f"WHEN guard{i}.graph_key IS NULL OR "
+                f"guard{i}.graph_key <> $guard_scope{i} THEN 'graph'"
+            )
         for i, entity in enumerate(entities.values()):
             if isinstance(entity, Project):
                 continue
@@ -246,6 +272,8 @@ class FalkorStore:
             raise RevisionConflict(commit.expected_coord_rev, actual)
         if outcome == "missing":
             raise LookupError(f"unknown project {commit.project_id}")
+        if outcome == "graph":
+            raise GraphChanged("analyzed plan graph changed before approval")
         if outcome == "plan":
             raise ValueError("plan is approved and can't change")
         if outcome == "claim":

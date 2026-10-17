@@ -81,7 +81,8 @@ A missing plan/projection raises `GraphNotReady`; unknown changed IDs raise `Val
 A draft graph pointer changing during analysis raises `GraphChanged`, requiring fresh
 plan reads and another query. The result still represents the named snapshots: a future
 approval integration must guard its final write against any changes after the query.
-This PR does not yet route plan-change directives through the new queries.
+[GH-05](graph-propagation.md) now routes plan-change directives through these queries
+and guards the analyzed snapshots in the approval write.
 
 ## Existing data
 
@@ -103,6 +104,6 @@ tasks, cycles, limit errors, missing graphs, unknown changes, requirement propag
 project isolation, draft replacement and concurrent draft edits, atomic engine rollback,
 backfill and version separation. CI runs them alongside the store and worker suites.
 
-Next: use these results to create scoped directives and re-review jobs atomically,
-include evidence in check-ins/review context, and run the four-agent demonstration.
+GH-05 creates scoped directives and re-review jobs atomically and includes evidence
+in check-ins. AI review-context enrichment and the four-agent demonstration remain.
 The shared models and Store protocol are unchanged; result types live in `domain/graph.py`.

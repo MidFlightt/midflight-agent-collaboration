@@ -83,7 +83,7 @@ lookups use current node fields, so rotation leaves no stale lookup pointers.
 
 GH-04 now adds [versioned task/contract/requirement projections and impact queries](dependency-graph.md)
 atomically alongside plan records. Plans retain their full structured definitions as JSON.
-Service propagation has not yet switched to the graph queries. Do not
+GH-05 connects these queries to [plan propagation and agent check-ins](graph-propagation.md). Do not
 export the entire operational graph to agents or a demo viewer.
 
 ## Evidence and boundaries
@@ -98,6 +98,5 @@ Errors propagate rather than masquerading as missing data. Successful persistenc
 requires the pinned, durable server configuration; see GH-01 for its evidence and
 limits. This does not prove disk failure recovery, replication, production load or
 multi-worker execution. ID/key lookups are indexed; filtered lists still scan typed labels. Additional indexes
-and load bounds need measurement before scaling beyond the small hackathon deployment. The worker
-must still recover and execute stored jobs, and runtime wiring must explicitly select
-FalkorDB and its matching runner before deployment.
+and load bounds need measurement before scaling beyond the small hackathon deployment. GH-03 supplies the [recoverable worker and runtime selection](runtime-worker.md);
+select FalkorDB and its matching runner together before deployment.
