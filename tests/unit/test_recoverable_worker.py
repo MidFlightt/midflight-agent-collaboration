@@ -210,3 +210,36 @@ def test_handler_declared_failure_requires_explicit_retry():
     worker.run_once()
     assert worker.run_once() == 0
     assert store.get_job(result.job_id).error == "review incomplete"
+
+
+class BusyQueueStore(QueueStore):
+    """Before each of the first `busy` review saves, another change lands."""
+
+    busy = 0
+
+    def commit(self, commit):
+        if commit.idempotency_key.startswith("review:") and self.busy > 0:
+            self.busy -= 1
+            super().commit(Commit(PROJECT, f"busy-{self.busy}", bump_coord_rev=True))
+        return super().commit(commit)
+
+
+def test_a_review_that_keeps_losing_is_requeued_and_succeeds_later():
+    from midflight.services.claims import MAX_REVIEW_RUNS
+
+    store = BusyQueueStore()
+    seed(store)
+    worker = RecoverableWorker(store, FixedClock(NOW), retry_delay=0)
+    services = build_services(store, FixedClock(NOW), runner=worker)
+    services.claims._sleep = lambda _seconds: None
+    worker.register(JobKind.CLAIM_REVIEW, services.claims.run_review)
+    result = services.claims.submit(store.get_participant("p-t1"), submission("T1"))
+    store.busy = MAX_REVIEW_RUNS  # the whole first attempt loses
+
+    worker.run_once()
+    assert store.get_job(result.job_id).state is JobState.QUEUED
+    assert "ReviewBusy" in store.get_job(result.job_id).error
+    worker.run_once()
+
+    assert store.get_job(result.job_id).state is JobState.SUCCEEDED
+    assert store.get_claim(result.claim_id).state.value == "approved"

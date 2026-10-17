@@ -23,8 +23,14 @@ from midflight.domain.models import (
     SyncState,
 )
 from midflight.ports import ClaimReviewRequest, Commit, ReviewerUnavailable
-from midflight.services.claims import ClaimService
-from midflight.services.errors import InvalidRequest, NotFound, PermissionDenied, StateConflict
+from midflight.services.claims import MAX_REVIEW_RUNS, RERUN_WAIT_MAX, ClaimService
+from midflight.services.errors import (
+    InvalidRequest,
+    NotFound,
+    PermissionDenied,
+    ReviewBusy,
+    StateConflict,
+)
 
 CHECKOUT = "checkout-response"
 
@@ -404,6 +410,52 @@ def test_inv_02_a_busy_project_doesnt_exhaust_the_review() -> None:
     assert claim is not None and claim.state is ClaimState.APPROVED
     assert len(reviewer.calls) == 1
     assert store.get_job(result.job_id).state is JobState.SUCCEEDED  # type: ignore[union-attr]
+
+
+def busy_service(busy: int, runner: Any, waits: list[float] | None = None):
+    store = BusyStore(busy=busy)
+    sleep = (lambda seconds: waits.append(seconds)) if waits is not None else (lambda _s: None)
+    service = ClaimService(store, runner, FixedClock(NOW), ScriptedReviewer(), sleep=sleep)
+    runner.register(JobKind.CLAIM_REVIEW, service.run_review)
+    return store, service, seed(store, 1)
+
+
+def test_a_review_waits_a_random_moment_before_each_rerun() -> None:
+    waits: list[float] = []
+    store, service, people = busy_service(3, InlineRunner(), waits)
+
+    result = service.submit(people["p-t2"], submission("T2"))
+
+    assert store.get_claim(result.claim_id).state is ClaimState.APPROVED  # type: ignore[union-attr]
+    assert len(waits) == 3
+    assert all(0 <= w <= RERUN_WAIT_MAX for w in waits)
+
+
+class RetryingRunner(DeferredRunner):
+    retries_later = True
+
+
+def test_a_review_that_keeps_losing_stays_open_for_a_runner_that_retries() -> None:
+    runner = RetryingRunner()
+    store, service, people = busy_service(MAX_REVIEW_RUNS, runner)
+    result = service.submit(people["p-t2"], submission("T2"))
+
+    with pytest.raises(ReviewBusy):
+        runner.run_next()
+
+    assert store.get_job(result.job_id).state is JobState.QUEUED  # type: ignore[union-attr]
+    assert store.get_claim(result.claim_id).state is ClaimState.PENDING  # type: ignore[union-attr]
+
+
+def test_without_a_retrying_runner_a_review_that_keeps_losing_fails_with_a_reason() -> None:
+    store, service, people = busy_service(MAX_REVIEW_RUNS, InlineRunner())
+
+    result = service.submit(people["p-t2"], submission("T2"))
+
+    job = store.get_job(result.job_id)
+    assert job is not None and job.state is JobState.FAILED
+    assert job.error is not None and "gave up" in job.error
+    assert store.get_claim(result.claim_id).state is ClaimState.PENDING  # type: ignore[union-attr]
 
 
 # Retries and duplicates (UC-05 *a, NFR-02, INV-13) -------------------------------------
