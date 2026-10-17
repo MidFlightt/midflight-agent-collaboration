@@ -1,4 +1,4 @@
-// Only agents and shared interfaces are visible; hidden claims retain provenance.
+// Agent-only dependencies must join real claims and preserve their provenance.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const script=fs.readFileSync('midflight/theater/graph.html','utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
 new vm.Script(script);
@@ -23,15 +23,20 @@ function layout(){
  context.data=data;vm.runInContext('hierarchy(data)',context);return data;
 }
 const view=layout();
-assert.deepEqual(Array.from(view.nodes,n=>n.kind),['agent','agent','agent','interface']);
-assert(view.edges.some(e=>e.source==='a'&&e.target==='shared'&&e.kind==='provides'));
-assert(view.edges.some(e=>e.source==='shared'&&e.target==='b'&&e.kind==='consumes'));
+assert.deepEqual(Array.from(view.nodes,n=>n.kind),['agent','agent','agent']);
+assert.equal(view.edges.length,1);
+assert.equal(view.edges[0].source,'a');assert.equal(view.edges[0].target,'b');
+assert.equal(view.edges[0].dependencies[0].provider_claim,'ca');
+assert.equal(view.edges[0].dependencies[0].consumer_claim,'cb');
+assert.equal(view.edges[0].dependencies[0].provided_fields.total_cents,'integer');
+assert.equal(view.edges[0].label,'B uses A’s output');
+assert(!view.edges.some(e=>e.source==='unrelated'||e.target==='unrelated'));
 assert.equal(view.nodes.find(n=>n.id==='a').files[0],'price.py');
 assert.equal(view.nodes.find(n=>n.id==='a').claims[0].id,'ca');
 assert.equal(view.nodes.find(n=>n.id==='b').change,'pending');
 assert.equal(view.nodes.find(n=>n.id==='unrelated').change,null);
 assert.equal(nodes.get('a').y,nodes.get('b').y);
-assert(nodes.get('a').y<nodes.get('shared').y);
+assert.equal(nodes.get('a').fx,nodes.get('a').x);
 const original=[...nodes].map(([id,n])=>[id,n.x,n.y]);
 raw.nodes.push({id:'new-agent',kind:'agent'},{id:'file2',kind:'file',label:'test.py'});
 raw.edges.push({source:'ca',target:'file2',kind:'declares'});
@@ -40,4 +45,7 @@ const updated=layout();
 assert.equal(updated.nodes.find(n=>n.id==='b').change,'acknowledged');
 for(const [id,x,y] of original){assert.equal(nodes.get(id).x,x);assert.equal(nodes.get(id).y,y)}
 for(const n of nodes.values()){assert.equal(n.fx,n.x);assert.equal(n.fy,n.y)}
-console.log('Simplified graph checks passed: two node types, directed dependencies, provenance, selective colors, stable positions.');
+raw.nodes.push({id:'missing',kind:'interface',label:'No provider'});
+raw.edges.push({source:'cb',target:'missing',kind:'consumes',fields:{value:'string'}});
+const unmatched=layout();assert.equal(unmatched.edges.length,1);
+console.log('Agent-only graph checks passed: real dependency joins, provenance, no invented providers, selective colors, stable positions.');

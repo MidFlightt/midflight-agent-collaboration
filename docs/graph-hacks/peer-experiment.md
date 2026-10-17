@@ -79,10 +79,12 @@ rehearsal result is saved with that local run, not presented as a generic test o
 
 ## Live graph
 
-Open http://127.0.0.1:8907/graph for a minimal, dark canvas showing only two node
-types: agents and shared interfaces. Agents stay across the top; interfaces occupy
-a shared row below. Claims, files, directives and row headers are hidden from the
-canvas. Select an agent to see its latest claims, declared files and current updates.
+Open http://127.0.0.1:8907/graph for a minimal, dark canvas showing only agents.
+Agents occupy stable slots in two columns; directed connections have readable labels
+such as “Checkout uses Pricing’s output.” Unrelated agents remain separate. Claims,
+files, interfaces, directives and row headers are hidden from the canvas. Select an
+agent for its claims, declared files and current updates; select a connection for its
+exact contract fields and provider/consumer claim IDs.
 
 The vendored `force-graph@1.52.0` library (https://github.com/vasturiano/force-graph)
 renders fixed coordinates with physics and node dragging disabled. Pan on empty
@@ -90,13 +92,15 @@ space, scroll to zoom, or use Fit and Fullscreen. Agents opens the coding window
 
 - Agent presence is persisted in the run's FalkorDB graph when its MCP client connects.
 - The raw graph-state endpoint reads the latest persisted claim revisions every 800 ms.
-  The browser projects `agent → claim → interface` into `agent → interface` for provided
-  interfaces, and `interface → agent` for consumed interfaces. Every edge retains its
-  source claim IDs and declared fields for inspection. No links are inferred from names.
-- Cyan agents and muted interfaces show ordinary dependencies. A current-plan directive
-  highlights its recipient and that agent's interface edges orange while pending or
-  requiring attention, and green once acknowledged. Acknowledgement does not prove that
-  implementation or tests passed. Unrelated agents receive no change highlight.
+  The browser matches provided and consumed interfaces by contract ID, joins them to
+  their claim owners, and renders one provider-to-consumer connection per agent pair.
+  Multiple contracts retain separate provenance inside that connection. No links are
+  inferred from agent names. A consumed interface without a declared provider creates
+  no visual connection; its declaration remains in the selected agent's data.
+- Cyan agents show ordinary scope. A current-plan directive highlights its recipient
+  orange while pending or requiring attention, and green once acknowledged. Incident
+  dependencies use the same colors, with pending taking precedence. Acknowledgement
+  does not prove that implementation or tests passed. Unrelated agents stay unchanged.
 - Existing nodes retain fixed coordinates. New nodes append to stable slots without
   shifting their peers or moving the camera. Size growth remains capped.
 - Reset archives the run and opens an empty workspace without launching sessions.
@@ -111,7 +115,6 @@ visualization service at runtime.
 
 Node size encodes declared scope: agents are always the largest circles, with a
 small capped increase for the number of distinct files/interfaces their claims
-declare. Interface circles grow with the number of distinct claims providing or
-consuming them. Files, claims and directives appear only in inspection details. Size does not indicate
+declare. Claims, interfaces, files and directives appear only in inspection details. Size does not indicate
 code correctness or agent performance. Agent rings, bold labels and an AGENT mark
 keep them recognizable even when an agent has no declarations yet.

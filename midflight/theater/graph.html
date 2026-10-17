@@ -2,10 +2,10 @@
 <style>
 *{box-sizing:border-box}body{margin:0;overflow:hidden;background:#090f14;color:#f0eee7;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace}#canvas{position:absolute;inset:0}header{position:fixed;z-index:2;top:20px;left:24px;right:24px;display:flex;align-items:center;gap:20px;pointer-events:none}header b{font-weight:500;letter-spacing:.03em}nav{margin-left:auto;display:flex;gap:14px;align-items:center;pointer-events:auto}button,a{font:inherit;border:0;background:transparent;color:#9fabb7;padding:3px 0;text-decoration:none;cursor:pointer}button:hover,a:hover{color:#80cadf}button:disabled{opacity:.4;cursor:wait}#empty{position:absolute;top:45%;width:100%;text-align:center;pointer-events:none;color:#9fabb7}#empty p{font-size:12px;margin-top:8px}footer{position:fixed;bottom:20px;left:24px;right:24px;display:flex;justify-content:space-between;gap:20px;color:#9fabb7;font-size:11px;pointer-events:none}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:#80cadf}.context{background:#9fabb7}.approved{background:#a6d3ad}.directive{background:#f3b183}#detail{position:fixed;right:24px;bottom:55px;width:min(340px,calc(100vw - 48px));max-height:50vh;overflow:auto;background:#121922f5;padding:18px;border:1px solid #263541;box-shadow:0 5px 25px #00000008}#detail h2{font-size:12px;font-weight:500;margin:0 0 10px}#detail pre{font:11px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#9fabb7}#close{float:right}#status{position:fixed;top:48px;left:24px;font-size:10px;color:#718290;pointer-events:none}@media(max-width:620px){header{top:12px;left:16px;right:16px;gap:10px}nav{gap:10px}footer{left:16px;right:16px;bottom:12px}#source{display:none}#status{left:16px;top:38px}#fit{display:none}}
 </style>
-<div id="canvas" aria-label="Live hierarchical collaboration graph"></div>
+<div id="canvas" aria-label="Live agent dependency graph"></div>
 <header><b>midflight</b><nav><button id="start">Start agents</button><button id="reset">Reset</button><button id="fit">Fit</button><button id="full">Fullscreen</button><a href="/" target="_blank">Agents ↗</a></nav></header>
 <div id="status" role="status">Connecting…</div><div id="empty">An empty workspace.<p>Start the agents to watch their connections form.</p></div>
-<footer><span><i class="dot"></i>agents &nbsp; <i class="dot context"></i>interfaces &nbsp; <i class="dot approved"></i>acknowledged &nbsp; <i class="dot directive"></i>changes</span><span id="source">live · FalkorDB</span></footer>
+<footer><span><i class="dot"></i>agents &nbsp; <i class="dot approved"></i>acknowledged &nbsp; <i class="dot directive"></i>changes</span><span id="source">live · FalkorDB</span></footer>
 <aside id="detail" hidden><button id="close" aria-label="Close details">×</button><h2 id="detail-title"></h2><pre id="detail-body"></pre></aside>
 <script src="/vendor/force-graph.min.js"></script><script>
 const $=id=>document.getElementById(id);
@@ -13,9 +13,7 @@ let key='',project='',busy=false,polling=false,signature='',selected=null,hovere
 const nodes=new Map(),links=new Map(),lanes=new Map(),rowSlots=new Map();
 const color=n=>n.change==='pending'?'#f3b183':n.change==='acknowledged'?'#a6d3ad':n.kind==='agent'?'#80cadf':'#9fabb7';
 // Radius grows slowly and is capped, so busy agents remain distinct without dominating.
-const radius=n=>n.kind==='agent'?32+Math.min(14,3*Math.sqrt(n.context_count||0)):
- n.kind==='interface'?12+Math.min(10,3*Math.sqrt(n.shared_by||0)):
- n.kind==='directive'?10:n.kind==='claim'?8:7;
+const radius=n=>32+Math.min(14,3*Math.sqrt(n.context_count||0));
 function inspect(item){selected=item;$('detail').hidden=!item;if(!item)return;$('detail-title').textContent=item.label||item.kind;
 if(item.kind==='agent'){
  $('detail-body').textContent='CLAIMS\n'+(item.claims.map(c=>`${c.label} · ${c.state} · plan ${c.plan_version}`).join('\n')||'No claim yet')+'\n\nDECLARED FILES\n'+(item.files.join('\n')||'None yet')+'\n\nCHANGES\n'+(item.updates.map(d=>`${d.state}: ${d.requested_adjustment}`).join('\n')||'No current directive');return;
@@ -32,6 +30,9 @@ const graph=new ForceGraph($('canvas'))
    ctx.beginPath();ctx.moveTo(a.x+ux*radius(a),a.y+uy*radius(a));ctx.lineTo(b.x-ux*radius(b),b.y-uy*radius(b));ctx.stroke();
    const x=a.x+dx*.6,y=a.y+dy*.6,size=6/scale;
    ctx.beginPath();ctx.moveTo(x+ux*size,y+uy*size);ctx.lineTo(x-ux*size-uy*size*.55,y-uy*size+ux*size*.55);ctx.lineTo(x-ux*size+uy*size*.55,y-uy*size-ux*size*.55);ctx.closePath();ctx.fill();
+   const vertical=Math.abs(dy)>Math.abs(dx),lx=(a.x+b.x)/2+(vertical?-85/scale:0),ly=(a.y+b.y)/2+(vertical?0:-30/scale);
+   ctx.font=`${12/scale}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.strokeStyle='#090f14';ctx.fillStyle=link.change==='pending'?'#f3b183':link.change==='acknowledged'?'#a6d3ad':'#b6c6d1';ctx.lineWidth=5/scale;
+   link.label_lines.forEach((text,i)=>{const y=ly+(i-.5)*16/scale;ctx.strokeText(text,lx,y);ctx.fillText(text,lx,y)});
  })
  .minZoom(.2).maxZoom(6).enableNodeDrag(false).cooldownTicks(0)
  .nodeCanvasObjectMode(()=> 'after').nodeCanvasObject((n,ctx,scale)=>{
@@ -63,30 +64,33 @@ function simplify(data){
    agent.change=agent.updates.some(d=>['queued','delivered','rejected','needs_clarification'].includes(d.state))?'pending':agent.updates.length&&agent.updates.every(d=>d.state==='acknowledged')?'acknowledged':null;
    agent.context_count=agent.files.length;
  }
- const edges=new Map(),interfaces=new Map();
- for(const e of data.edges.filter(e=>['provides','consumes'].includes(e.kind))){
-   const owner=owners.get(e.source),agent=agents.get(owner);if(!agent)continue;
-   const source=e.kind==='provides'?owner:e.target,target=e.kind==='provides'?e.target:owner;
-   const id=source+'|'+e.kind+'|'+target;
-   if(!interfaces.has(e.target)){const original=data.nodes.find(n=>n.id===e.target);if(!original)continue;interfaces.set(e.target,{...original,shared_by:0})}
-   const existing=edges.get(id);
-   if(existing){existing.claim_ids.push(e.source);existing.declarations.push({claim_id:e.source,fields:e.fields})}
-   else edges.set(id,{id,source,target,kind:e.kind,fields:e.fields,claim_ids:[e.source],declarations:[{claim_id:e.source,fields:e.fields}],change:agent.change});
+ const declarations=data.edges.filter(e=>['provides','consumes'].includes(e.kind));
+ const providers=declarations.filter(e=>e.kind==='provides'),consumers=declarations.filter(e=>e.kind==='consumes');
+ const edges=new Map();
+ const name=id=>{const label=agents.get(id)?.label||id;return label.charAt(0).toUpperCase()+label.slice(1)};
+ for(const consumer of consumers)for(const provider of providers){
+   if(provider.target!==consumer.target)continue;
+   const source=owners.get(provider.source),target=owners.get(consumer.source);
+   if(source===target||!agents.has(source)||!agents.has(target))continue;
+   const id=source+'|depends|'+target;
+   if(!edges.has(id))edges.set(id,{id,source,target,kind:'dependency',label:`${name(target)} uses ${name(source)}’s output`,label_lines:[`${name(target)} uses`,`${name(source)}’s output`],dependencies:[]});
+   edges.get(id).dependencies.push({contract_id:provider.target.replace(/^interface:/,''),provider_claim:provider.source,consumer_claim:consumer.source,provided_fields:provider.fields,consumed_fields:consumer.fields});
  }
- for(const agent of agents.values())agent.context_count=agent.files.length+new Set([...edges.values()].filter(e=>e.source===agent.id||e.target===agent.id).map(e=>e.source===agent.id?e.target:e.source)).size;
- for(const n of interfaces.values())n.shared_by=new Set([...edges.values()].filter(e=>e.source===n.id||e.target===n.id).flatMap(e=>e.claim_ids)).size;
- return {...data,nodes:[...agents.values(),...interfaces.values()],edges:[...edges.values()]};
+ for(const edge of edges.values()){
+   const states=[agents.get(edge.source).change,agents.get(edge.target).change];
+   edge.change=states.includes('pending')?'pending':states.includes('acknowledged')?'acknowledged':null;
+ }
+ for(const agent of agents.values()){
+   agent.interfaces=declarations.filter(e=>owners.get(e.source)===agent.id).map(e=>({contract_id:e.target.replace(/^interface:/,''),role:e.kind,fields:e.fields,claim_id:e.source}));
+   agent.context_count=agent.files.length+new Set(agent.interfaces.map(i=>i.contract_id)).size;
+ }
+ return {...data,nodes:[...agents.values()],edges:[...edges.values()]};
 }
+
 function hierarchy(data){
  for(const n of data.nodes){
-   let p;
-   if(n.kind==='agent'){
-     if(!lanes.has(n.id))lanes.set(n.id,lanes.size);
-     p={x:lanes.get(n.id)*260-390,y:-160};
-   }else{
-     const i=slot('interfaces',n.id);
-     p={x:(i%2?1:-1)*(130+Math.floor(i/2)*260),y:120};
-   }
+   if(!lanes.has(n.id))lanes.set(n.id,lanes.size);
+   const i=lanes.get(n.id),p={x:i%2?290:-290,y:Math.floor(i/2)*340-170};
    Object.assign(nodes.get(n.id),p,{fx:p.x,fy:p.y,vx:0,vy:0});
  }
 }
@@ -113,7 +117,7 @@ function draw(raw){
  const next=JSON.stringify([data.nodes.map(n=>n.id).sort(),data.edges.map(l=>l.id).sort()]);
  if(next!==signature){signature=next;hierarchy(data);graph.graphData({nodes:[...nodes.values()],links:[...links.values()]})}
  if(selected){const updated=nodes.get(selected.id)||links.get(selected.id);inspect(updated||null)}
- $('empty').hidden=data.nodes.length>0;$('status').textContent=`${data.nodes.filter(n=>n.kind==='agent').length} agents · ${data.nodes.filter(n=>n.kind==='interface').length} interfaces`;$('source').title=data.source+' · '+data.project;$('start').hidden=data.started;$('start').disabled=busy;
+ $('empty').hidden=data.nodes.length>0;$('status').textContent=`${data.nodes.length} agents · ${data.edges.length} dependencies`;$('source').title=data.source+' · '+data.project;$('start').hidden=data.started;$('start').disabled=busy;
 }
 async function refresh(){if(busy||polling)return;polling=true;try{if(!key)await connection();const r=await fetch('/graph-state',{headers:{'x-demo-key':key}});if(r.status===403){await connection();return}if(!r.ok)throw Error('Graph unavailable');draw(await r.json())}catch(e){$('status').textContent='Waiting for live service…'}finally{polling=false}}
 $('start').onclick=async()=>{busy=true;$('start').disabled=true;$('status').textContent='Starting agents…';try{await post('/peer-start')}catch(e){$('status').textContent=e.message}finally{busy=false;refresh()}};
