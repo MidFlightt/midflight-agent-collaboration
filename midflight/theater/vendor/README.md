@@ -12,7 +12,7 @@ contents to a third-party website.
 `force-graph-LICENSE`. This bundles the force simulation and canvas renderer;
 no external CDN or visualization server is used at runtime.
 
-## Project monitor prototype
+## Project graph entry point
 
-`project.html` is first-party MidFlight UI code, served here as a standalone,
-read-only prototype alongside the existing demo. It is not a third-party package.
+`project.html` is a first-party compatibility redirect to `/graph`. The standalone
+project view uses the circular agent graph, not a separate card dashboard.
