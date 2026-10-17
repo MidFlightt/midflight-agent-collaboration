@@ -114,3 +114,34 @@ def test_startup_prefills_editable_drafts_without_enter():
     assert {call[-1] for call in sends} == {peer.initial_prompt(n, "") for n in NAMES}
     assert all(call[3] == "-l" for call in sends)
     assert not any("Enter" in call for call in calls)
+
+
+def test_idle_wakes_only_for_unread_relevant_directives(peers):
+    from types import SimpleNamespace
+
+    from midflight.domain.models import DirectiveState
+
+    peer = PeerTheater.__new__(PeerTheater)
+    peer.theater = SimpleNamespace(project="peers", server=SimpleNamespace(services=peers.services))
+    peer.checkpoint_counts = {}
+    assert peer.pending_checkpoint("pricing") is None
+    peers.publish("pricing", 1, "Prices need currency", changed(peers, "currency"))
+    assert peer.pending_checkpoint("notifications") is None
+    assert peer.pending_checkpoint("reporting") is None
+    key = peer.pending_checkpoint("checkout")
+    assert key is not None
+    peer.checkpoint_counts[key] = 1
+    assert peer.pending_checkpoint("checkout") is None
+    # An agent that already read an update must not be nudged again on becoming idle.
+    directive = peers.services.store.list_directives("peers", "pricing")[0]
+    peers.services.store.commit(
+        Commit(
+            "peers",
+            "read-directive",
+            puts=[directive.model_copy(update={"state": DirectiveState.DELIVERED})],
+        )
+    )
+    assert peer.pending_checkpoint("pricing") is None
+    # A later substantive change can wake an agent again.
+    peers.publish("pricing", 2, "Prices need region", changed(peers, "region"))
+    assert peer.pending_checkpoint("checkout") is not None

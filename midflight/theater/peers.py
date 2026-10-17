@@ -108,6 +108,13 @@ class PeerTheater(InteractiveTheater):
                 "next": "Check in for your own task.",
             }
 
+    def pending_checkpoint(self, name):
+        """Only wake for directives this agent has not read, across all plan versions."""
+        directives = self.theater.server.services.store.list_directives(self.theater.project, name)
+        unseen = tuple(sorted(d.id for d in directives if d.state.value == "queued"))
+        key = (name, unseen)
+        return key if unseen and key not in self.checkpoint_counts else None
+
     def _checkpoints(self):
         # Generic wake-up only after a real plan change; never inserts product instructions.
         while not self.stop_event.is_set():
@@ -118,8 +125,8 @@ class PeerTheater(InteractiveTheater):
             for name in NAMES:
                 if self.stop_event.is_set():
                     return
-                key = (self.version, name)
-                if self.checkpoint_counts.get(key):
+                key = self.pending_checkpoint(name)
+                if key is None:
                     continue
                 try:
                     tail = "\n".join(

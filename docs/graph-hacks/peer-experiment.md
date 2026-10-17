@@ -37,9 +37,10 @@ how to publish a human-requested plan update. Product choices are made by the ag
 from the request, not by a hidden demo script. The agent may ask a clarifying question.
 
 Busy agents discover changes at normal check-ins. After a plan version changes, the
-local harness sends each idle peer at most one neutral message: “Check MidFlight for
+local harness sends only peers with unread relevant directives a neutral message: “Check MidFlight for
 updates to your task.” It does not include the change, dictate an affected set, or
-periodically prompt agents during the initial build. It waits while a terminal is
+periodically prompt agents during the initial build. Peers that already read their
+directives are not nudged again merely because they become idle. It waits while a terminal is
 working or has a typed draft. Sessions persist between stages; Reset starts a fresh
 isolated project with the same peer capabilities and preserves earlier run files.
 
@@ -188,3 +189,15 @@ Startup and Reset create a fresh isolated project and four connected sessions. E
 composer contains an editable task prompt, but no task is submitted automatically.
 Press Enter in each pane when ready, or edit the prompt first. Reset archives the
 previous run files and replaces the active graph, claims, directives and workspaces.
+
+## Checkpoint policy
+
+The workspace and MCP instructions share one policy. The normal path is one startup
+check-in, claim approval, implementation and tests, then one completion check-in.
+Approval covers using the declared interfaces; no separate check is required immediately
+after approval or directive acknowledgement. Additional checks remain appropriate for
+pending review, changed assumptions or scope, and relevant dependency updates. Two is
+a normal-case target, not a hard limit. Initial human requests may still add genuinely
+missing requirements; requests already represented in the plan should not republish it.
+Automatic wake-ups are keyed by unread directive IDs, rather than every plan version.
+Unrelated, delivered, acknowledged and superseded directives do not trigger a wake-up.

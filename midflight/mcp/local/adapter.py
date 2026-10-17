@@ -58,6 +58,7 @@ def build_server(
     *,
     config_error: str | None = None,
     instructions: str = INSTRUCTIONS,
+    tool_descriptions: dict[str, str] | None = None,
     wait_seconds: float = 60.0,
     poll_seconds: float = 2.0,
     sleep: Callable[[float], None] = time.sleep,
@@ -65,6 +66,7 @@ def build_server(
 ) -> MCPServer:
     """The MCP server around one Midflight API connection."""
     server = MCPServer("midflight", instructions=instructions, version="0.1.0")
+    descriptions = tool_descriptions or {}
     run_git = git or _git
 
     def guarded(action: Callable[[MidflightApi], str]) -> str:
@@ -86,7 +88,7 @@ def build_server(
             return text
         return f"{text}\n\n{directives_block(reply['directives'], reply['delivered_now'])}"
 
-    @server.tool(description=SUBMIT_CLAIM)
+    @server.tool(description=descriptions.get("submit_claim", SUBMIT_CLAIM))
     def submit_claim(
         task_id: str,
         plan_version: int,
@@ -151,7 +153,7 @@ def build_server(
 
         return guarded(act)
 
-    @server.tool(description=CHECK_IN)
+    @server.tool(description=descriptions.get("check_in", CHECK_IN))
     def check_in(task_id: str | None = None, since: str | None = None) -> str:
         return guarded(lambda api: check_in_text(api.check_in(task_id, since=since)))
 
