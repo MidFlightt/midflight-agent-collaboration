@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from midflight.domain.models import Role
 from midflight.ports import Commit
 from midflight.services.plans import PlanDraft
+from midflight.theater.claim_status import claim_statuses
 from midflight.theater.hosted_reviewer import HostedReviewer
 from midflight.theater.interactive import InteractiveTheater, terminal_app
 from midflight.theater.live_graph import snapshot
@@ -134,6 +135,13 @@ class PeerTheater(InteractiveTheater):
     def _checkpoints(self):
         """No automatic turns: outstanding directives wait for the next agent check-in."""
         return
+
+    def status(self):
+        status = super().status()
+        status["claim_statuses"] = claim_statuses(
+            self.theater.server.services.store, self.theater.project, self.names
+        )
+        return status
 
     def report(self):
         services = self.theater.server.services

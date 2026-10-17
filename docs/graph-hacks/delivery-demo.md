@@ -90,3 +90,13 @@ Separate parallel pair: interface-trials/run-1-3f0d56.
 All local terminal transcripts, session/MCP histories, reports, claim-state timelines,
 runner scripts and independent integration outputs are preserved in the run directories
 under ~/.local/share/midflight-demo/. Automated suite: 483 passed, 47 skipped.
+
+## Visible review status
+
+Each coding-pane header has a compact badge driven by saved claim state: READY,
+REVIEWING, APPROVED, NEEDS REVISION, INCOMPLETE CLAIM or HUMAN REVIEW. It is separate
+from the raw terminal transcript and does not parse words in agent prose. Click it
+to read the claim ID/revision, review explanation and proposed correction without
+expanding tool JSON. Earlier saved revisions are shown as history after correction.
+Approval means declared intent is approved; code/test completion is a separate check.
+Status polling does not start agent turns or call check_in on their behalf.
