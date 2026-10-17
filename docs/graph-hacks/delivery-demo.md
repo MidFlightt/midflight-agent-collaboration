@@ -91,12 +91,11 @@ All local terminal transcripts, session/MCP histories, reports, claim-state time
 runner scripts and independent integration outputs are preserved in the run directories
 under ~/.local/share/midflight-demo/. Automated suite: 483 passed, 47 skipped.
 
-## Visible review status
+## Review results in the terminal
 
-Each coding-pane header has a compact badge driven by saved claim state: NO CLAIM,
-REVIEWING, APPROVED, NEEDS REVISION, INCOMPLETE CLAIM or HUMAN REVIEW. It is separate
-from the raw terminal transcript and does not parse words in agent prose. Click it
-to read the claim ID/revision, review explanation and proposed correction without
-expanding tool JSON. Earlier saved revisions are shown as history after correction.
-Approval means declared intent is approved; code/test completion is a separate check.
-Status polling does not start agent turns or call check_in on their behalf.
+MidFlight's MCP response starts with the saved claim verdict, findings and suggested
+correction, followed by the next step and contract reference. Both local and hosted
+MCP use the same renderer. Approval covers declared intent, not implementation tests.
+There are no external claim badges or ready labels. Agent commentary is generated
+by the coding agent; it is not the source of the verdict. The coding client controls
+whether a tool response is collapsed; expand tool details to read the full review.

@@ -15,9 +15,8 @@ from typing import Any
 
 NEXT_STEP = {
     "approved": (
-        "Next: plan your checkpoints for this task (before you first build on a contract, "
-        "on any new assumption or scope change, and before you push), tell your developer "
-        "the list, and build against the contracts above."
+        "Next: implement against the listed contracts. Check in before finishing, "
+        "or sooner if your assumptions or scope change."
     ),
     "needs_revision": (
         "Next: apply the fixes above and call submit_claim again with this claim_id. "
@@ -59,15 +58,17 @@ def verdict_text(
     lines = [heading or f"Claim {verdict['claim_id']} rev {verdict['revision']}: {state.upper()}"]
     if not verdict.get("review_complete", True):
         lines.append("The AI review didn't complete, so the claim can't be approved yet.")
+    # The verdict and actionable review belong at the start of the actual MCP
+    # response, before reference material. Clients may collapse long tool output.
+    lines += findings_text(verdict.get("findings", []))
+    if not (brief and state == "approved"):
+        lines += ["", NEXT_STEP.get(state, "")]
     if contracts and same_contracts:
         lines += ["", SAME_CONTRACTS]
     elif contracts:
         lines += ["", *contracts_text(verdict.get("contracts", []))]
-    lines += findings_text(verdict.get("findings", []))
     if not brief:
         lines += ["", verdict.get("note", "")]
-    if not (brief and state == "approved"):
-        lines += ["", NEXT_STEP.get(state, "")]
     return "\n".join(lines).strip()
 
 

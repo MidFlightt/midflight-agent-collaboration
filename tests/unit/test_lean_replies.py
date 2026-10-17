@@ -482,3 +482,39 @@ async def test_a_new_claim_takes_nothing_from_another_agents_claim() -> None:
     assert "Midflight refused this" in refused
     claim = team.services.store.get_claim(claim_id_in(first))
     assert claim is not None and claim.revision == 1
+
+
+def test_actionable_review_precedes_contract_reference() -> None:
+    from midflight.mcp.replies import verdict_text
+
+    reply = verdict_text(
+        {
+            "claim_id": "C-2",
+            "revision": 1,
+            "state": "needs_revision",
+            "findings": [
+                {
+                    "severity": "blocking",
+                    "kind": "interface_mismatch",
+                    "explanation": "Billing expects a list; Delivery returns a mapping.",
+                    "proposed_correction": "Return a list from get_delivery_records().",
+                }
+            ],
+            "contracts": [],
+            "note": "Declared intent only; code is not verified.",
+        }
+    )
+    assert reply.startswith("Claim C-2 rev 1: NEEDS_REVISION")
+    assert reply.index("Billing expects a list") < reply.index("Fix:")
+    assert reply.index("Fix:") < reply.index("Next:") < reply.index("Contracts:")
+    assert "code is not verified" in reply
+
+
+def test_approval_does_not_request_performative_checkpoint_narration() -> None:
+    from midflight.mcp.replies import verdict_text
+
+    reply = verdict_text({"claim_id": "C-1", "revision": 1, "state": "approved"})
+    assert reply.startswith("Claim C-1 rev 1: APPROVED")
+    assert "Findings: none." in reply
+    assert "before finishing" in reply
+    assert "tell your developer the list" not in reply

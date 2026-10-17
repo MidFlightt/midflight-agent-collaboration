@@ -128,7 +128,7 @@ async def test_total_vs_total_cents_through_mcp() -> None:
         }
         approved = await call(client, "submit_claim", **fixed)
         assert f"Claim {claim_id} rev 2: APPROVED" in approved
-        assert "Next: plan your checkpoints" in approved
+        assert "Next: implement against the listed contracts." in approved
         assert "MIDFLIGHT DIRECTIVES: none open." in approved
 
         ready = await call(client, "check_in", task_id="T2")
