@@ -27,6 +27,8 @@ class Bootstrap(Model):
 
 
 def add_local_routes(server, setup_key: str):
+    if len(setup_key) < 32:
+        raise ValueError("Local setup key is missing or incomplete; restore the private key file")
     router = APIRouter()
     services = server.services
 

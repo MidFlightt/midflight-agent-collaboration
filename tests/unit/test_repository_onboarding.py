@@ -235,6 +235,8 @@ def test_explicit_session_tool_approval_excludes_plan_writes(tmp_path):
 
 def test_standard_server_does_not_expose_local_bootstrap_and_bad_identities_reject():
     services = build_services(MemoryStore(), FixedClock(NOW))
+    with pytest.raises(ValueError, match="setup key"):
+        add_local_routes(SimpleNamespace(services=services, app=create_app(services)), "")
     ordinary = TestClient(create_app(services))
     assert ordinary.post("/local/projects", json=BODY).status_code == 404
     _, client = setup()
