@@ -1,0 +1,28 @@
+# Credentials and local runtime artifacts
+.env
+.env.*
+!.env.example
+.aws/
+*.pem
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+.DS_Store
+
+# Tooling caches and build output
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.aws-sam/
+dist/
+build/
+*.egg-info/
+
+# Local API tokens (midflight.api.local)
+.midflight/
+
+# Personal learning notes (VibeWise)
+.vibe-wise/
