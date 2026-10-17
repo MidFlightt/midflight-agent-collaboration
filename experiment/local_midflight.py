@@ -11,11 +11,11 @@ same case under the same conditions:
 
 Two settings choose what it serves:
 
-- `MIDFLIGHT_LOCAL_CASE`: `hirebot` (the default, below) or `pigeonpost`. For PigeonPost
-  it only creates the project; the trial's lead agent proposes and approves the plan.
+- `MIDFLIGHT_LOCAL_CASE`: `hirebot` (the default, below), `pigeonpost`, or `tabby`. For
+  the last two it only creates the project; the trial's lead agent proposes and approves the plan.
 - `MIDFLIGHT_LOCAL_REVIEWER`: `scripted` (the default for HireBot, below), `claude` (a
   real model reviewer through the Claude Code CLI, experiment/claude_reviewer.py), or
-  `none` (rules only, the default for PigeonPost).
+  `none` (rules only, the default for the others).
 
 Then run the trial against it (see experiment/README.md):
 
@@ -61,7 +61,7 @@ HERE = Path(__file__).parent
 PLANS = HERE.parent / "evals" / "escalations" / "hirebot.json"
 REPO = "acme/hirebot"
 CASE = os.environ.get("MIDFLIGHT_LOCAL_CASE", "hirebot")
-REPOS = {"hirebot": REPO, "pigeonpost": "acme/pigeonpost"}
+REPOS = {"hirebot": REPO, "pigeonpost": "acme/pigeonpost", "tabby": "acme/tabby"}
 PORT = 8765
 LEAD = "somesh"
 # The lead's fixed decision in this case (experiment/cases/hirebot-pro/README.md).
@@ -168,7 +168,8 @@ def serve(port: int) -> None:
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncIterator[None]:
-        name = "HireBot experiment" if CASE == "hirebot" else "PigeonPost experiment"
+        name = {"hirebot": "HireBot", "pigeonpost": "PigeonPost", "tabby": "Tabby"}[CASE]
+        name += " experiment"
         created = await tool("create_project", repository=repo, name=name)
         project = re.search(rf"\b({CASE}-[0-9a-f]{{4}})\b", created).group(1)  # type: ignore[union-attr]
         if CASE == "hirebot":

@@ -10,7 +10,7 @@ reviewer named in the trial (`scripted`, `claude`, or `none`). The lead's part i
 - HireBot Pro, run A: if anyone raised cancellations in the team chat, the lead posts the
   fixed decision there once and bookings and reports are told to read it, as in run A1.
 - HireBot Pro, run N: nobody can ask the lead.
-- PigeonPost scripts its own lead (`run.py pigeonpost <run> auto`).
+- PigeonPost and Tabby script their own lead (`run.py <case> <run> auto`).
 
 When the Claude plan's usage limit is reached, the step waits and is run again; run.py
 skips agents that already finished. Progress goes to stdout.
@@ -69,7 +69,7 @@ def step(env: dict[str, str], *args: str, retry: bool = True) -> str:
 
 def start_midflight(case: str, reviewer: str, env: dict[str, str]) -> tuple[subprocess.Popen, str]:
     server_env = env | {
-        "MIDFLIGHT_LOCAL_CASE": "pigeonpost" if case == "pigeonpost" else "hirebot",
+        "MIDFLIGHT_LOCAL_CASE": "hirebot" if case == "hirebot-pro" else case,
         "MIDFLIGHT_LOCAL_REVIEWER": reviewer,
     }
     proc = subprocess.Popen(
@@ -140,8 +140,9 @@ def hirebot(run: str, env: dict[str, str], project: str | None) -> list[str]:
     return notes
 
 
-def pigeonpost(run: str, env: dict[str, str], project: str | None) -> list[str]:
-    step(env, "experiment/run.py", "pigeonpost", run, "auto", *([project] if project else []))
+def scripted(case: str, run: str, env: dict[str, str], project: str | None) -> list[str]:
+    """PigeonPost and Tabby script every step, the lead included."""
+    step(env, "experiment/run.py", case, run, "auto", *([project] if project else []))
     return []
 
 
@@ -167,7 +168,10 @@ def trial(spec: str) -> None:
             server, project = start_midflight(case, reviewer, env)
             env["MIDFLIGHT_EXPERIMENT_PROJECT"] = project
             log(f"local Midflight project {project}")
-        notes = (hirebot if case == "hirebot-pro" else pigeonpost)(run, env, project)
+        if case == "hirebot-pro":
+            notes = hirebot(run, env, project)
+        else:
+            notes = scripted(case, run, env, project)
         if server is not None:
             notes.append(f"Reviewer: {lead(env, 'reviewer').strip()}")
     finally:
