@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Midflight Memory Layer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="How Midflight stores what agents claim, what the plan says, and what changed: the Store port, its three backends, atomic commits, the FalkorDB dependency graph, and how agents read it back.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; diagrams break wider. Tokens follow docs/pages (Midflight Build Plan).
+   Colour by layer: teal = service code, violet = graph / FalkorDB, amber = AWS / DynamoDB, green = a write that commits, red = a guard that refuses. */
+:root{
+  --bg:#f3f4f1; --surface:#ffffff; --sunk:#eceee9; --ink:#17212a; --muted:#59646d; --faint:#8a949b;
+  --line:#d8ddd8; --line-strong:#b9c1bd;
+  --svc:#0b6178; --svc-soft:#dcedf2;
+  --graph:#6a45ad; --graph-soft:#ece6f8;
+  --aws:#a5560a; --aws-soft:#fbecd9;
+  --ok:#1d7a4b; --ok-soft:#e0f2e7;
+  --warn:#b3343f; --warn-soft:#fae6e8;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161c; --surface:#172029; --sunk:#131b22; --ink:#e4eaee; --muted:#9daab4; --faint:#6d7a85;
+    --line:#2a3641; --line-strong:#3f4e5b;
+    --svc:#6cc5de; --svc-soft:#143440; --graph:#bba0f2; --graph-soft:#2a2342; --aws:#f2ab5f; --aws-soft:#3b2915;
+    --ok:#6fd4a0; --ok-soft:#15342a; --warn:#f2929a; --warn-soft:#3b1d23;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161c; --surface:#172029; --sunk:#131b22; --ink:#e4eaee; --muted:#9daab4; --faint:#6d7a85;
+  --line:#2a3641; --line-strong:#3f4e5b;
+  --svc:#6cc5de; --svc-soft:#143440; --graph:#bba0f2; --graph-soft:#2a2342; --aws:#f2ab5f; --aws-soft:#3b2915;
+  --ok:#6fd4a0; --ok-soft:#15342a; --warn:#f2929a; --warn-soft:#3b1d23;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1080px;margin:0 auto;padding-block:32px 96px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:56px}
+@media (min-width:720px){.wrap{padding-left:max(28px,env(safe-area-inset-left,0px));padding-right:max(28px,env(safe-area-inset-right,0px))}}
+h1,h2,h3{font-family:var(--f-display);line-height:1.08;margin:0;text-wrap:balance}
+h1{font-size:clamp(2.5rem,7vw,3.8rem);font-weight:700;letter-spacing:-.01em}
+h2{font-size:clamp(1.7rem,4vw,2.15rem);font-weight:600}
+h3{font-size:1.25rem;font-weight:600}
+p{margin:0;max-width:68ch}
+code{font-family:var(--f-mono);font-size:.84em;background:var(--sunk);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+a{color:var(--svc)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--svc);outline-offset:2px}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.lede{font-size:1.08rem;color:var(--muted)}
+.muted{color:var(--muted)}
+section{display:flex;flex-direction:column;gap:18px}
+.sec-head{display:flex;flex-direction:column;gap:8px}
+
+/* header */
+header.hero{display:flex;flex-direction:column;gap:14px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:8px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.fact b{font-family:var(--f-display);font-size:1.35rem;font-weight:600;line-height:1.1}
+.fact span{font-size:.86rem;color:var(--muted)}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.88rem}
+nav.toc a{text-decoration:none;border-bottom:1px solid var(--line-strong)}
+nav.toc a:hover{border-color:var(--svc)}
+
+/* architecture stack */
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{appearance:none;border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:6px 14px;font:500 .9rem var(--f-body);color:var(--ink);cursor:pointer}
+.tab:hover{border-color:var(--ink)}
+.tab[aria-selected="true"],.tab[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab code{background:none;padding:0;color:inherit}
+.tab small{font-family:var(--f-mono);font-size:.74rem;opacity:.75;margin-left:6px}
+.stack{display:flex;flex-direction:column;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.layer{display:grid;grid-template-columns:150px 1fr;gap:14px;padding:14px 16px;border-top:1px solid var(--line);align-items:start}
+.layer:first-child{border-top:0}
+.layer .lname{display:flex;flex-direction:column;gap:2px}
+.layer .lname b{font-family:var(--f-display);font-size:1.12rem;font-weight:600}
+.layer .lname span{font-size:.78rem;color:var(--muted);font-family:var(--f-mono)}
+.layer.store-layer{background:var(--sunk)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.chip{border:1px solid var(--line-strong);border-radius:8px;padding:6px 10px;background:var(--surface);display:flex;flex-direction:column;gap:1px;min-width:0;transition:opacity .2s,border-color .2s,background .2s}
+.chip b{font-weight:600;font-size:.9rem}
+.chip span{font-size:.78rem;color:var(--muted)}
+.chip code{font-size:.76rem}
+.chip.svc{border-color:color-mix(in srgb,var(--svc) 45%,var(--line))}
+.chip.graph{border-color:var(--graph);background:var(--graph-soft)}
+.chip.aws{border-color:var(--aws);background:var(--aws-soft)}
+.chip.mem{border-color:var(--svc);background:var(--svc-soft)}
+.chip.off{opacity:.28}
+.chip.pick{box-shadow:0 0 0 2px var(--ink)}
+.flow{font-family:var(--f-mono);font-size:.74rem;color:var(--faint);text-align:center;padding:2px 0;border-top:1px dashed var(--line);letter-spacing:.06em}
+@media (max-width:640px){.layer{grid-template-columns:1fr;gap:8px}}
+
+.detail{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.detail div{background:var(--surface);padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.detail dt{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.detail dd{margin:0;font-size:.92rem}
+
+/* commit anatomy */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media (max-width:820px){.two{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.fields{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none}
+.fields li{display:grid;grid-template-columns:minmax(0,170px) 1fr;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:.9rem}
+.fields li:first-child{border-top:0}
+.fields code{background:none;padding:0;font-weight:500}
+@media (max-width:480px){.fields li{grid-template-columns:1fr;gap:2px}}
+.guards{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;counter-reset:g}
+.guards li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;background:var(--warn-soft);font-size:.88rem;counter-increment:g}
+.guards li::before{content:counter(g);font-family:var(--f-mono);font-size:.78rem;color:var(--warn);font-weight:500;text-align:center}
+.guards li.dup{background:var(--sunk)}
+.guards li.dup::before{color:var(--muted)}
+.guards li.ok{background:var(--ok-soft)}
+.guards li.ok::before{color:var(--ok)}
+.guards .out{font-family:var(--f-mono);font-size:.74rem;color:var(--muted);text-align:right}
+.guards li > span:nth-child(1){min-width:0}
+@media (max-width:480px){.guards li{grid-template-columns:24px 1fr}.guards .out{grid-column:2;text-align:left}}
+
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+th,td{padding:10px 14px;text-align:left;vertical-align:top;border-top:1px solid var(--line)}
+thead th{border-top:0;font-family:var(--f-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--sunk)}
+tbody th{font-weight:600;white-space:nowrap}
+td{min-width:200px}
+
+/* diagrams */
+.figure{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px;overflow-x:auto}
+.figure svg{display:block;width:100%;min-width:760px;height:auto}
+.figure figcaption{font-size:.84rem;color:var(--muted);padding:8px 6px 2px}
+figure{margin:0}
+svg text{font-family:var(--f-body);fill:var(--ink)}
+svg .mono{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+svg .lbl{font-family:var(--f-mono);font-size:10.5px;fill:var(--muted);letter-spacing:.04em}
+svg .nb{font-weight:600;font-size:13px}
+svg .n{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.2}
+svg .n-proj{fill:var(--svc-soft);stroke:var(--svc);stroke-width:1.5}
+svg .n-graph{fill:var(--graph-soft);stroke:var(--graph);stroke-width:1.3}
+svg .n-side{fill:var(--sunk);stroke:var(--line-strong);stroke-width:1}
+svg .e{fill:none;stroke:var(--line-strong);stroke-width:1.4}
+svg .e-graph{fill:none;stroke:var(--graph);stroke-width:1.4}
+svg .box{fill:none;stroke:var(--line-strong);stroke-dasharray:4 4}
+svg .arrow{fill:var(--line-strong)}
+svg .arrow-g{fill:var(--graph)}
+
+/* impact demo */
+.controls{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.controls .group{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.controls .group > span{font-size:.82rem;color:var(--muted);margin-right:4px}
+#impact .t rect{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.3;transition:fill .25s,stroke .25s}
+#impact .c rect{fill:var(--sunk);stroke:var(--line-strong);stroke-width:1.2;transition:fill .25s,stroke .25s}
+#impact .t text,#impact .c text{transition:fill .25s}
+#impact path.ie{fill:none;stroke:var(--line-strong);stroke-width:1.6;transition:stroke .25s,stroke-width .25s}
+#impact .hit rect{fill:var(--graph-soft);stroke:var(--graph);stroke-width:2.2}
+#impact .seed rect{fill:var(--warn-soft);stroke:var(--warn);stroke-width:2.2}
+#impact .calm rect{stroke-dasharray:4 3}
+#impact path.ie.lit{stroke:var(--graph);stroke-width:3}
+#impact .tag{font-family:var(--f-mono);font-size:10px;fill:var(--muted)}
+#impact .hit .tag{fill:var(--graph)}
+.directives{display:flex;flex-direction:column;gap:8px}
+.dir{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--graph);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.dir.none{border-left-color:var(--line-strong);color:var(--muted)}
+.dir b{font-size:.92rem}
+.dir pre{margin:0;font-family:var(--f-mono);font-size:.78rem;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.8rem;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1.5px solid}
+.limits{display:flex;flex-wrap:wrap;gap:8px}
+.limits span{font-family:var(--f-mono);font-size:.78rem;padding:4px 9px;border-radius:999px;background:var(--graph-soft);color:var(--graph)}
+
+/* sequence */
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;counter-reset:s}
+.steps li{display:grid;grid-template-columns:44px 1fr;gap:14px;padding:14px 0;border-top:1px solid var(--line);counter-increment:s}
+.steps li:first-child{border-top:0}
+.steps li::before{content:counter(s);font-family:var(--f-display);font-size:1.7rem;font-weight:600;color:var(--graph);line-height:1}
+.steps li div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.steps b{font-weight:600}
+
+/* check-in replies */
+.reply{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.reply header{padding:10px 14px;background:var(--sunk);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:.86rem}
+.reply header code{background:var(--surface)}
+.reply ul{list-style:none;margin:0;padding:6px 14px 12px;display:flex;flex-direction:column}
+.reply li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.reply li:first-child{border-top:0}
+.reply li em{font-style:normal;font-family:var(--f-mono);font-size:.74rem;color:var(--muted);white-space:nowrap}
+.reply li.gone{color:var(--faint)}
+.reply li.gone em{color:var(--ok)}
+
+.caveats{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.caveats div{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:6px;font-size:.9rem;min-width:0}
+.caveats b{font-family:var(--f-display);font-size:1.12rem;font-weight:600}
+footer{font-size:.84rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direction:column;gap:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Midflight · Team Yoga · Graph Hacks build</div>
+  <h1>Midflight Memory Layer</h1>
+  <p class="lede">Everything agents tell Midflight, and everything it tells them back, lives behind one interface: the <code>Store</code>. This page shows where that state sits, how a write stays safe when four agents act at once, and how the FalkorDB graph finds which agents a plan change reaches.</p>
+  <div class="facts">
+    <div class="fact"><b>One Store protocol</b><span><code>midflight/ports.py</code>. Services never touch a database directly.</span></div>
+    <div class="fact"><b>Three backends</b><span>Memory, DynamoDB, FalkorDB, chosen by <code>MIDFLIGHT_STORE</code>.</span></div>
+    <div class="fact"><b>One atomic write per commit</b><span>Revision check and idempotency key in the same write (INV-02, INV-13).</span></div>
+    <div class="fact"><b>History is never rewritten</b><span>Claims gain revisions, approved plans freeze, the audit log only grows.</span></div>
+  </div>
+  <nav class="toc" aria-label="Sections">
+    <a href="#architecture">Architecture</a>
+    <a href="#commit">One commit</a>
+    <a href="#graph-model">What's stored</a>
+    <a href="#impact-demo">Impact through the graph</a>
+    <a href="#approval">Plan approval</a>
+    <a href="#check-in">Reading it back</a>
+    <a href="#limits">Limits</a>
+  </nav>
+</header>
+
+<!-- ============ ARCHITECTURE ============ -->
+<section id="architecture">
+  <div class="sec-head">
+    <div class="eyebrow">Architecture</div>
+    <h2>From an agent's tool call to the database</h2>
+    <p class="muted">Each layer only talks to the one below it. Pick a backend to see which adapters run. Everything above the ports is the same code in every deployment.</p>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Store backend">
+    <button class="tab" role="tab" id="tab-memory" data-backend="memory" aria-selected="false">Memory<small>tests, laptops</small></button>
+    <button class="tab" role="tab" id="tab-dynamodb" data-backend="dynamodb" aria-selected="false">DynamoDB<small>AWS today</small></button>
+    <button class="tab" role="tab" id="tab-falkordb" data-backend="falkordb" aria-selected="true">FalkorDB<small>Graph Hacks</small></button>
+  </div>
+
+  <div class="stack" id="stack">
+    <div class="layer">
+      <div class="lname"><b>Callers</b><span>outside Midflight</span></div>
+      <div class="chips">
+        <div class="chip"><b>Coding agents</b><span>Claude Code, Codex, Cursor</span></div>
+        <div class="chip"><b>Lead's agent</b><span>proposes and approves plans</span></div>
+        <div class="chip"><b>GitHub</b><span>push and pull request webhooks</span></div>
+        <div class="chip"><b>Pre-push hook</b><span>asks <code>ready_to_push</code></span></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="lname"><b>Interfaces</b><span>midflight/mcp, midflight/api</span></div>
+      <div class="chips">
+        <div class="chip svc"><b>MCP connector</b><span><code>/mcp</code>: <code>check_in</code>, <code>submit_claim</code>, <code>acknowledge_directive</code>, lead tools</span></div>
+        <div class="chip svc"><b>REST API</b><span><code>/docs</code> lists every route</span></div>
+        <div class="chip svc"><b>Webhook</b><span>GitHub events to verification</span></div>
+        <div class="chip svc"><b>Sign in with GitHub</b><span>OAuth for the hosted connector</span></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="lname"><b>Services</b><span>midflight/services</span></div>
+      <div class="chips">
+        <div class="chip svc"><b>claims + review</b><span>verdict in the same call</span></div>
+        <div class="chip svc"><b>check_in</b><span>what an agent needs now</span></div>
+        <div class="chip svc"><b>plans</b><span>approval and propagation</span></div>
+        <div class="chip svc"><b>directives</b><span>delivered at check-ins</span></div>
+        <div class="chip svc"><b>escalations + decisions</b><span>product calls go to the lead</span></div>
+        <div class="chip svc"><b>verification + sync</b><span>the <code>midflight/verify</code> check</span></div>
+      </div>
+    </div>
+    <div class="flow">ports.py · graph_ports.py</div>
+    <div class="layer">
+      <div class="lname"><b>Ports</b><span>protocols, no I/O</span></div>
+      <div class="chips">
+        <div class="chip mem" data-on="memory dynamodb falkordb"><b>Store</b><span>atomic <code>commit()</code> plus reads</span></div>
+        <div class="chip graph" data-on="falkordb"><b>GraphPlanStore</b><span>optional: <code>dependency_impact()</code></span></div>
+        <div class="chip" data-on="memory dynamodb falkordb"><b>JobRunner</b><span>claim reviews, verifications</span></div>
+        <div class="chip" data-on="memory dynamodb falkordb"><b>Reviewer</b><span>proposes findings only</span></div>
+        <div class="chip" data-on="memory dynamodb falkordb"><b>GitHub</b><span>fresh reads, check runs</span></div>
+        <div class="chip" data-on="memory dynamodb falkordb"><b>Clock</b></div>
+      </div>
+    </div>
+    <div class="layer store-layer">
+      <div class="lname"><b>Adapters</b><span>midflight/adapters</span></div>
+      <div class="chips">
+        <div class="chip mem" data-on="memory"><b>MemoryStore</b><span>dicts behind one lock</span></div>
+        <div class="chip aws" data-on="dynamodb"><b>DynamoStore</b><span>one table, PK / SK</span></div>
+        <div class="chip graph" data-on="falkordb"><b>FalkorStore</b><span>one Cypher query per commit</span></div>
+        <div class="chip mem" data-on="memory"><b>InlineRunner</b><span>runs the job right away</span></div>
+        <div class="chip aws" data-on="dynamodb"><b>Stream → worker Lambda</b><span>new job items trigger it</span></div>
+        <div class="chip graph" data-on="falkordb"><b>RecoverableWorker</b><span>polls saved jobs in the graph</span></div>
+        <div class="chip" data-on="memory dynamodb falkordb"><b>BedrockReviewer</b><span>Amazon Nova 2 Lite, if configured</span></div>
+        <div class="chip" data-on="memory dynamodb falkordb"><b>GitHubAppClient</b><span>if the App is configured</span></div>
+      </div>
+    </div>
+  </div>
+
+  <dl class="detail" id="detail" aria-live="polite"></dl>
+</section>
+
+<!-- ============ COMMIT ============ -->
+<section id="commit">
+  <div class="sec-head">
+    <div class="eyebrow">Writes</div>
+    <h2>Every change is one atomic commit</h2>
+    <p class="muted">Services never save entities one by one. They build a <code>Commit</code> and hand it to the store, which writes all of it or none of it. A claim and its review job go in the same commit, so accepted work can't lose its job.</p>
+  </div>
+  <div class="two">
+    <div class="panel">
+      <h3>What a Commit carries</h3>
+      <ul class="fields">
+        <li><code>project_id</code><span>Every entity in the commit must belong to this project.</span></li>
+        <li><code>puts</code><span>The entities to save: claims, plans, directives, jobs, escalations…</span></li>
+        <li><code>audit</code><span>Audit events saved in the same write.</span></li>
+        <li><code>expected_coord_rev</code><span>Compare-and-set on the project's revision. If another agent changed the project first, nothing is written and the store raises <code>RevisionConflict</code>; the service re-reads and reviews again.</span></li>
+        <li><code>bump_coord_rev</code><span>Every claim or plan change increments the revision.</span></li>
+        <li><code>idempotency_key</code><span>A retried commit with the same key writes nothing and returns <code>duplicate=True</code>.</span></li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>How FalkorStore decides, inside one query</h3>
+      <p class="muted" style="font-size:.88rem">A <code>CASE</code> picks the first outcome that applies. The writes run in a <code>FOREACH</code> only when the outcome is <code>ok</code>. No Python lock and no pre-read decides it.</p>
+      <ol class="guards">
+        <li><span>Idempotency key used by another project</span><span class="out">ValueError</span></li>
+        <li class="dup"><span>Idempotency key already applied</span><span class="out">duplicate, no write</span></li>
+        <li><span><code>coord_rev</code> moved since the caller read it</span><span class="out">RevisionConflict</span></li>
+        <li><span>Project doesn't exist and isn't being created</span><span class="out">LookupError</span></li>
+        <li><span>Analyzed plan graph changed before approval</span><span class="out">GraphChanged</span></li>
+        <li><span>An entity id belongs to another project</span><span class="out">ValueError</span></li>
+        <li><span>Approved plan would change</span><span class="out">ValueError</span></li>
+        <li><span>Saved claim revision would be edited</span><span class="out">ValueError</span></li>
+        <li class="ok"><span>Write everything, bump revision, save receipt</span><span class="out">applied</span></li>
+      </ol>
+    </div>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Backend</th><th>How the commit stays atomic</th><th>How retries are recognised</th></tr></thead>
+      <tbody>
+        <tr><th>MemoryStore</th><td>One <code>RLock</code> around the whole commit.</td><td>A dict of applied keys.</td></tr>
+        <tr><th>DynamoStore</th><td>One <code>TransactWriteItems</code>; the project item carries the <code>coord_rev</code> condition.</td><td>A <code>COMMIT#&lt;key&gt;</code> item that must not exist yet.</td></tr>
+        <tr><th>FalkorStore</th><td>One Cypher query; guards in a <code>CASE</code>, writes in a conditional <code>FOREACH</code>.</td><td>An <code>MFReceipt</code> node per key, linked to the project.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ GRAPH MODEL ============ -->
+<section id="graph-model">
+  <div class="sec-head">
+    <div class="eyebrow">What's stored</div>
+    <h2>The graph inside FalkorDB</h2>
+    <p class="muted">Each entity is a node with its full model saved as canonical JSON in <code>payload</code>, and simple fields copied out so they can be indexed. Approving a plan also writes a projection of it: one node per task, contract and requirement, joined by the edges that say who provides and who consumes what.</p>
+  </div>
+  <figure class="figure">
+    <svg viewBox="0 0 1000 470" role="img" aria-labelledby="gm-title">
+      <title id="gm-title">FalkorDB node and edge model for Midflight</title>
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow"/></marker>
+        <marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow-g"/></marker>
+      </defs>
+
+      <!-- project and its bookkeeping -->
+      <path class="e" d="M425 46 L212 46" marker-end="url(#ar)"/>
+      <text class="lbl" x="318" y="38" text-anchor="middle">RECORDED</text>
+      <path class="e" d="M575 46 L788 46" marker-end="url(#ar)"/>
+      <text class="lbl" x="682" y="38" text-anchor="middle">AUDITED</text>
+      <rect class="n-side" x="60" y="26" width="150" height="40" rx="8"/>
+      <text class="nb" x="135" y="44" text-anchor="middle">MFReceipt</text>
+      <text class="mono" x="135" y="59" text-anchor="middle">one per idempotency key</text>
+      <rect class="n-side" x="790" y="26" width="170" height="40" rx="8"/>
+      <text class="nb" x="875" y="44" text-anchor="middle">MFAuditEvent</text>
+      <text class="mono" x="875" y="59" text-anchor="middle">append only</text>
+      <rect class="n-proj" x="425" y="22" width="150" height="48" rx="10"/>
+      <text class="nb" x="500" y="43" text-anchor="middle">MFProject</text>
+      <text class="mono" x="500" y="59" text-anchor="middle">coord_rev</text>
+
+      <!-- CONTAINS bus -->
+      <path class="e" d="M500 70 L500 108 M92 108 L908 108"/>
+      <path class="e" d="M92 108 L92 148 M228 108 L228 148 M364 108 L364 148 M500 108 L500 148 M636 108 L636 148 M772 108 L772 148 M908 108 L908 148"/>
+      <text class="lbl" x="510" y="100">CONTAINS</text>
+      <g>
+        <rect class="n" x="32" y="150" width="120" height="40" rx="8"/><text class="nb" x="92" y="174" text-anchor="middle">MFParticipant</text>
+        <rect class="n-graph" x="168" y="150" width="120" height="40" rx="8"/><text class="nb" x="228" y="168" text-anchor="middle">MFPlan</text><text class="mono" x="228" y="183" text-anchor="middle">per version</text>
+        <rect class="n" x="304" y="150" width="120" height="40" rx="8"/><text class="nb" x="364" y="168" text-anchor="middle">MFClaim</text><text class="mono" x="364" y="183" text-anchor="middle">per revision</text>
+        <rect class="n" x="440" y="150" width="120" height="40" rx="8"/><text class="nb" x="500" y="174" text-anchor="middle">MFDirective</text>
+        <rect class="n" x="576" y="150" width="120" height="40" rx="8"/><text class="nb" x="636" y="174" text-anchor="middle">MFEscalation</text>
+        <rect class="n" x="712" y="150" width="120" height="40" rx="8"/><text class="nb" x="772" y="174" text-anchor="middle">MFVerification</text>
+        <rect class="n" x="848" y="150" width="120" height="40" rx="8"/><text class="nb" x="908" y="168" text-anchor="middle">MFJob</text><text class="mono" x="908" y="183" text-anchor="middle">the work queue</text>
+      </g>
+
+      <!-- plan projection -->
+      <path class="e-graph" d="M228 190 L228 238" marker-end="url(#arg)"/>
+      <text class="lbl" x="236" y="220">HAS_GRAPH</text>
+      <rect class="n-graph" x="148" y="240" width="160" height="40" rx="8"/>
+      <text class="nb" x="228" y="258" text-anchor="middle">MFPlanGraph</text>
+      <text class="mono" x="228" y="273" text-anchor="middle">key = hash of plan content</text>
+      <path class="e-graph" d="M228 280 L228 312 M97 312 L697 312 M97 312 L97 346 M297 312 L297 346 M497 312 L497 346 M697 312 L697 346"/>
+      <text class="lbl" x="236" y="305">HAS_ITEM</text>
+
+      <rect class="n-graph" x="32" y="348" width="130" height="46" rx="8"/>
+      <text class="mono" x="97" y="366" text-anchor="middle">MFContext</text><text class="nb" x="97" y="384" text-anchor="middle">requirement</text>
+      <rect class="n-graph" x="232" y="348" width="130" height="46" rx="8"/>
+      <text class="mono" x="297" y="366" text-anchor="middle">MFContext</text><text class="nb" x="297" y="384" text-anchor="middle">task</text>
+      <rect class="n-graph" x="432" y="348" width="130" height="46" rx="8"/>
+      <text class="mono" x="497" y="366" text-anchor="middle">MFContext</text><text class="nb" x="497" y="384" text-anchor="middle">contract</text>
+      <rect class="n-graph" x="632" y="348" width="130" height="46" rx="8"/>
+      <text class="mono" x="697" y="366" text-anchor="middle">MFContext</text><text class="nb" x="697" y="384" text-anchor="middle">task</text>
+
+      <path class="e-graph" d="M162 371 L230 371" marker-end="url(#arg)"/>
+      <text class="lbl" x="197" y="414" text-anchor="middle">IMPLEMENTED_BY</text>
+      <path class="e-graph" d="M362 371 L430 371" marker-end="url(#arg)"/>
+      <text class="lbl" x="397" y="414" text-anchor="middle">PROVIDES</text>
+      <path class="e-graph" d="M562 371 L630 371" marker-end="url(#arg)"/>
+      <text class="lbl" x="597" y="414" text-anchor="middle">CONSUMED_BY</text>
+      <text class="mono" x="32" y="446">Each plan version gets its own projection, so the old and new plans can be walked side by side.</text>
+
+      <!-- outside any project -->
+      <rect class="box" x="800" y="232" width="176" height="210" rx="10"/>
+      <text class="lbl" x="888" y="254" text-anchor="middle">NOT IN A PROJECT</text>
+      <rect class="n-side" x="818" y="266" width="140" height="32" rx="7"/><text class="nb" x="888" y="287" text-anchor="middle">MFUser</text>
+      <rect class="n-side" x="818" y="306" width="140" height="32" rx="7"/><text class="nb" x="888" y="327" text-anchor="middle">MFAuth</text>
+      <rect class="n-side" x="818" y="346" width="140" height="32" rx="7"/><text class="nb" x="888" y="367" text-anchor="middle">MFCounter</text>
+      <rect class="n-side" x="818" y="386" width="140" height="32" rx="7"/><text class="nb" x="888" y="407" text-anchor="middle">MFIdentity</text>
+      <text class="mono" x="888" y="434" text-anchor="middle">sign-in, ids, ownership</text>
+    </svg>
+    <figcaption><b>MFCounter</b> issues ids like <code>C-3</code> across all projects, so two teams never share one. <b>MFIdentity</b> stops an id moving to another project. <b>MFAuth</b> holds sign-in codes and tokens with an expiry; keys are hashes, never the secret.</figcaption>
+  </figure>
+  <div class="caveats">
+    <div><b>Claims are revised, never edited</b><span>Each change saves a new revision under (id, revision). Only the verdict fields, <code>state</code> and <code>findings</code>, can change on a saved revision.</span></div>
+    <div><b>Approved plans are frozen</b><span>Changing the plan means proposing a new version. The store refuses any edit to an approved one.</span></div>
+    <div><b>The audit log only grows</b><span>Every commit's events are appended, so you can replay what each agent declared and when.</span></div>
+  </div>
+</section>
+
+<!-- ============ IMPACT DEMO ============ -->
+<section id="impact-demo">
+  <div class="sec-head">
+    <div class="eyebrow">Propagation</div>
+    <h2>Which agents a plan change reaches</h2>
+    <p class="muted">The four-agent demo's plan: Pricing feeds Checkout, Checkout feeds Reporting, and Notifications is independent. Change one item and compare the graph walk with the older direct-only rule that Memory and DynamoDB still use. The <code>R-7</code> requirement is an example added here.</p>
+  </div>
+  <div class="controls">
+    <div class="group" role="group" aria-label="What changes"><span>Change</span>
+      <button class="tab" id="chg-price" data-change="price" aria-pressed="true">contract <code>price</code></button>
+      <button class="tab" id="chg-order" data-change="order" aria-pressed="false">contract <code>order</code></button>
+      <button class="tab" id="chg-r7" data-change="R-7" aria-pressed="false">requirement <code>R-7</code></button>
+    </div>
+    <div class="group" role="group" aria-label="Analysis"><span>Using</span>
+      <button class="tab" id="mode-graph" data-mode="graph" aria-pressed="true">Graph walk (FalkorDB)</button>
+      <button class="tab" id="mode-direct" data-mode="direct" aria-pressed="false">Direct only (Memory, DynamoDB)</button>
+    </div>
+  </div>
+  <div class="two">
+    <figure class="figure" style="padding:8px">
+      <svg id="impact" viewBox="0 0 900 310" role="img" aria-label="Example plan graph with impact highlighted" style="min-width:560px">
+        <defs>
+          <marker id="ai" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow"/></marker>
+        </defs>
+        <path class="ie" id="e1" d="M100 88 C100 140 160 160 218 160" marker-end="url(#ai)"/>
+        <path class="ie" id="e2" d="M340 160 C410 160 445 140 445 90" marker-end="url(#ai)"/>
+        <path class="ie" id="e3" d="M475 88 C475 140 520 160 578 160" marker-end="url(#ai)"/>
+        <path class="ie" id="e4" d="M700 160 C770 160 800 140 800 90" marker-end="url(#ai)"/>
+        <path class="ie" id="e5" d="M530 260 L728 260" marker-end="url(#ai)"/>
+        <text class="lbl" x="130" y="154" text-anchor="end">PROVIDES</text>
+        <text class="lbl" x="385" y="182" text-anchor="middle">CONSUMED_BY</text>
+        <text class="lbl" x="530" y="182" text-anchor="middle">PROVIDES</text>
+        <text class="lbl" x="755" y="182" text-anchor="middle">CONSUMED_BY</text>
+        <text class="lbl" x="630" y="252" text-anchor="middle">IMPLEMENTED_BY</text>
+
+        <g class="t" id="n-pricing"><rect x="30" y="40" width="140" height="48" rx="9"/><text class="nb" x="100" y="62" text-anchor="middle">pricing</text><text class="tag" x="100" y="78" text-anchor="middle">task</text></g>
+        <g class="t" id="n-checkout"><rect x="390" y="40" width="140" height="48" rx="9"/><text class="nb" x="460" y="62" text-anchor="middle">checkout</text><text class="tag" x="460" y="78" text-anchor="middle">task</text></g>
+        <g class="t" id="n-reporting"><rect x="730" y="40" width="140" height="48" rx="9"/><text class="nb" x="800" y="62" text-anchor="middle">reporting</text><text class="tag" x="800" y="78" text-anchor="middle">task</text></g>
+        <g class="t" id="n-notifications"><rect x="730" y="236" width="140" height="48" rx="9"/><text class="nb" x="800" y="258" text-anchor="middle">notifications</text><text class="tag" x="800" y="274" text-anchor="middle">task</text></g>
+        <g class="c" id="n-price"><rect x="220" y="140" width="120" height="40" rx="20"/><text class="nb" x="280" y="165" text-anchor="middle">price</text></g>
+        <g class="c" id="n-order"><rect x="580" y="140" width="120" height="40" rx="20"/><text class="nb" x="640" y="165" text-anchor="middle">order</text></g>
+        <g class="c" id="n-R-7"><rect x="390" y="240" width="140" height="40" rx="6"/><text class="nb" x="460" y="265" text-anchor="middle">R-7 order emails</text></g>
+      </svg>
+      <figcaption>
+        <span class="legend">
+          <span><i style="background:var(--warn-soft);border-color:var(--warn)"></i>changed item</span>
+          <span><i style="background:var(--graph-soft);border-color:var(--graph)"></i>gets a directive</span>
+          <span><i style="background:var(--surface);border-color:var(--line-strong);border-style:dashed"></i>keeps working</span>
+        </span>
+      </figcaption>
+    </figure>
+    <div class="panel">
+      <h3 id="dir-title">Directives written</h3>
+      <div class="directives" id="directives" aria-live="polite"></div>
+    </div>
+  </div>
+  <p class="muted" style="font-size:.9rem">The walk is breadth-first over both plan versions, so a dependency the new plan removed still counts. It has hard limits; reaching one raises <code>IncompleteImpact</code> and leaves the plan unapproved rather than sending a partial answer.</p>
+  <div class="limits"><span>depth ≤ 32</span><span>nodes ≤ 1000</span><span>edges ≤ 5000</span><span>no fallback to direct-only on graph errors</span></div>
+</section>
+
+<!-- ============ APPROVAL ============ -->
+<section id="approval">
+  <div class="sec-head">
+    <div class="eyebrow">Sequence</div>
+    <h2>What happens when the lead approves a plan</h2>
+    <p class="muted"><code>PlanService</code> uses the graph when the store offers it (the optional <code>GraphPlanStore</code> protocol), and the direct rule in <code>domain/impact.py</code> otherwise.</p>
+  </div>
+  <ol class="steps">
+    <li><div><b>Read the project and the draft</b><span class="muted">Recompute the changed ids between the plan in force and the draft.</span></div></li>
+    <li><div><b>Walk both plan graphs</b><span class="muted">The proposed graph must match the draft just read. If the draft changed in between, re-read and retry.</span></div></li>
+    <li><div><b>Build the changes</b><span class="muted">A directive for each affected task, with the graph path in its <code>reason</code>. Older open directives for those tasks are superseded. Affected approved claims go back to pending with a fresh review job. Everything else is untouched.</span></div></li>
+    <li><div><b>Write it in one guarded commit</b><span class="muted">The query checks the project revision and each analyzed graph snapshot, then saves the approval, directives, claims, jobs and audit events together.</span></div></li>
+    <li><div><b>Only then wake the worker</b><span class="muted">A second, competing approval gets a conflict and never dispatches the jobs it built locally.</span></div></li>
+  </ol>
+</section>
+
+<!-- ============ CHECK-IN ============ -->
+<section id="check-in">
+  <div class="sec-head">
+    <div class="eyebrow">Reading it back</div>
+    <h2>What an agent gets at a check-in</h2>
+    <p class="muted">Agents call <code>check_in</code> at their checkpoints. Everything in a reply stays in the agent's context and costs tokens on every later step, so each reply carries a marker like <code>checkout.20261017T091233Z</code>. Pass it back as <code>since</code> and the reply leaves out what that earlier one already held (D34).</p>
+  </div>
+  <div class="two">
+    <div class="reply">
+      <header><b>First check-in</b><span>no <code>since</code></span></header>
+      <ul>
+        <li><span>Task requirements and contracts</span><em>sent</em></li>
+        <li><span>Claim verdict</span><em>sent</em></li>
+        <li><span>Open directives, with graph evidence</span><em>sent</em></li>
+        <li><span>What other tasks' claims assume about this one</span><em>sent</em></li>
+        <li><span>Decisions and open escalations</span><em>sent</em></li>
+        <li><span><code>ready_to_push</code> and push blockers</span><em>sent</em></li>
+        <li><span>Marker for next time</span><em>sent</em></li>
+      </ul>
+    </div>
+    <div class="reply">
+      <header><b>Later check-in</b><span><code>since=checkout.20261017T091233Z</code></span></header>
+      <ul>
+        <li class="gone"><span>Task requirements and contracts</span><em>only ids that changed</em></li>
+        <li><span>Claim verdict</span><em>sent</em></li>
+        <li><span>Open directives</span><em>sent</em></li>
+        <li class="gone"><span>Neighbours' assumptions</span><em>only new ones</em></li>
+        <li class="gone"><span>Decisions</span><em>only new ones</em></li>
+        <li><span><code>ready_to_push</code> and push blockers</span><em>sent</em></li>
+        <li><span>New marker</span><em>sent</em></li>
+      </ul>
+    </div>
+  </div>
+  <p class="muted" style="font-size:.9rem">The marker belongs to the conversation, not the account. Two sessions signed in as one person never hide anything from each other, and a session that lost its context sends no marker and gets everything. Directive evidence is read from the saved <code>reason</code>, so no graph query runs at delivery time.</p>
+</section>
+
+<!-- ============ LIMITS ============ -->
+<section id="limits">
+  <div class="sec-head">
+    <div class="eyebrow">Limits</div>
+    <h2>What to keep in mind</h2>
+  </div>
+  <div class="caveats">
+    <div><b>Memory forgets on restart</b><span><code>MemoryStore</code> keeps everything in process. It's for tests and laptops, and it has no graph queries.</span></div>
+    <div><b>Multi-hop impact is FalkorDB only</b><span>Memory and DynamoDB send directives only to tasks that touch the changed item directly.</span></div>
+    <div><b>One worker per graph</b><span><code>RecoverableWorker</code> runs jobs at least once and has no distributed lease, so run exactly one service process against a graph.</span></div>
+    <div><b>Production is still DynamoDB</b><span>The FalkorDB store is the Graph Hacks build. The AWS deployment hasn't moved.</span></div>
+  </div>
+</section>
+
+<footer>
+  <span>Sources: <code>midflight/ports.py</code>, <code>graph_ports.py</code>, <code>wiring.py</code>, <code>adapters/memory_store.py</code>, <code>dynamo_store.py</code>, <code>falkor_store.py</code>, <code>dependency_graph.py</code>, <code>worker.py</code>, <code>services/plans.py</code>, <code>services/check_in.py</code>, and <code>docs/graph-hacks/</code>.</span>
+  <span>Written October 17, 2026, from <code>main</code>.</span>
+</footer>
+</div>
+
+<script>
+(function(){
+  var BACKENDS = {
+    memory: [
+      ["Where data lives","Python dicts in the server process. Gone on restart."],
+      ["Atomic commit","One lock around the whole commit."],
+      ["Background jobs","InlineRunner runs each job straight away, in the same request."],
+      ["Plan-change impact","Direct only: tasks that provide, consume or implement the changed item."],
+      ["Select with","MIDFLIGHT_STORE=memory, or nothing set"]
+    ],
+    dynamodb: [
+      ["Where data lives","One table. Keys PK and SK; each entity as JSON in a data attribute."],
+      ["Atomic commit","One TransactWriteItems with a coord_rev condition and a COMMIT# item."],
+      ["Background jobs","New job items appear on the table's stream, which triggers the worker Lambda."],
+      ["Plan-change impact","Direct only, same as memory."],
+      ["Select with","MIDFLIGHT_STORE=dynamodb and MIDFLIGHT_TABLE"]
+    ],
+    falkordb: [
+      ["Where data lives","Graph nodes and edges in one FalkorDB graph per deployment."],
+      ["Atomic commit","One Cypher query: guards in a CASE, writes in a conditional FOREACH."],
+      ["Background jobs","RecoverableWorker polls saved jobs in the graph; a restart picks up unfinished ones."],
+      ["Plan-change impact","Multi-hop graph walk across both plan versions, with the path as evidence."],
+      ["Select with","MIDFLIGHT_STORE=falkordb and MIDFLIGHT_FALKOR_*"]
+    ]
+  };
+  var tabs = document.querySelectorAll('[data-backend]');
+  var chips = document.querySelectorAll('#stack [data-on]');
+  var detail = document.getElementById('detail');
+  function esc(s){return s.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+  function pickBackend(b){
+    tabs.forEach(function(t){t.setAttribute('aria-selected', String(t.dataset.backend===b))});
+    chips.forEach(function(c){
+      var on = c.dataset.on.split(' ').indexOf(b) >= 0;
+      c.classList.toggle('off', !on);
+      c.classList.toggle('pick', on && c.dataset.on.split(' ').length===1);
+    });
+    detail.innerHTML = BACKENDS[b].map(function(r){
+      return '<div><dt>'+esc(r[0])+'</dt><dd>'+esc(r[1])+'</dd></div>';
+    }).join('');
+  }
+  tabs.forEach(function(t){t.addEventListener('click',function(){pickBackend(t.dataset.backend)})});
+  pickBackend('falkordb');
+
+  // Impact demo. Evidence strings follow PlanService._graph_reason.
+  var SCEN = {
+    price: {
+      graph: {edges:['e1','e2','e3','e4'], tasks:{
+        pricing:'contract price <-PROVIDES- task pricing',
+        checkout:'contract price -CONSUMED_BY-> task checkout',
+        reporting:'contract price -CONSUMED_BY-> task checkout -PROVIDES-> contract order -CONSUMED_BY-> task reporting'}},
+      direct: {edges:['e1','e2'], tasks:{pricing:'provides price', checkout:'consumes price'}}
+    },
+    order: {
+      graph: {edges:['e3','e4'], tasks:{
+        checkout:'contract order <-PROVIDES- task checkout',
+        reporting:'contract order -CONSUMED_BY-> task reporting'}},
+      direct: {edges:['e3','e4'], tasks:{checkout:'provides order', reporting:'consumes order'}}
+    },
+    'R-7': {
+      graph: {edges:['e5'], tasks:{notifications:'requirement R-7 -IMPLEMENTED_BY-> task notifications'}},
+      direct: {edges:['e5'], tasks:{notifications:'implements R-7'}}
+    }
+  };
+  var ALL_TASKS = ['pricing','checkout','reporting','notifications'];
+  var state = {change:'price', mode:'graph'};
+  var list = document.getElementById('directives');
+  function renderImpact(){
+    document.querySelectorAll('[data-change]').forEach(function(b){b.setAttribute('aria-pressed', String(b.dataset.change===state.change))});
+    document.querySelectorAll('[data-mode]').forEach(function(b){b.setAttribute('aria-pressed', String(b.dataset.mode===state.mode))});
+    var s = SCEN[state.change][state.mode];
+    document.querySelectorAll('#impact path.ie').forEach(function(p){p.classList.toggle('lit', s.edges.indexOf(p.id)>=0)});
+    ['price','order','R-7'].forEach(function(id){
+      document.getElementById('n-'+id).classList.toggle('seed', id===state.change);
+    });
+    var html = '';
+    ALL_TASKS.forEach(function(t){
+      var g = document.getElementById('n-'+t);
+      var hit = Object.prototype.hasOwnProperty.call(s.tasks, t);
+      g.classList.toggle('hit', hit);
+      g.classList.toggle('calm', !hit);
+      g.querySelector('.tag').textContent = hit ? 'directive' : 'keeps working';
+      if (hit) {
+        var why = state.mode==='graph'
+          ? 'Graph evidence (plan v2, v3): ' + s.tasks[t] + '.'
+          : 'Directly linked: ' + s.tasks[t] + '. No graph evidence.';
+        html += '<div class="dir"><b>'+esc(t)+'</b><pre>'+esc(why)+'</pre></div>';
+      }
+    });
+    var quiet = ALL_TASKS.filter(function(t){return !Object.prototype.hasOwnProperty.call(s.tasks,t)});
+    if (quiet.length) html += '<div class="dir none"><b>No directive</b><pre>'+esc(quiet.join(', '))+' keep working.</pre></div>';
+    if (state.change==='price' && state.mode==='direct') html += '<div class="dir none"><b>Missed</b><pre>reporting builds on checkout\'s order contract, which depends on price. The direct rule doesn\'t see it.</pre></div>';
+    list.innerHTML = html;
+  }
+  document.querySelectorAll('[data-change]').forEach(function(b){b.addEventListener('click',function(){state.change=b.dataset.change;renderImpact()})});
+  document.querySelectorAll('[data-mode]').forEach(function(b){b.addEventListener('click',function(){state.mode=b.dataset.mode;renderImpact()})});
+  renderImpact();
+})();
+</script>
+</body>
+</html>
