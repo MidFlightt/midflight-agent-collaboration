@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import statistics
 import threading
 import time
@@ -197,10 +198,32 @@ def percentile(values: list[float], p: float) -> float:
     return ordered[min(len(ordered) - 1, round(p * (len(ordered) - 1)))]
 
 
+class SlowReviewer:
+    """Stands in for the AI reviewer: takes as long as a model call and finds nothing."""
+
+    def __init__(self, seconds: float) -> None:
+        self.seconds = seconds
+
+    def review_claim(self, request: object) -> list:
+        time.sleep(self.seconds)
+        return []
+
+    def review_commit(self, request: object) -> list:
+        return []
+
+
 def run_once(
-    make_store: Callable[[], tuple[Any, Callable[[], None]]], n: int, worker: bool
+    make_store: Callable[[], tuple[Any, Callable[[], None]]],
+    n: int,
+    worker: bool,
+    review_s: float = 0,
+    spread_s: float = 0,
+    seed_value: int = 0,
 ) -> dict:
+    """`review_s` > 0 adds a reviewer that takes that long; `spread_s` > 0 has agents
+    submit at random moments over that many seconds instead of all at once."""
     raw, cleanup = make_store()
+    rng = random.Random(seed_value)
     runner = None
     try:
         clock = SystemClock()
@@ -208,14 +231,16 @@ def run_once(
         if worker:
             # As the Graph Hacks server runs it: one worker thread, the database as queue.
             runner = RecoverableWorker(raw, clock, poll_interval=0.05, retry_delay=0.05)
-        services = build_services(raw, clock, runner=runner)
+        reviewer = SlowReviewer(review_s) if review_s else None
+        services = build_services(raw, clock, reviewer, runner=runner)
         if runner is not None:
             runner.register(JobKind.CLAIM_REVIEW, services.claims.run_review)
             runner.start()
         tasks, _, _ = plan_for(n)
 
-        # 1 and 2: every agent claims at the same instant.
+        # 1 and 2: every agent claims at the same instant, or spread over spread_s.
         barrier = threading.Barrier(n)
+        delays = {t.id: rng.uniform(0, spread_s) for t in tasks}
         latencies: dict[str, float] = {}
         errors: list[str] = []
 
@@ -223,6 +248,7 @@ def run_once(
             actor = raw.get_participant(task.owner)
             body = submission(task, drifts(int(task.id[1:]), n))
             barrier.wait()
+            time.sleep(delays[task.id])
             start = time.perf_counter()
             try:
                 services.claims.submit(actor, body)
@@ -370,19 +396,40 @@ def main() -> None:
     parser.add_argument("--repeat", type=int, default=3)
     parser.add_argument("--sizes", type=int, nargs="*", default=SIZES)
     parser.add_argument("--json", type=Path, help="write every run's numbers here")
+    parser.add_argument("--review", type=float, default=0.5, help="slow reviewer seconds")
+    parser.add_argument("--spread", type=float, default=5.0, help="claims arrive over (s)")
+    parser.add_argument("--slow-max", type=int, default=32, help="largest team, slow runs")
     args = parser.parse_args()
 
-    configs = [("memory, reviews inline (local server)", memory, False)]
+    # (name, store, one worker?, reviewer seconds, submit spread seconds, sizes)
+    slow = [n for n in args.sizes if n <= args.slow_max]
+    configs = [
+        ("memory, reviews inline (local server)", memory, False, 0, 0, args.sizes),
+        (
+            f"memory, reviews inline, {args.review}s reviewer, claims over {args.spread}s",
+            memory, False, args.review, args.spread, slow,
+        ),
+    ]  # fmt: skip
     if args.falkordb:
         configs += [
-            ("FalkorDB, one worker (Graph Hacks server)", falkordb, True),
-            ("FalkorDB, concurrent reviews (like many Lambda workers)", falkordb, False),
-        ]
+            ("FalkorDB, one worker (Graph Hacks server)", falkordb, True, 0, 0, args.sizes),
+            (
+                "FalkorDB, concurrent reviews (like many Lambda workers)",
+                falkordb, False, 0, 0, args.sizes,
+            ),
+            (
+                f"FalkorDB, one worker, {args.review}s reviewer, claims over {args.spread}s",
+                falkordb, True, args.review, args.spread, slow,
+            ),
+        ]  # fmt: skip
     results: dict[str, list[dict]] = {}
-    for name, make, worker in configs:
+    for name, make, worker, review_s, spread_s, sizes in configs:
         rows = []
-        for n in args.sizes:
-            runs = [run_once(make, n, worker) for _ in range(args.repeat)]
+        for n in sizes:
+            runs = [
+                run_once(make, n, worker, review_s, spread_s, seed_value=n * 100 + rep)
+                for rep in range(args.repeat)
+            ]
             row = summarize(runs)
             rows.append(row)
             print(
