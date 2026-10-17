@@ -88,6 +88,7 @@ class FalkorStore:
             ("MFContext", "scope"),
         ):
             self._ensure_index(label, field)
+        self.backfill_plan_graphs()
 
     def _ensure_index(self, label: str, field: str) -> None:
         from redis.exceptions import ResponseError
@@ -389,6 +390,54 @@ class FalkorStore:
         if plan is None or plan.status is not PlanStatus.APPROVED:
             raise ValueError("backfill requires an existing approved plan")
         return self.commit(Commit(project_id, f"graph-v1:{_key(plan)}", puts=[plan]))
+
+    def backfill_plan_graphs(self) -> None:
+        """Upgrade pre-graph deployments before serving requests, without resetting data."""
+        for plan in self._read(Plan, "n.graph_key IS NULL"):
+            project = self.get_project(plan.project_id)
+            if project is None:
+                raise GraphChanged("plan has no owning project during graph migration")
+            self.commit(
+                Commit(
+                    plan.project_id,
+                    f"native-backfill:{self.plan_graph_key(plan)}",
+                    puts=[plan],
+                    expected_coord_rev=project.coord_rev,
+                )
+            )
+            rows = self._query(
+                "MATCH (p:MFPlan {key:$key}) RETURN p.graph_key", {"key": _key(plan)}
+            )
+            if rows != [[self.plan_graph_key(plan)]]:
+                raise GraphChanged("graph migration could not select the saved plan")
+
+    def dependency_links(self, project_id: str, version: int) -> list[dict]:
+        """Read viewer arrows from native current-plan relationships, not claim JSON."""
+        plan = self.get_plan(project_id, version)
+        if plan is None:
+            raise GraphChanged("viewer plan is missing")
+        scope = self.plan_graph_key(plan)
+        roots = self._query("MATCH (p:MFPlan {key:$key}) RETURN p.graph_key", {"key": _key(plan)})
+        if roots != [[scope]]:
+            raise GraphChanged("viewer plan graph is missing or stale")
+        rows = self._query(
+            "MATCH (a:MFContext)-[:PROVIDES]->(c:MFContext)-[:CONSUMED_BY]->(b:MFContext) "
+            "WHERE a.scope=$scope AND b.scope=$scope AND c.scope=$scope "
+            "RETURN DISTINCT a.item_id, a.payload, b.item_id, b.payload, c.item_id, c.payload "
+            "ORDER BY a.item_id, b.item_id, c.item_id",
+            {"scope": scope},
+        )
+        return [
+            {
+                "provider_task": a,
+                "provider": json.loads(ap)["owner"],
+                "consumer_task": b,
+                "consumer": json.loads(bp)["owner"],
+                "contract_id": c,
+                "fields": json.loads(cp)["fields"],
+            }
+            for a, ap, b, bp, c, cp in rows
+        ]
 
     def dependency_impact(
         self,

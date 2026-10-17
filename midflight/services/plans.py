@@ -259,7 +259,7 @@ class PlanService:
                 recipient_id=task.owner,
                 plan_version=plan.version,
                 changed_ids=ids,
-                requested_adjustment=_adjustment(previous, plan, task_id, ids),
+                requested_adjustment=_graph_adjustment(previous, plan, task_id, ids, paths),
                 reason=(plan.change_reason or "plan changed") + _graph_reason(paths, task_id),
                 created_at=now,
             )
@@ -348,3 +348,20 @@ def _graph_reason(paths: tuple[ImpactPath, ...], task_id: str) -> str:
         labels = ", ".join(f"v{version}" for version in sorted(versions))
         lines.append(f"Graph evidence (plan {labels}): {route}.")
     return ("\n" + "\n".join(lines)) if lines else ""
+
+
+def _graph_adjustment(previous, plan, task_id, ids, paths):
+    relevant = [p for p in paths if p.task_id == task_id]
+    if not relevant:
+        return _adjustment(previous, plan, task_id, ids)
+    direct = {p.changed_id for p in relevant if len(p.relationships) <= 1}
+    downstream = sorted(set(ids) - direct)
+    result = _adjustment(previous, plan, task_id, sorted(direct)) if direct else ""
+    if downstream:
+        result += (
+            f" Plan v{plan.version}: review potential downstream impact from "
+            f"{', '.join(downstream)}. "
+            "Use the graph paths in the reason; this does not imply your code or output contract "
+            "must change. Check in, then revise your claim against the current plan."
+        )
+    return result.strip()
