@@ -290,6 +290,24 @@ Aim to freeze features Saturday evening and submit by **Sunday, October 18, 2026
 
 Preferred track: **Agent Memory and Coordination**. Add **Agents That Act on Connected Data** if the completed demonstration supports it.
 
+## 13. GH-07 — Reusable repository onboarding
+
+Provide a local FalkorDB-backed service and an initialization command for arbitrary
+Git repositories. Install reusable agent instructions once, create distinct identities,
+and connect ordinary coding sessions through general plan/claim/check-in MCP tools.
+Keep synthetic demo seeding and phrase-specific direction handlers out of this path.
+
+Acceptance: a non-demo bookings plan can be proposed/approved, a coding agent can
+implement its task from an ordinary user request, and a fresh session after service
+restart can recover a directive and revise its work. Local bootstrap is opt-in,
+admin-key protected, idempotent and absent from the standard hosted entry point.
+Credentials stay outside Git. Client approval/trust settings remain intact unless the
+user explicitly selects the session-only coordination-tool approval option.
+
+See [setup](repository-setup.md), [development acceptance](onboarding-acceptance.md),
+[queries](queries.md) and [submission readiness](submission.md). Public hosting and the
+final published demo video are not claimed by this implementation.
+
 ## References
 
 - [Official hackathon rules and submission requirements](https://www.wemakedevs.org/hackathons/falkordb/rules)
