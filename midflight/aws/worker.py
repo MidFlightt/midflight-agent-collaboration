@@ -24,7 +24,7 @@ from midflight.wiring import github_for, reviewer_for, store_for
 @cache
 def _services() -> Services:
     settings = Settings.from_env()
-    if not settings.table_name:
+    if settings.backend != "dynamodb" or not settings.table_name:
         raise RuntimeError("MIDFLIGHT_TABLE isn't set")
     return build_services(
         store_for(settings),

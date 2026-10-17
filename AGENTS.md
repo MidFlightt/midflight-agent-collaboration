@@ -120,6 +120,11 @@ then `sam deploy`).
 
 If a command fails because its task hasn't landed, say so. Don't invent a substitute.
 
+Graph Hacks runtime (GH-03): see [setup and recovery](docs/graph-hacks/runtime-worker.md).
+Use `uv sync --locked --extra falkordb`, start `docker compose -f compose.graph-hacks.yml up -d`,
+and run `MIDFLIGHT_STORE=falkordb uv run --extra falkordb midflight-server`.
+Run the real-database suite with `uv run --extra falkordb pytest --falkordb`.
+
 ## Ownership
 
 Owners merge into their own folders. Stay inside yours. If your task needs a change

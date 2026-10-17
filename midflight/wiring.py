@@ -5,7 +5,7 @@ so both build the same thing:
 
 | Port | Configured | Not configured |
 | --- | --- | --- |
-| Store | DynamoDB (`MIDFLIGHT_TABLE`) | in memory |
+| Store | Explicit `MIDFLIGHT_STORE`; FalkorDB or DynamoDB | legacy table or memory |
 | Reviewer | Bedrock (`MIDFLIGHT_REVIEWER_MODEL`), maybe via another account | rules only |
 | GitHub | the GitHub App (App id and private key) | none: verification can't run |
 """
@@ -21,7 +21,20 @@ from midflight.ports import GitHub, Reviewer, Store
 
 
 def store_for(settings: Settings) -> Store:
-    return DynamoStore(settings.table_name) if settings.table_name else MemoryStore()
+    if settings.backend == "falkordb":
+        from midflight.adapters.falkor_store import FalkorStore
+
+        return FalkorStore.connect(
+            graph_name=settings.falkor_graph,
+            host=settings.falkor_host,
+            port=settings.falkor_port,
+            username=settings.falkor_username,
+            password=settings.falkor_password,
+            ssl=settings.falkor_ssl,
+        )
+    if settings.backend == "dynamodb":
+        return DynamoStore(settings.table_name)
+    return MemoryStore()
 
 
 def reviewer_for(settings: Settings) -> Reviewer | None:

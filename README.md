@@ -216,3 +216,5 @@ The full index is [docs/README.md](docs/README.md). The ones to read first:
 ## License
 
 [MIT](LICENSE). Copyright (c) 2026 Team Yoga.
+
+Graph Hacks: [FalkorDB runtime setup and worker recovery](docs/graph-hacks/runtime-worker.md).
