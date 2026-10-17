@@ -2,15 +2,15 @@
 <style>
 *{box-sizing:border-box}body{margin:0;overflow:hidden;background:#090f14;color:#f0eee7;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace}#canvas{position:absolute;inset:0}header{position:fixed;z-index:2;top:20px;left:24px;right:24px;display:flex;align-items:center;gap:20px;pointer-events:none}header b{font-weight:500;letter-spacing:.03em}nav{margin-left:auto;display:flex;gap:14px;align-items:center;pointer-events:auto}button,a{font:inherit;border:0;background:transparent;color:#9fabb7;padding:3px 0;text-decoration:none;cursor:pointer}button:hover,a:hover{color:#80cadf}button:disabled{opacity:.4;cursor:wait}#empty{position:absolute;top:45%;width:100%;text-align:center;pointer-events:none;color:#9fabb7}#empty p{font-size:12px;margin-top:8px}footer{position:fixed;bottom:20px;left:24px;right:24px;display:flex;justify-content:space-between;gap:20px;color:#9fabb7;font-size:11px;pointer-events:none}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:#80cadf}.context{background:#9fabb7}.approved{background:#a6d3ad}.directive{background:#f3b183}#detail{position:fixed;right:24px;bottom:55px;width:min(340px,calc(100vw - 48px));max-height:50vh;overflow:auto;background:#121922f5;padding:18px;border:1px solid #263541;box-shadow:0 5px 25px #00000008}#detail h2{font-size:12px;font-weight:500;margin:0 0 10px}#detail pre{font:11px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#9fabb7}#close{float:right}#status{position:fixed;top:48px;left:24px;font-size:10px;color:#718290;pointer-events:none}@media(max-width:620px){header{top:12px;left:16px;right:16px;gap:10px}nav{gap:10px}footer{left:16px;right:16px;bottom:12px}#source{display:none}#status{left:16px;top:38px}#fit{display:none}}
 </style>
-<div id="canvas" aria-label="Live force-directed collaboration graph"></div>
+<div id="canvas" aria-label="Live hierarchical collaboration graph"></div>
 <header><b>midflight</b><nav><button id="start">Start agents</button><button id="reset">Reset</button><button id="fit">Fit</button><button id="full">Fullscreen</button><a href="/" target="_blank">Agents ↗</a></nav></header>
 <div id="status" role="status">Connecting…</div><div id="empty">An empty workspace.<p>Start the agents to watch their connections form.</p></div>
 <footer><span><i class="dot"></i>agents &nbsp; <i class="dot context"></i>shared context &nbsp; <i class="dot approved"></i>approved &nbsp; <i class="dot directive"></i>changes</span><span id="source">live · FalkorDB</span></footer>
 <aside id="detail" hidden><button id="close" aria-label="Close details">×</button><h2 id="detail-title"></h2><pre id="detail-body"></pre></aside>
 <script src="/vendor/force-graph.min.js"></script><script>
 const $=id=>document.getElementById(id);
-let key='',project='',busy=false,polling=false,signature='',selected=null,hovered=null,fitTimer,needsFit=false;
-const nodes=new Map(),links=new Map();
+let key='',project='',busy=false,polling=false,signature='',selected=null,hovered=null;
+const nodes=new Map(),links=new Map(),lanes=new Map(),rowSlots=new Map();
 const color=n=>n.kind==='directive'?'#f3b183':n.kind==='claim'?(n.state==='approved'?'#a6d3ad':n.state==='pending'?'#9fabb7':'#f3b183'):n.kind==='file'?'#9fabb7':'#80cadf';
 // Radius grows slowly and is capped, so busy agents remain distinct without dominating.
 const radius=n=>n.kind==='agent'?32+Math.min(14,3*Math.sqrt(n.context_count||0)):
@@ -22,7 +22,7 @@ const graph=new ForceGraph($('canvas'))
  .nodeId('id').nodeVal(n=>Math.pow(radius(n)/4,2)).nodeColor(color)
  .nodeLabel(()=>null).linkLabel(()=>null).linkColor(l=>l.kind==='notifies'?'#f3b183':'#344653')
  .linkWidth(l=>l.kind==='provides'||l.kind==='consumes'?1.25:.65)
- .minZoom(.25).maxZoom(6).cooldownTime(7000).d3VelocityDecay(.35)
+ .minZoom(.2).maxZoom(6).enableNodeDrag(false).cooldownTicks(0)
  .nodeCanvasObjectMode(()=> 'after').nodeCanvasObject((n,ctx,scale)=>{
    const r=radius(n),age=Date.now()-n.born;
    if(age<1400){ctx.beginPath();ctx.arc(n.x,n.y,r+age/120,0,2*Math.PI);ctx.strokeStyle=color(n);ctx.globalAlpha=.35*(1-age/1400);ctx.lineWidth=1/scale;ctx.stroke();ctx.globalAlpha=1}
@@ -30,27 +30,63 @@ const graph=new ForceGraph($('canvas'))
      ctx.beginPath();ctx.arc(n.x,n.y,r+4/scale,0,2*Math.PI);ctx.strokeStyle='#80cadf55';ctx.lineWidth=1/scale;ctx.stroke();
      ctx.font=`${8/scale}px ui-monospace,Menlo,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#090f14';ctx.fillText('AGENT',n.x,n.y);
    }
-   if(n.kind==='claim'&&hovered!==n&&selected!==n)return;
    const size=(n.kind==='agent'?14:11)/scale;ctx.font=`${n.kind==='agent'?'600 ':''}${size}px system-ui`;ctx.textAlign='center';ctx.textBaseline='bottom';
    ctx.lineWidth=3/scale;ctx.strokeStyle='#090f14';ctx.strokeText(n.label,n.x,n.y-r-3/scale);ctx.fillStyle='#f0eee7';ctx.fillText(n.label,n.x,n.y-r-3/scale);
  })
- .onEngineStop(()=>{if(needsFit){needsFit=false;fit()}})
  .onNodeClick(inspect).onLinkClick(inspect).onBackgroundClick(()=>inspect(null))
- .onNodeHover(n=>{hovered=n;document.body.style.cursor=n?'grab':'default'})
- .onNodeDragEnd(n=>{needsFit=true;n.fx=undefined;n.fy=undefined;graph.d3ReheatSimulation()});
-graph.d3Force('charge').strength(-300).distanceMax(550);
-graph.d3Force('link').distance(l=>l.kind==='claims'?95:l.kind==='declares'?55:110);
-function fit(){graph.zoomToFit(650,Math.min(innerWidth,innerHeight)*.15)}
+ .onNodeHover(n=>{hovered=n;document.body.style.cursor=n?'pointer':'default'});
+// Render fixed coordinates: no spring solver, reheat, or automatic repositioning.
+for(const force of ['charge','link','center'])graph.d3Force(force,null);
+function slot(group,id){if(!rowSlots.has(group))rowSlots.set(group,new Map());const map=rowSlots.get(group);if(!map.has(id))map.set(id,map.size);return map.get(id)}
+function hierarchy(data){
+ const positions=new Map(),owners=new Map();
+ for(const n of data.nodes.filter(n=>n.kind==='agent')){
+   if(!lanes.has(n.id))lanes.set(n.id,lanes.size);
+   positions.set(n.id,{x:lanes.get(n.id)*260-390,y:-280});
+ }
+ for(const e of data.edges.filter(e=>e.kind==='claims'))owners.set(e.target,e.source);
+ for(const n of data.nodes.filter(n=>n.kind==='claim')){
+   const owner=owners.get(n.id),p=positions.get(owner)||{x:0};
+   positions.set(n.id,{x:p.x,y:-100+slot('claims:'+owner,n.id)*60});
+ }
+ for(const n of data.nodes.filter(n=>n.kind==='file')){
+   const parent=data.edges.find(e=>e.kind==='declares'&&e.target===n.id);
+   const owner=owners.get(parent?.source),p=positions.get(owner)||{x:0};
+   positions.set(n.id,{x:p.x,y:260+slot('files:'+owner,n.id)*65});
+ }
+ for(const n of data.nodes.filter(n=>n.kind==='interface')){
+   const i=slot('interfaces',n.id);
+   positions.set(n.id,{x:(i%2?1:-1)*(130+Math.floor(i/2)*260),y:80});
+ }
+ for(const n of data.nodes.filter(n=>n.kind==='directive')){
+   const target=data.edges.find(e=>e.source===n.id&&e.kind==='notifies')?.target;
+   const p=positions.get(target)||{x:0};
+   positions.set(n.id,{x:p.x+80,y:-205+slot('directives:'+target,n.id)*45});
+ }
+ for(const [id,p] of positions){const n=nodes.get(id);Object.assign(n,p,{fx:p.x,fy:p.y,vx:0,vy:0})}
+}
+function fit(){
+ const all=[...nodes.values()];
+ const left=Math.min(-520,...all.map(n=>n.x-80)),right=Math.max(520,...all.map(n=>n.x+80));
+ const top=Math.min(-370,...all.map(n=>n.y-80)),bottom=Math.max(370,...all.map(n=>n.y+80));
+ graph.centerAt((left+right)/2,(top+bottom)/2,0);
+ graph.zoom(Math.min((innerWidth-70)/(right-left),(innerHeight-160)/(bottom-top)),0);
+}
+function guides(ctx,scale){
+ if(!nodes.size)return;ctx.font=`${10/scale}px ui-monospace,Menlo,monospace`;ctx.fillStyle='#718290';ctx.textAlign='left';ctx.textBaseline='middle';
+ for(const [label,y] of [['AGENTS',-360],['CLAIMS',-155],['SHARED INTERFACES',25],['DECLARED FILES',205]])ctx.fillText(label,-490,y);
+}
+graph.onRenderFramePre(guides);
+fit();
 async function connection(){const r=await fetch('/connection');if(!r.ok)throw Error('Connection unavailable');key=(await r.json()).key}
 async function post(url){const r=await fetch(url,{method:'POST',headers:{'x-demo-key':key}});if(!r.ok)throw Error('Request failed ('+r.status+')');return r.json()}
 function draw(data){
- if(project!==data.project){project=data.project;nodes.clear();links.clear();signature='';inspect(null);graph.graphData({nodes:[],links:[]});graph.centerAt(0,0);graph.zoom(1)}
+ if(project!==data.project){project=data.project;nodes.clear();links.clear();lanes.clear();rowSlots.clear();signature='';inspect(null);graph.graphData({nodes:[],links:[]});fit()}
  const ids=new Set(data.nodes.map(n=>n.id)),edgeIds=new Set(data.edges.map(l=>l.id));
  for(const id of nodes.keys())if(!ids.has(id))nodes.delete(id);
  for(const id of links.keys())if(!edgeIds.has(id))links.delete(id);
  for(const n of data.nodes){const existing=nodes.get(n.id);if(existing)Object.assign(existing,n);else{
-   const parent=data.edges.find(l=>l.target===n.id&&nodes.has(l.source));const p=parent&&nodes.get(parent.source);
-   nodes.set(n.id,{...n,born:Date.now(),...(p?{x:p.x+Math.random()*24-12,y:p.y+Math.random()*24-12}:{})});
+   nodes.set(n.id,{...n,born:Date.now()});
  }}
  for(const n of nodes.values()){
    if(n.kind==='agent'){
@@ -62,7 +98,7 @@ function draw(data){
  }
  for(const l of data.edges){const existing=links.get(l.id);if(existing){const {source,target,...details}=l;Object.assign(existing,details)}else links.set(l.id,{...l})}
  const next=JSON.stringify([data.nodes.map(n=>n.id).sort(),data.edges.map(l=>l.id).sort()]);
- if(next!==signature){signature=next;needsFit=true;graph.graphData({nodes:[...nodes.values()],links:[...links.values()]});graph.d3ReheatSimulation();clearTimeout(fitTimer);fitTimer=setTimeout(fit,1800)}
+ if(next!==signature){signature=next;hierarchy(data);graph.graphData({nodes:[...nodes.values()],links:[...links.values()]})}
  if(selected){const updated=nodes.get(selected.id)||links.get(selected.id);inspect(updated||null)}
  $('empty').hidden=data.nodes.length>0;$('status').textContent=`${data.nodes.length} nodes · ${data.edges.length} connections`;$('source').title=data.source+' · '+data.project;$('start').hidden=data.started;$('start').disabled=busy;
 }
@@ -71,6 +107,6 @@ $('start').onclick=async()=>{busy=true;$('start').disabled=true;$('status').text
 $('reset').onclick=async()=>{busy=true;$('reset').disabled=true;$('status').textContent='Resetting…';try{await post('/reset?start=false');await connection()}catch(e){$('status').textContent=e.message}finally{busy=false;$('reset').disabled=false;refresh()}};
 $('fit').onclick=fit;$('close').onclick=()=>inspect(null);
 $('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
-addEventListener('resize',()=>{graph.width(innerWidth).height(innerHeight)});
+addEventListener('resize',()=>{graph.width(innerWidth).height(innerHeight);fit()});
 refresh();setInterval(refresh,800);
 </script></html>

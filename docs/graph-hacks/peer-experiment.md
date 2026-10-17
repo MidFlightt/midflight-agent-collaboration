@@ -79,9 +79,11 @@ rehearsal result is saved with that local run, not presented as a generic test o
 
 ## Live graph
 
-Open http://127.0.0.1:8907/graph for a minimal, dark canvas with draggable circles
-and force-directed physics. It uses the vendored `force-graph@1.52.0` library
-(https://github.com/vasturiano/force-graph), including its spring/repulsion simulation.
+Open http://127.0.0.1:8907/graph for a minimal, dark canvas with a stationary hierarchy.
+Agents occupy the top row, claims sit beneath their agent, shared interfaces occupy
+a common row, and declared files sit in their owner’s column below. The vendored
+`force-graph@1.52.0` library (https://github.com/vasturiano/force-graph) renders the
+canvas with its physics and node dragging disabled.
 It runs locally without a separate visualization service or CDN.
 
 - The MidFlight palette uses a navy canvas, cyan agents and interfaces, muted gray
@@ -91,9 +93,10 @@ It runs locally without a separate visualization service or CDN.
   no prefilled visual dependencies from the fixture plan and no artificial replay.
 - A declared file is not proof of a filesystem write. A provided/consumed interface is
   a declaration in a claim. Select a node or link to inspect the underlying data.
-- Polling reads FalkorDB every 800 ms. Existing node objects retain their coordinates;
-  topology changes reheat the simulation so new nodes join existing clusters.
-- Drag to move nodes, scroll to zoom, click empty space to close details. Fit restores
+- Polling reads FalkorDB every 800 ms. Existing nodes retain fixed coordinates;
+  new nodes append to stable slots without shifting their peers or moving the camera.
+- Pan on empty space, scroll to zoom, and click a node or connection for details.
+  Click empty space to close details. Fit restores
   the overview; Fullscreen gives the graph the entire screen. Agents opens the terminals.
 - Reset archives the current run and opens a fresh empty workspace without launching
   sessions. Start agents launches the four equal peers from their short direct prompts.
