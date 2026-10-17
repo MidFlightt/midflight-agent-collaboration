@@ -22,6 +22,10 @@ projects, and an agent cannot propose or approve plans. The MCP agent adapter do
 expose lead tools. REST permissions enforce the boundary even if local configuration
 is edited. This is local-machine administration, not a multi-tenant hosting design.
 
+`init` also generates **MIDFLIGHT.md** in the application repository: a human-facing
+start guide with exact connection checks, per-identity commands and suggested first
+messages. It preserves an existing guide if the repository owner has edited it.
+
 ## Normal conversations
 
 Start `midflight agent --repo PATH --identity lead`. Describe the actual application and
@@ -98,6 +102,7 @@ Normal review and integration testing remain necessary.
 
 ## What is installed
 
+- `MIDFLIGHT.md`: human-facing startup guide; existing owner edits are preserved.
 - `AGENTS.md`: one appended, marked section; existing instructions are retained.
 - `.gitignore`: excludes `.midflight/` before credentials are written.
 - `.midflight/private.json`: project URL/ID and separate lead/agent credentials.

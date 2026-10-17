@@ -145,6 +145,9 @@ def initialize(repo, url, repository, agents, home):
         }
         if not snippet.exists():
             private_write(snippet, json.dumps(value, indent=2))
+    from midflight.repository.workspace import install_start_guide
+
+    install_start_guide(repo, config)
     return config
 
 
@@ -257,7 +260,7 @@ def main():
             )
             print(
                 f"Connected {config['repository']} as {config['project_id']}. "
-                "Installed AGENTS.md instructions."
+                "Installed AGENTS.md instructions. Open MIDFLIGHT.md to start."
             )
             print(
                 "Configure each MCP client using .midflight/mcp-<identity>.json. "

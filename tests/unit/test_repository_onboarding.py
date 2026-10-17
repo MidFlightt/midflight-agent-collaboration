@@ -187,6 +187,10 @@ def test_init_preserves_repository_files_and_retries_with_saved_credentials(tmp_
     first = initialize(repo, "http://127.0.0.1:8000", "example/new", ["worker"], home)
     second = initialize(repo, "http://127.0.0.1:8000", "example/new", ["worker"], home)
     assert first == second
+    guide = (repo / "MIDFLIGHT.md").read_text()
+    assert "Terminal → New Terminal" in guide
+    assert "--identity lead" in guide and "--identity worker" in guide
+    assert first["identities"]["worker"]["token"] not in guide
     assert (repo / "AGENTS.md").read_text().startswith("Existing team rules.")
     assert (repo / "AGENTS.md").read_text().count("<!-- midflight:start -->") == 1
     assert (repo / ".midflight/private.json").stat().st_mode & 0o777 == 0o600
@@ -259,3 +263,11 @@ def test_existing_credentials_cannot_restore_a_revoked_participant():
     response = client.post("/local/projects", json=BODY, headers={"Authorization": "Bearer " + KEY})
     assert response.status_code == 409
     assert client.get(f"/local/projects/{PID}", headers=auth("emails")).status_code == 401
+
+
+def test_start_guide_preserves_owner_edits(tmp_path):
+    from midflight.repository.workspace import install_start_guide
+
+    (tmp_path / "MIDFLIGHT.md").write_text("Team-specific startup notes")
+    install_start_guide(tmp_path, {})
+    assert (tmp_path / "MIDFLIGHT.md").read_text() == "Team-specific startup notes"

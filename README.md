@@ -39,7 +39,8 @@ uv run midflight doctor --repo /absolute/path/to/your-repo --identity lead
 or require an installed GitHub App. Identities can be named for your actual team.
 Initialization appends one managed section to `AGENTS.md`, preserves existing content,
 and writes credentials/client snippets under the ignored `.midflight/` directory.
-It is safe to retry with the same arguments after a lost response. Do not commit or
+Open the generated **MIDFLIGHT.md** in your application repo for exact commands and
+first messages for each identity. It is safe to retry with the same arguments after a lost response. Do not commit or
 share `private.json`; back it up securely to retain access after moving a working copy.
 
 Launch your normal Codex conversation as the lead:
