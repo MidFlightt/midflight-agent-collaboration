@@ -1,6 +1,7 @@
 """Client-neutral peer MCP: no special lead and no preset product pivot."""
 
 import os
+from contextlib import suppress
 
 import httpx
 
@@ -34,10 +35,18 @@ def main():
         timeout=30,
     )
 
+    def arrive():
+        # Startup telemetry must not prevent the agent from using coordination tools.
+        with suppress(httpx.HTTPError):
+            client.post("/peer-arrival", timeout=3).raise_for_status()
+
+    arrive()
+
     @server.tool(
         description="Read the whole shared plan before proposing a product direction change."
     )
     def read_shared_plan() -> dict:
+        arrive()
         response = client.get("/peer-plan")
         response.raise_for_status()
         return response.json()

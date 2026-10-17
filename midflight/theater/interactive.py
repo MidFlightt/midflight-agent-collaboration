@@ -411,7 +411,7 @@ class InteractiveTheater:
         self.theater.close()
 
 
-def terminal_app(live, *, factory=None):
+def terminal_app(live, *, factory=None, allow_staged_reset=False):
     @asynccontextmanager
     async def lifespan(app):
         yield
@@ -465,7 +465,8 @@ def terminal_app(live, *, factory=None):
             live = (factory or InteractiveTheater)(
                 root, old.theater.db_port, old.theater.api_port, old.controller_port
             )
-            live.launch()
+            if not allow_staged_reset or request.query_params.get("start") != "false":
+                live.launch()
             app.state.live = live
             return {"reset": True, "session": live.session}
 

@@ -20,6 +20,7 @@ from midflight.domain.models import Role
 from midflight.ports import Commit
 from midflight.services.plans import PlanDraft
 from midflight.theater.interactive import InteractiveTheater, terminal_app
+from midflight.theater.live_graph import snapshot
 from midflight.theater.peer_coordination import PeerCoordination
 from midflight.theater.scenario import NAMES
 
@@ -146,7 +147,7 @@ class PeerTheater(InteractiveTheater):
                 "four_claims": {c.task_id for c in claims} == set(NAMES),
                 "all_claims_approved": len(claims) >= 4
                 and all(c.state.value == "approved" for c in claims),
-                "sessions_alive": all(a["alive"] for a in agents.values()),
+                "sessions_alive": bool(agents) and all(a["alive"] for a in agents.values()),
             },
             "code_tests": "Not assessed. No generic integration oracle configured.",
             "claims": [c.model_dump(mode="json") for c in claims],
@@ -165,7 +166,46 @@ class Update(BaseModel):
 
 
 def peer_app(live):
-    app = terminal_app(live, factory=PeerTheater)
+    app = terminal_app(live, factory=PeerTheater, allow_staged_reset=True)
+
+    @app.get("/graph")
+    def graph_page():
+        return HTMLResponse(Path(__file__).with_name("graph.html").read_text())
+
+    @app.get("/graph-state")
+    def graph_state(request: Request):
+        with app.state.control_lock:
+            peer = app.state.live
+            if request.headers.get("x-demo-key") != peer.key:
+                raise HTTPException(403)
+            return snapshot(peer)
+
+    @app.post("/peer-arrival")
+    def arrival(request: Request):
+        with app.state.control_lock:
+            peer = app.state.live
+            name = peer.actor_for(request.headers.get("authorization", ""))
+            peer.theater.server.services.store.graph.query(
+                "MERGE (a:MFPeerPresence {project:$project, id:$name}) "
+                "ON CREATE SET a.connected_at=$time RETURN a.id",
+                {
+                    "project": peer.theater.project,
+                    "name": name,
+                    "time": datetime.now(UTC).isoformat(),
+                },
+            )
+            return {"connected": name}
+
+    @app.post("/peer-start")
+    def start(request: Request):
+        with app.state.control_lock:
+            peer = app.state.live
+            if request.headers.get("x-demo-key") != peer.key:
+                raise HTTPException(403)
+            if peer.panes:
+                return {"started": True}
+            peer.launch()
+            return {"started": True}
 
     @app.get("/peer-plan")
     def read(request: Request):
@@ -191,6 +231,9 @@ def peer_app(live):
         html = Path(__file__).with_name("terminal.html").read_text()
         html = html.replace("Pricing / Lead", "any agent").replace(" / Lead", "")
         html = html.replace("Test results</a>", "Coordination</a>")
+        html = html.replace(
+            '<span id="note">', '<a href="/graph" target="_blank">Live graph</a><span id="note">'
+        )
         html = html.replace("One-off sales · waiting for your direction", "Peer experiment · ready")
         return HTMLResponse(html)
 
@@ -202,6 +245,7 @@ def main():
     parser.add_argument("--port", type=int, default=8907)
     parser.add_argument("--api-port", type=int, default=8908)
     parser.add_argument("--db-port", type=int, default=6379)
+    parser.add_argument("--paused", action="store_true", help="Start with an empty graph")
     args = parser.parse_args()
     for port in (args.port, args.api_port):
         with socket.socket() as listener:
@@ -210,7 +254,8 @@ def main():
     os.umask(0o077)
     root = Path.home() / ".local/share/midflight-demo" / ("peers-" + uuid.uuid4().hex[:10])
     live = PeerTheater(root, args.db_port, args.api_port, args.port)
-    live.launch()
+    if not args.paused:
+        live.launch()
     uvicorn.run(peer_app(live), host="127.0.0.1", port=args.port, access_log=False)
 
 

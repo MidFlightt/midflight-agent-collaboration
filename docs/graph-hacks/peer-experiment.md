@@ -76,3 +76,30 @@ Checkout received and acknowledged directives; Reporting and Notifications recei
 none. All four claims were approved. A separate Python integration run confirmed EUR
 pricing, the unchanged order shape, reporting and notification output. The independent
 rehearsal result is saved with that local run, not presented as a generic test oracle.
+
+## Live graph
+
+Open http://127.0.0.1:8907/graph for a minimal, light canvas with draggable circles
+and force-directed physics. It uses the vendored `force-graph@1.52.0` library
+(https://github.com/vasturiano/force-graph), including its spring/repulsion simulation.
+It runs locally without a separate visualization service or CDN.
+
+- Dark circles represent agents; orange circles represent declared files and shared
+  interfaces; small gray circles represent claims. Purple circles represent directives.
+- Agent presence is persisted in the run's FalkorDB graph when its MCP client connects.
+- Nodes and links are projected from the latest persisted claim revisions. There are
+  no prefilled visual dependencies from the fixture plan and no artificial replay.
+- A declared file is not proof of a filesystem write. A provided/consumed interface is
+  a declaration in a claim. Select a node or link to inspect the underlying data.
+- Polling reads FalkorDB every 800 ms. Existing node objects retain their coordinates;
+  topology changes reheat the simulation so new nodes join existing clusters.
+- Drag to move nodes, scroll to zoom, click empty space to close details. Fit restores
+  the overview; Fullscreen gives the graph the entire screen. Agents opens the terminals.
+- Reset archives the current run and opens a fresh empty workspace without launching
+  sessions. Start agents launches the four equal peers from their short direct prompts.
+- Use `python -m midflight.theater.peers --paused` to start directly in that empty state.
+  Existing run files and FalkorDB graphs are retained. The original demo is independent.
+
+The visualization is a semantic view of coordination data stored in FalkorDB, not a
+raw dump of all storage nodes. Control and graph-state requests require the current
+local run key. MCP arrivals require the session's participant token.
