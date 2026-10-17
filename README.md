@@ -18,7 +18,7 @@ the local service needs no LLM API key. Reviews default to deterministic rules.
 ```sh
 git clone https://github.com/MidFlightt/midflight-agent-collaboration.git
 cd midflight-agent-collaboration
-uv sync --locked --extra falkordb
+uv sync --python 3.12 --locked --extra falkordb
 docker compose -f compose.graph-hacks.yml up -d
 uv run --extra falkordb midflight serve
 ```
@@ -112,7 +112,7 @@ flowchart LR
 Snapshots are scoped by project, plan version and content digest. Plan approval,
 graph projection, directives, audit events and durable review jobs commit together.
 The operational graph also stores projects, participants, versioned claims, jobs,
-receipts and authentication records. Secrets are hashed in the database.
+receipts and authentication records. Local participant tokens are hashed in the database.
 
 The product executes parameterized Cypher to load changed nodes and dependency
 edges, then performs a bounded breadth-first traversal with cycle detection. It

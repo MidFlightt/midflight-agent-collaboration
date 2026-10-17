@@ -114,7 +114,7 @@ def initialize(repo, url, repository, agents, home):
         if response.is_error:
             raise ValueError(
                 f"Setup refused (HTTP {response.status_code}); files retained for retry. "
-                f"{response.json().get('detail', '')}"
+                "Check the service URL, local setup key and repository identity."
             )
     instructions = repo / "AGENTS.md"
     existing = instructions.read_text() if instructions.exists() else ""
