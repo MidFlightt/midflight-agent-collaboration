@@ -510,8 +510,9 @@ def terminal_app(live, *, factory=None, allow_staged_reset=False):
             os.setsid()
             fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
+        attached_session = live.session
         proc = subprocess.Popen(
-            ["tmux", "attach-session", "-t", live.session],
+            ["tmux", "attach-session", "-t", attached_session],
             stdin=slave,
             stdout=slave,
             stderr=slave,
@@ -535,6 +536,22 @@ def terminal_app(live, *, factory=None, allow_staged_reset=False):
                     rows = max(12, min(200, int(message["rows"])))
                     fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
                     os.kill(proc.pid, signal.SIGWINCH)
+                    # The first resize can beat tmux's SIGWINCH handler during attach.
+                    # Size the existing window explicitly and rebalance the four panes.
+                    with suppress(subprocess.CalledProcessError):
+                        await asyncio.to_thread(
+                            live.tmux,
+                            "resize-window",
+                            "-t",
+                            attached_session,
+                            "-x",
+                            str(cols),
+                            "-y",
+                            str(rows),
+                        )
+                        await asyncio.to_thread(
+                            live.tmux, "select-layout", "-t", attached_session, "tiled"
+                        )
                 elif message.get("type") == "input":
                     os.write(master, message["data"].encode())
 
