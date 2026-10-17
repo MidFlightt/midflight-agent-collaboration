@@ -9,6 +9,14 @@ same case under the same conditions:
     python experiment/local_midflight.py lead rule      # the lead decides open escalations
     python experiment/local_midflight.py lead status
 
+Two settings choose what it serves:
+
+- `MIDFLIGHT_LOCAL_CASE`: `hirebot` (the default, below) or `pigeonpost`. For PigeonPost
+  it only creates the project; the trial's lead agent proposes and approves the plan.
+- `MIDFLIGHT_LOCAL_REVIEWER`: `scripted` (the default for HireBot, below), `claude` (a
+  real model reviewer through the Claude Code CLI, experiment/claude_reviewer.py), or
+  `none` (rules only, the default for PigeonPost).
+
 Then run the trial against it (see experiment/README.md):
 
     MIDFLIGHT_MCP_CONFIG=experiment/midflight-local.mcp.json \\
@@ -26,6 +34,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
 import sys
 import urllib.request
@@ -51,6 +60,8 @@ from midflight.services.projects import ProjectService
 HERE = Path(__file__).parent
 PLANS = HERE.parent / "evals" / "escalations" / "hirebot.json"
 REPO = "acme/hirebot"
+CASE = os.environ.get("MIDFLIGHT_LOCAL_CASE", "hirebot")
+REPOS = {"hirebot": REPO, "pigeonpost": "acme/pigeonpost"}
 PORT = 8765
 LEAD = "somesh"
 # The lead's fixed decision in this case (experiment/cases/hirebot-pro/README.md).
@@ -108,8 +119,17 @@ def serve(port: int) -> None:
     import uvicorn
 
     store, clock = MemoryStore(), SystemClock()
-    services = build_services(store, clock, Reviewer())
-    repos = FakeRepoAccess(installations={REPO: 1}, admins={(REPO, LEAD)})
+    choice = os.environ.get("MIDFLIGHT_LOCAL_REVIEWER", "scripted" if CASE == "hirebot" else "none")
+    reviewer: Any = None
+    if choice == "claude":
+        from claude_reviewer import ClaudeReviewer
+
+        reviewer = ClaudeReviewer()
+    elif choice == "scripted":
+        reviewer = Reviewer()
+    services = build_services(store, clock, reviewer)
+    repo = REPOS[CASE]
+    repos = FakeRepoAccess(installations={repo: 1}, admins={(repo, LEAD)})
     projects = ProjectService(store, clock, repos, services.plans)
     user = projects.sign_in(GitHubAccount(1, LEAD)).id
     server = build_hosted_server(services, projects, current_user_id=lambda: user)
@@ -126,6 +146,9 @@ def serve(port: int) -> None:
 
     async def lead(request: Request) -> PlainTextResponse:
         action = request.path_params["action"]
+        if action == "reviewer":
+            stats = reviewer.stats() if hasattr(reviewer, "stats") else {"reviewer": choice}
+            return PlainTextResponse(json.dumps(stats))
         if action == "plan":
             return PlainTextResponse(await approve(4, "half-hour bookings and rush orders"))
         status = await tool("project_status")
@@ -145,9 +168,11 @@ def serve(port: int) -> None:
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncIterator[None]:
-        created = await tool("create_project", repository=REPO, name="HireBot experiment")
-        project = re.search(r"\b(hirebot-[0-9a-f]{4})\b", created).group(1)  # type: ignore[union-attr]
-        await approve(3, "the starting plan")
+        name = "HireBot experiment" if CASE == "hirebot" else "PigeonPost experiment"
+        created = await tool("create_project", repository=repo, name=name)
+        project = re.search(rf"\b({CASE}-[0-9a-f]{{4}})\b", created).group(1)  # type: ignore[union-attr]
+        if CASE == "hirebot":
+            await approve(3, "the starting plan")
         print(f"PROJECT {project}", flush=True)
         async with server.session_manager.run():
             yield
@@ -167,7 +192,11 @@ def main() -> None:
     step = sys.argv[1] if len(sys.argv) > 1 else ""
     if step == "serve":
         serve(int(sys.argv[2]) if len(sys.argv) > 2 else PORT)
-    elif step == "lead" and len(sys.argv) > 2 and sys.argv[2] in ("plan", "rule", "status"):
+    elif (
+        step == "lead"
+        and len(sys.argv) > 2
+        and sys.argv[2] in ("plan", "rule", "status", "reviewer")
+    ):
         url = f"http://127.0.0.1:{PORT}/lead/{sys.argv[2]}"
         with urllib.request.urlopen(urllib.request.Request(url, method="POST")) as reply:
             print(reply.read().decode("utf-8"))
