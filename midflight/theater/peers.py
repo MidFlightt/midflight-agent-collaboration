@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import socket
+import subprocess
 import time
 import uuid
 from datetime import UTC, datetime
@@ -22,20 +23,17 @@ from midflight.theater.live_graph import snapshot
 from midflight.theater.peer_coordination import PeerCoordination
 from midflight.theater.peer_setup import agent_instructions
 from midflight.theater.scenario import NAMES
+from midflight.theater.shop_fixture import PROMPTS, initial_plan, write_starter
 
-TASKS = {
-    "pricing": "Build pricing for a product that costs $12.",
-    "checkout": "Build checkout that creates an order using the product price.",
-    "reporting": "Build reporting that returns the total from an order.",
-    "notifications": (
-        'Build a signup confirmation that says "Subscribed: " followed by the email address.'
-    ),
-}
+TASKS = PROMPTS
 
 
 class PeerTheater(InteractiveTheater):
     mcp_module = "midflight.theater.peer_mcp"
     submit_initial_prompt = False
+
+    def initial_plan(self):
+        return initial_plan()
 
     def __init__(self, root, db_port, api_port, controller_port=8907):
         super().__init__(root, db_port, api_port, controller_port)
@@ -52,8 +50,25 @@ class PeerTheater(InteractiveTheater):
         )
         self.coordination = PeerCoordination(self.theater.server.services, self.theater.project)
         for name, brief in TASKS.items():
+            write_starter(self.theater.root / name)
             (self.theater.root / name / "TASK.md").write_text(brief + "\n")
             (self.theater.root / name / "AGENTS.md").write_text(agent_instructions(name))
+            folder = self.theater.root / name
+            subprocess.run(["git", "add", "."], cwd=folder, check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Demo",
+                    "-c",
+                    "user.email=demo@localhost",
+                    "commit",
+                    "-qm",
+                    "Add small shop starter and agent setup",
+                ],
+                cwd=folder,
+                check=True,
+            )
 
     def initial_prompt(self, name, default):
         return TASKS[name]

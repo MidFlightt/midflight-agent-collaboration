@@ -10,18 +10,34 @@ uv sync --locked --extra falkordb --extra demo
 uv run --extra falkordb --extra demo python -m midflight.theater.peers
 ```
 
-Open http://127.0.0.1:8907 (API 8908). Each window starts with a direct request:
+Open http://127.0.0.1:8907 (API 8908), or use `--port 8909 --api-port 8910`.
+Each composer is prefilled, unsent, with a direct request:
 
-- Pricing: “Build pricing for a product that costs $12.”
-- Checkout: “Build checkout that creates an order using the product price.”
-- Reporting: “Build reporting that returns the total from an order.”
-- Notifications: ‘Build a signup confirmation that says "Subscribed: " followed by the email address.’
+- Pricing: “Add volume discounts.”
+- Checkout: “Add a checkout endpoint.”
+- Reporting: “Add a revenue summary.”
+- Notifications: “Add signup confirmations.”
 
-Each appends “Coordinate with the team through MidFlight.” No prompt asks the agent
-to read TASK.md. The shared plan supplies the existing interface details, and TASK.md
-retains the same short brief for reference. The commerce tasks are
-still a small example project; this experiment generalizes coordination, not project
-creation or task allocation. It is not yet an arbitrary-repository installer.
+All workspaces start from the same small Python shop application, with an HTTP router,
+module interfaces, baseline tests and README. Each agent owns its module and tests.
+Requirements are seeded into plan v1; agents do not need to republish these assignments.
+The prompts contain no coordination choreography. AGENTS.md and MCP supply the protocol.
+
+After the initial work, type this direction in any window:
+
+> Include a price expiry time, and reject checkout when the quote has expired.
+
+The intended model adds expires_at to the price quote and validates it in checkout.
+The order contract retains total_cents, so reporting and notifications are unaffected.
+The direction is interpreted by the agent, not a keyword handler. Tests verify the
+actual dependency routing for that model. If an agent also changes order fields, that
+can legitimately expand the affected set. Read the proposed plan rather than forcing
+an affected-agent list. There is no scripted rejection: compatible claims are approved.
+Finished agents wait for their next human work request; there are no idle wake-ups.
+
+The starter's integration path is quote → create_order → revenue, with signup messages
+independent. Baseline tests cover starter behavior; agents must implement and test the
+requested features. The experiment does not install itself into arbitrary repositories.
 
 Give a human direction in **any** window. Every peer has `read_shared_plan` and
 `publish_shared_plan`. The agent interprets the request and supplies the complete

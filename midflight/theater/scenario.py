@@ -8,7 +8,7 @@ from midflight.services.plans import PlanDraft
 NAMES = ("pricing", "checkout", "reporting", "notifications")
 
 
-def seed(services, project):
+def seed(services, project, plan_draft=None):
     tokens = {name: new_token() for name in (*NAMES, "lead")}
     people = [
         Participant(
@@ -64,7 +64,7 @@ def seed(services, project):
     ]
     lead = services.store.get_participant("lead")
     plan = services.plans.propose(
-        lead, PlanDraft(requirements=[], tasks=tasks, contracts=contracts)
+        lead, plan_draft or PlanDraft(requirements=[], tasks=tasks, contracts=contracts)
     )
     services.plans.approve(lead, plan.version, "initial demo plan")
     return tokens

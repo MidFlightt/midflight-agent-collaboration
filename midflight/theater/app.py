@@ -28,7 +28,7 @@ from midflight.theater.scenario import NAMES, change, seed
 
 
 class Theater:
-    def __init__(self, root: Path, db_port: int, api_port: int):
+    def __init__(self, root: Path, db_port: int, api_port: int, *, plan_draft=None):
         self.repo = Path(__file__).resolve().parents[2]
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=False, mode=0o700)
@@ -43,7 +43,7 @@ class Theater:
                 worker_poll_interval=0.2,
             )
         )
-        self.tokens = seed(self.server.services, self.project)
+        self.tokens = seed(self.server.services, self.project, plan_draft)
         self.api_port = api_port
         self.db_port = db_port
         self.api = uvicorn.Server(

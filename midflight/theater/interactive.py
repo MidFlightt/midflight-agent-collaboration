@@ -47,8 +47,11 @@ class InteractiveTheater:
     def plan_tools(self, name):
         return ["set_direction"] if name == "pricing" else []
 
+    def initial_plan(self):
+        return None
+
     def __init__(self, root: Path, db_port: int, api_port: int, controller_port: int = 8897):
-        self.theater = Theater(root, db_port, api_port)
+        self.theater = Theater(root, db_port, api_port, plan_draft=self.initial_plan())
         self.session = "midflight-" + uuid.uuid4().hex[:8]
         self.key = secrets.token_urlsafe(24)
         self.panes = {}
