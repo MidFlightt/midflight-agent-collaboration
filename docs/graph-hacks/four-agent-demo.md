@@ -61,8 +61,9 @@ marked trusted in their private profiles. The default layout is Pricing/Checkout
 
 **Fullscreen** expands all four panes; press Escape or **Exit fullscreen** to leave it.
 If the embedded browser does not support fullscreen, open the same URL in Chrome.
-**Test results** opens the raw run report: saved claim approvals, targeted directives,
-independent integration results and process liveness. A claim approval alone does not
+**Test results** opens a readable view (`/?view=results`) of claim approvals, targeted
+directives, independent integration results and process liveness. It refreshes every
+five seconds, with manual refresh and a secondary **Raw JSON** link to `/report`. A claim approval alone does not
 prove the generated code works; the integration result is checked separately.
 
 No individual initialization prompts are needed. Startup (and **Reset**) creates the
