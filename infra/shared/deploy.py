@@ -19,6 +19,11 @@ def main():
     parser.add_argument("--profile", default="midflight-dev")
     parser.add_argument("--region", default="us-east-1")
     parser.add_argument("--config", type=Path)
+    parser.add_argument(
+        "--invite-secrets",
+        type=Path,
+        help="Private signing_key/admin_hash JSON; preserved on later updates",
+    )
     parser.add_argument("--execute", help="Exact change-set ID printed by the preview")
     args = parser.parse_args()
     session = boto3.Session(profile_name=args.profile, region_name=args.region)
@@ -80,12 +85,30 @@ def main():
         )
     s3.upload_file(str(artifact), bucket, key)
     try:
-        status = cf.describe_stacks(StackName=STACK)["Stacks"][0]["StackStatus"]
+        existing = cf.describe_stacks(StackName=STACK)["Stacks"][0]
+        existing_parameters = {p["ParameterKey"] for p in existing.get("Parameters", [])}
+        status = existing["StackStatus"]
         change_type = "CREATE" if status == "REVIEW_IN_PROGRESS" else "UPDATE"
     except ClientError as error:
         if "does not exist" not in error.response["Error"].get("Message", ""):
             raise
         change_type = "CREATE"
+        existing_parameters = set()
+    invite_parameters = []
+    if args.invite_secrets:
+        secrets = json.loads(args.invite_secrets.read_text())
+        if len(secrets["signing_key"]) < 32 or len(secrets["admin_hash"]) != 64:
+            raise SystemExit("Invalid invite deployment secrets")
+        invite_parameters = [
+            {"ParameterKey": "InviteSigningKey", "ParameterValue": secrets["signing_key"]},
+            {"ParameterKey": "InviteAdminHash", "ParameterValue": secrets["admin_hash"]},
+        ]
+    elif change_type == "UPDATE":
+        invite_parameters = [
+            {"ParameterKey": key, "UsePreviousValue": True}
+            for key in ("InviteSigningKey", "InviteAdminHash")
+            if key in existing_parameters
+        ]
     result = cf.create_change_set(
         StackName=STACK,
         ChangeSetName=f"shared-{int(time.time())}",
@@ -99,7 +122,8 @@ def main():
                 "ArtifactKey": key,
                 "ConfigJson": config_json,
             }.items()
-        ],
+        ]
+        + invite_parameters,
     )
     cf.get_waiter("change_set_create_complete").wait(ChangeSetName=result["Id"])
     changes = cf.describe_change_set(ChangeSetName=result["Id"])

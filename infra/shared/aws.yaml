@@ -9,6 +9,16 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Operator roster and SHA256 token hashes only; no raw bearer tokens.
+  InviteSigningKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Stable private key for idempotent invite credential recovery.
+  InviteAdminHash:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: SHA256 hash of the operator invite-management token.
   ImageId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
@@ -167,6 +177,8 @@ Resources:
           AWS_LWA_READINESS_CHECK_PATH: /healthz
           MIDFLIGHT_DB_HOST: !GetAtt Database.PrivateIp
           MIDFLIGHT_CONFIG_JSON: !Ref ConfigJson
+          MIDFLIGHT_INVITE_KEY: !Ref InviteSigningKey
+          MIDFLIGHT_INVITE_ADMIN_HASH: !Ref InviteAdminHash
   FunctionUrl:
     Type: AWS::Lambda::Url
     Properties: {TargetFunctionArn: !GetAtt Function.Arn, AuthType: NONE}

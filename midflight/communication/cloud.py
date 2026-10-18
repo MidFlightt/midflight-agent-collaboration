@@ -6,6 +6,7 @@ import inspect
 import json
 import os
 import re
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
@@ -97,7 +98,7 @@ def validate_config(config):
             raise ValueError("Credential must identify a configured project and agent")
 
 
-def build_app(config, store_factory=None):
+def build_app(config, store_factory=None, *, invite_key=None, invite_admin_hash=None):
     validate_config(config)
     if store_factory is None:
 
@@ -108,29 +109,57 @@ def build_app(config, store_factory=None):
                 host=os.environ.get("MIDFLIGHT_DB_HOST", "127.0.0.1"),
             )
 
+    if bool(invite_key) != bool(invite_admin_hash):
+        raise ValueError("Configure both invite signing key and operator hash")
+    if invite_admin_hash and not re.fullmatch(r"[a-f0-9]{64}", invite_admin_hash):
+        raise ValueError("Invite operator credential must be a SHA256 hash")
     services = {}
+    service_lock = threading.RLock()
+    registry = None
+    if invite_key and invite_admin_hash:
+        from .invites import Invites
+
+        registry = Invites(store_factory("invite_registry"), invite_key)
+
+    def get_service(project, settings):
+        with service_lock:
+            if project in services:
+                return services[project]
+            service = Service(store_factory(project))
+
+            def provision(state, revision):
+                for agent, topics in settings["agents"].items():
+                    state["agents"].setdefault(agent, {"task": "", "dependencies": topics})
+                for topic, owner in settings.get("owners", {}).items():
+                    state.setdefault("owners", {}).setdefault(topic, {"name": owner, "revision": 1})
+                return {}
+
+            try:
+                service._mutate(provision)
+            except Exception:
+                service.store.close()
+                raise
+            services[project] = service
+            return service
 
     @asynccontextmanager
     async def lifespan(app):
         try:
             for project, settings in config["projects"].items():
-                service = Service(store_factory(project))
-                services[project] = service
-
-                def provision(state, revision, settings=settings):
-                    for agent, topics in settings["agents"].items():
-                        state["agents"].setdefault(agent, {"task": "", "dependencies": topics})
-                    for topic, owner in settings.get("owners", {}).items():
-                        state["owners"].setdefault(topic, {"name": owner, "revision": 1})
-                    return {}
-
-                service._mutate(provision)
+                get_service(project, settings)
             yield
         finally:
             for service in services.values():
                 service.store.close()
+            if registry:
+                registry.service.store.close()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+    if registry:
+        from .invite_api import routes
+
+        routes(app, registry, invite_admin_hash)
 
     @app.middleware("http")
     async def bounded_body(request: Request, call_next):
@@ -141,13 +170,19 @@ def build_app(config, store_factory=None):
                 return JSONResponse({"detail": "Request exceeds 64 KiB"}, status_code=413)
             chunks.append(chunk)
         request._body = b"".join(chunks)
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
 
     @app.get("/healthz")
     def health():
         try:
-            for service in services.values():
-                service.store.read()
+            for project in config["projects"]:
+                services[project].store.read()
+            if registry:
+                registry.service.store.read()
         except Exception:
             raise HTTPException(503, "Coordination storage unavailable") from None
         return {"status": "ok"}
@@ -164,6 +199,14 @@ def build_app(config, store_factory=None):
             if token
             else None
         )
+        if identity is None and registry and token:
+            try:
+                match = registry.authenticate(token)
+                if match:
+                    identity, settings = match
+                    get_service(identity["project"], settings)
+            except Exception:
+                raise HTTPException(503, "Credential storage unavailable") from None
         if identity is None:
             raise HTTPException(401, "Invalid credentials", headers={"WWW-Authenticate": "Bearer"})
         service = services[identity["project"]]
@@ -195,7 +238,11 @@ def create_app():
         config = json.loads(os.environ["MIDFLIGHT_CONFIG_JSON"])
     else:
         config = json.loads(Path(os.environ["MIDFLIGHT_CONFIG"]).read_text())
-    return build_app(config)
+    return build_app(
+        config,
+        invite_key=os.environ.get("MIDFLIGHT_INVITE_KEY"),
+        invite_admin_hash=os.environ.get("MIDFLIGHT_INVITE_ADMIN_HASH"),
+    )
 
 
 class RemoteService:

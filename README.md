@@ -9,6 +9,12 @@ follow it without mutual acceptance. Explicit objections handle incompatibilitie
 requirement or dependency. Suggested alternatives are optional. Only the author resolves
 through `send`. Silence is neither agreement nor proof of compatibility.
 
+## Try the cloud demo with an invite
+
+An invite opens a setup page and creates an isolated four-agent cloud project.
+No manual credential handoff or AWS account is required. Follow the
+[invite setup guide](docs/invite-setup.md). Your coding agents use your own Codex account.
+
 ## Run the four-terminal prototype
 
 This is the hackathon prototype in **MidFlightt/midflight-agent-collaboration**.

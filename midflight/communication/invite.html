@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Try MidFlight</title>
+<style>body{font:17px/1.6 system-ui;background:#101214;color:#eee;max-width:780px;margin:60px auto;padding:0 24px}h1{font-size:36px;line-height:1.2}button{background:#8fcaff;color:#102234;padding:14px 22px;border:0;border-radius:8px;font:inherit;cursor:pointer}button:disabled{opacity:.5}pre{background:#20252c;padding:20px;overflow:auto;border-radius:8px;font-size:14px}a{color:#8fcaff}.muted{color:#b3bbc4}#setup{display:none}</style>
+<h1>Your own four-agent cloud demo</h1>
+<p>Try MidFlight with Billing, Delivery, Booking and Notifications agents. Your demo gets a separate cloud project. Other visitors cannot access it.</p>
+<p class="muted">You need macOS, Git, uv, tmux and a signed-in Codex CLI with <code>~/.codex/auth.json</code>. Agents use your own Codex allowance. Other platforms have not been verified. No AWS account or local database is needed.</p>
+<p id="status" role="status">Checking invite…</p><button id="create" disabled>Create my demo</button>
+<section id="setup"><h2>1. Save your access file</h2><p id="saved"></p><button id="download">Download access file again</button><p class="muted">Keep this file private. It contains access to your demo, not anyone else's.</p>
+<h2>2. Install and start</h2><p>Run these commands in a terminal. Use a fresh folder. Adjust the access-file path if your browser saved it elsewhere.</p>
+<pre id="commands"></pre><p>Open the local address printed in your terminal. All four task prompts are prepared but unsent. Press Enter in each panel to start.</p>
+<h2>3. Try a change</h2><p>After the initial build finishes, tell the Delivery agent: “When a delivery is cancelled, keep a four-credit cancellation fee and refund the rest, never below zero.”</p>
+<p>Then give the idle Billing agent a useful task: “Add regression coverage for revenue reporting across mixed confirmed and cancelled deliveries under the current shared requirements, including small totals and previously saved refunds.”</p>
+<p class="muted">Agents check shared context during useful work, not through idle polling. Their local tests may mock peers; run the combined-code validation described in the repository before claiming integration success. Reset does not erase cloud projects.</p>
+</section>
+<script>
+const params=new URLSearchParams(location.hash.slice(1));
+const id=params.get('id'), secret=params.get('secret');
+const status=document.getElementById('status'), create=document.getElementById('create');
+const storageKey='midflight-invite:'+id;
+let requestId=sessionStorage.getItem(storageKey);
+if(!requestId){requestId=crypto.randomUUID();sessionStorage.setItem(storageKey,requestId)}
+let bundle;
+async function post(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});const data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:'Unable to use this invite. Check the link.');return data}
+function download(){const url=URL.createObjectURL(new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='midflight-access.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+create.onclick=async()=>{create.disabled=true;status.textContent='Preparing your isolated project…';try{
+ const result=await post('/v1/invites/redeem',{id,secret,request_id:requestId});bundle={...result,url:location.origin};
+ status.textContent='Your demo is ready. Access expires '+new Date(result.expires_at*1000).toLocaleString()+'.';
+ document.getElementById('saved').textContent='Project: '+result.project;
+ document.getElementById('commands').textContent='git clone --branch codex/invite-onboarding https://github.com/MidFlightt/midflight-agent-collaboration.git midflight-demo\ncd midflight-demo\nuv sync --locked --extra falkordb --extra demo\nuv run python -m midflight.communication.onboard --bundle "$HOME/Downloads/midflight-access.json"';
+ document.getElementById('setup').style.display='block';create.style.display='none';download();
+ }catch(e){status.textContent=e.message;create.disabled=false}};
+document.getElementById('download').onclick=download;
+(async()=>{try{if(!id||!secret)throw Error('Open the complete invite link you received.');const info=await post('/v1/invites/info',{id,secret});status.textContent=info.remaining+' demo places remain. Invite expires '+new Date(info.expires_at*1000).toLocaleString()+'.';create.disabled=false}catch(e){status.textContent=e.message}})();
+</script></html>

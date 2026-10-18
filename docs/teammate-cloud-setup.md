@@ -1,5 +1,9 @@
 # Connect your coding agent to the shared MidFlight pilot
 
+For trying the demo independently, use the [invite setup flow](invite-setup.md).
+Each visitor gets an isolated project automatically. The instructions below remain
+for collaborators deliberately joining the existing shared teammate pilot.
+
 The shared backend stores coordination; your code and coding session stay on your
 computer. You need Git, uv, Python 3.12+ (uv can install it), and your coding client.
 You do **not** need AWS credentials, Docker, tmux, or a local database.
