@@ -17,6 +17,10 @@ KINDS = {
     "implementation",
     "verification",
     "dependency",
+    "interface",
+    "objection",
+    "resolve",
+    "transfer",
 }
 
 
@@ -39,10 +43,28 @@ class Service:
     def _mutate(self, action):
         for _ in range(50):
             revision, state = self.store.read()
+            for key in ("owners", "interfaces", "objections"):
+                state.setdefault(key, {})
             result = action(state, revision)
             if self.store.commit(revision, state):
                 return result
         raise RuntimeError("Concurrent writers: retry with the same request ID")
+
+    def configure_interfaces(self, owners):
+        """Operator setup, not an agent tool. Assign only unowned interface topics."""
+
+        def action(state, revision):
+            for topic, owner in owners.items():
+                text(topic, "topic", 120)
+                if owner not in state["agents"]:
+                    raise ValueError("Interface owner must be a registered agent")
+                old = state["owners"].get(topic)
+                if old and old["name"] != owner:
+                    raise ValueError("Use an explicit owner transfer; setup cannot replace owners")
+                state["owners"].setdefault(topic, {"name": owner, "revision": 1})
+            return state["owners"]
+
+        return self._mutate(action)
 
     def _once(self, state, actor, request_id, payload, action):
         key = encoded([actor, text(request_id, "request_id", 120)])
@@ -111,6 +133,45 @@ class Service:
                 )
             ],
         )
+        # Current shared interfaces are context, including for a newly subscribed session.
+        # Delivery is recorded per session; it never implies agreement or code adoption.
+        relevant_topics = set()
+        pending = list(state["agents"][actor]["dependencies"])
+        while pending:
+            topic = pending.pop()
+            if topic not in relevant_topics:
+                relevant_topics.add(topic)
+                pending.extend(state["dependencies"].get(topic, []))
+        owners = {
+            topic: owner
+            for topic, owner in state["owners"].items()
+            if owner["name"] == actor or topic in relevant_topics
+        }
+        delivered = session.setdefault("delivered_interface_revisions", {})
+        interfaces = []
+        for topic in owners:
+            current = state["interfaces"].get(topic)
+            if current is not None:
+                interfaces.append(
+                    current
+                    | {
+                        "owner": owners[topic]["name"],
+                        "previously_delivered_revision": delivered.get(topic, 0),
+                    }
+                )
+                delivered[topic] = current["revision"]
+        result["interface_owners"] = state["owners"]
+        result["interfaces"] = interfaces
+        result["open_objections"] = [
+            objection
+            for objection in state["objections"].values()
+            if objection["state"] == "open"
+            and (
+                objection["topic"] in owners
+                or actor == objection["author"]
+                or actor in objection["recipients"]
+            )
+        ]
         if full:
             result["agreements"] = [p for p in proposals if p["state"] == "agreed"]
             result["policies"] = [e for e in visible if e["kind"] == "policy"]
@@ -161,12 +222,13 @@ class Service:
         expected_revision=None,
         source="",
         depends_on=None,
+        new_owner=None,
     ):
         if kind not in KINDS:
             raise ValueError("Unknown message kind")
         body = text(body, "body")
         to, participants = names(to or []), names(participants or [])
-        if kind in {"proposal", "policy", "intention", "dependency"}:
+        if kind in {"proposal", "policy", "intention", "dependency", "interface", "transfer"}:
             topic = text(topic, "topic", 120)
         if kind == "policy":
             text(source, "verbatim human source", 20000)
@@ -176,6 +238,8 @@ class Service:
             raise ValueError("Only proposals have participants")
         if depends_on is not None and kind != "dependency":
             raise ValueError("Use dependency kind to declare topic prerequisites")
+        if new_owner is not None and kind != "transfer":
+            raise ValueError("new_owner is only for ownership transfer")
         dependencies = names(depends_on or [])
         payload = [
             "send",
@@ -190,6 +254,9 @@ class Service:
             dependencies,
         ]
 
+        if new_owner is not None:
+            payload.append(new_owner)
+
         def mutate(state, revision):
             actor = self._session(state, session_id)["agent"]
 
@@ -201,7 +268,32 @@ class Service:
                     raise ValueError("Policy recipients must be dependency subscribers; omit to")
                 recipients = to or routed
                 current = 0
-                if kind in {"proposal", "policy", "dependency"}:
+                owner = state["owners"].get(topic)
+                if kind in {"interface", "transfer"}:
+                    if owner is None:
+                        raise ValueError(
+                            "No assigned owner; share an intention and ask the operator "
+                            "to assign one"
+                        )
+                    if actor != owner["name"]:
+                        raise ValueError(
+                            "Only the interface owner may publish or transfer; send an objection"
+                        )
+                    if to:
+                        raise ValueError(
+                            "Interface publications and transfers route to all subscribers; omit to"
+                        )
+                    recipients = sorted(set(routed + [actor]))
+                if kind == "transfer":
+                    if new_owner not in state["agents"] or new_owner == actor:
+                        raise ValueError("Transfer requires a different registered new_owner")
+                    if expected_revision != owner["revision"]:
+                        raise ValueError(
+                            f"Stale ownership; current revision is {owner['revision']}"
+                        )
+                    current = owner["revision"] + 1
+                    recipients = sorted(set(recipients + [new_owner]))
+                if kind in {"proposal", "policy", "dependency", "interface"}:
                     current = max(
                         (
                             e.get("revision", 0)
@@ -217,11 +309,21 @@ class Service:
                     if actor not in participants or len(participants) < 2:
                         raise ValueError("Proposal needs author and at least one peer")
                     recipients = participants
-                if kind in {"answer", "applied"} and reply_to is None:
+                if kind in {"answer", "applied", "objection", "resolve"} and reply_to is None:
                     raise ValueError("reply_to is required")
                 if reply_to is not None:
                     parent = next((e for e in state["events"] if e["id"] == reply_to), None)
-                    if parent is None or actor not in [parent["author"], *parent["recipients"]]:
+                    if parent is None or not (
+                        actor in [parent["author"], *parent["recipients"]]
+                        or (
+                            parent["kind"] in {"interface", "objection"}
+                            and state["owners"].get(parent["topic"], {}).get("name") == actor
+                        )
+                        or (
+                            parent["kind"] == "interface"
+                            and actor in self.store.recipients(revision, [parent["topic"]])
+                        )
+                    ):
                         raise ValueError("Unknown or invisible reply target")
                     if kind == "answer" and (
                         parent["kind"] != "question" or actor not in parent["recipients"]
@@ -229,12 +331,41 @@ class Service:
                         raise ValueError("Only recipients can answer a question")
                     if kind == "applied" and parent["kind"] != "policy":
                         raise ValueError("Applied reports reference a policy")
+                    if kind == "objection":
+                        if parent["kind"] != "interface":
+                            raise ValueError(
+                                "Objection must reference an exact published interface event"
+                            )
+                        if topic and topic != parent["topic"]:
+                            raise ValueError("Objection topic must match its interface")
+                        if to:
+                            raise ValueError(
+                                "Objections route to the owner and subscribers; omit to"
+                            )
+                        recipients = sorted(
+                            set(
+                                self.store.recipients(revision, [parent["topic"]])
+                                + [actor, state["owners"][parent["topic"]]["name"]]
+                            )
+                        )
+                    if kind == "resolve":
+                        objection = state["objections"].get(str(reply_to))
+                        if not objection or objection["author"] != actor:
+                            raise ValueError(
+                                "Only the objection author can resolve it with evidence"
+                            )
+                        if objection["state"] != "open":
+                            raise ValueError("Objection is already resolved")
+                        if to:
+                            raise ValueError("Resolution reaches the objection audience; omit to")
                     audience = set(parent["recipients"] + [parent["author"]])
+                    if parent["kind"] == "objection":
+                        audience.add(state["owners"][parent["topic"]]["name"])
                     if parent["kind"] == "policy" and to and not set(to) <= audience:
                         raise ValueError(
                             "Policy replies cannot expand the policy audience; omit to"
                         )
-                    if not to:
+                    if not to and kind not in {"objection", "interface", "transfer"}:
                         recipients = sorted(audience)
                     if kind == "answer" and parent["author"] not in recipients:
                         raise ValueError("Answer must reach question author")
@@ -267,6 +398,22 @@ class Service:
                     source=source,
                     depends_on=dependencies,
                 )
+                if kind == "interface":
+                    state["interfaces"][topic] = event.copy()
+                if kind == "transfer":
+                    event["new_owner"] = new_owner
+                    state["owners"][topic] = {"name": new_owner, "revision": current}
+                if kind == "objection":
+                    event["topic"] = parent["topic"]
+                    state["objections"][str(event["id"])] = event | {
+                        "interface_revision": parent["revision"],
+                        "state": "open",
+                        "resolution_id": None,
+                    }
+                if kind == "resolve":
+                    event["topic"] = parent["topic"]
+                    objection["state"] = "resolved"
+                    objection["resolution_id"] = event["id"]
                 if kind == "proposal":
                     for proposal in state["proposals"].values():
                         if proposal["topic"] == topic and proposal["state"] == "proposed":

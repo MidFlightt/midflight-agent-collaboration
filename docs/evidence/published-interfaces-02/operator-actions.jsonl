@@ -1,0 +1,3 @@
+{"action": "start_owner", "agent": "delivery", "time": 1792287254.0075278}
+{"action": "start_consumers_after_publication", "time": 1792287287.62958}
+{"action": "human_fee_change", "agent": "delivery", "prompt": "When a delivery is cancelled, keep a four-credit cancellation fee and refund the rest, never below zero.", "time": 1792287383.221756}

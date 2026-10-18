@@ -24,8 +24,14 @@ from .store import Store
 DEPENDENCIES = {
     "billing": ["delivery-record", "cancellation-policy"],
     "delivery": ["delivery-record", "booking-request", "cancellation-policy"],
-    "booking": ["booking-request"],
+    "booking": ["booking-request", "delivery-record"],
     "notifications": ["confirmation"],
+}
+
+OWNERS = {
+    "delivery-record": "delivery",
+    "booking-request": "booking",
+    "confirmation": "notifications",
 }
 
 
@@ -112,6 +118,7 @@ class CommunicationTheater(InteractiveTheater):
                 cwd=folder,
                 check=True,
             )
+        self.service.configure_interfaces(OWNERS)
         (root / "run.json").write_text(
             json.dumps(
                 dict(

@@ -1,0 +1,16 @@
+{
+  "no_wakeup_sent": true,
+  "billing_booking_notifications_sessions_unchanged": true,
+  "unchanged_modules": [
+    "billing",
+    "booking",
+    "notifications"
+  ],
+  "policy_event": 9,
+  "billing_policy_unread_and_unapplied": true,
+  "fee_message_recipients": [
+    "billing",
+    "delivery"
+  ],
+  "interface_revisions_unchanged": true
+}

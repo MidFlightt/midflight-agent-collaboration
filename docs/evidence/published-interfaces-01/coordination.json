@@ -1,0 +1,537 @@
+{
+  "agents": {
+    "billing": {
+      "dependencies": [
+        "cancellation-policy",
+        "delivery-record"
+      ],
+      "task": "Implement billing and revenue reporting"
+    },
+    "booking": {
+      "dependencies": [
+        "booking-request",
+        "delivery-record"
+      ],
+      "task": "Build customer booking flow in booking.py and component tests"
+    },
+    "delivery": {
+      "dependencies": [
+        "booking-request",
+        "cancellation-policy",
+        "delivery-record"
+      ],
+      "task": "Implement delivery management in delivery.py and component tests"
+    },
+    "notifications": {
+      "dependencies": [
+        "confirmation"
+      ],
+      "task": "Implement customer notifications in notifications.py with component tests."
+    }
+  },
+  "dependencies": {},
+  "events": [
+    {
+      "author": "delivery",
+      "body": "delivery.py public boundary: create_delivery(total_cents: int, customer: str, destination: str) -> dict; get_delivery(delivery_id: int) -> dict; cancel_delivery(delivery_id: int) -> dict; get_delivery_records() -> dict[int, dict], {} when empty. Records contain id (positive integer), total_cents (nonnegative integer), customer and destination (nonblank strings), status ('confirmed' or 'cancelled'), refund_cents (initially 0; cancellation saves total_cents). All returned records and ID-keyed snapshots are copies. Cancellation is idempotent. bool is rejected for integer inputs; invalid values raise ValueError, wrong types TypeError, unknown positive IDs KeyError. Strings are preserved after checking strip() is nonempty. IDs increase within the in-memory store. Full refunds implement TASK.md initial policy.",
+      "created_at": "2026-10-18T01:30:48.539468+00:00",
+      "depends_on": [],
+      "id": 1,
+      "kind": "interface",
+      "recipients": [
+        "billing",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 1,
+      "source": "",
+      "topic": "delivery-record"
+    },
+    {
+      "author": "delivery",
+      "body": "Published delivery-record interface event 1: create_delivery(total_cents, customer, destination) returns copied dict with id, total_cents, customer, destination, status, refund_cents. Positive integer IDs; nonnegative integer cents (no bool); nonblank customer/destination strings preserved. Initial confirmed/refund_cents=0; cancellation saves full refund and is idempotent. get_delivery_records() returns ID-keyed dict of copied records.",
+      "created_at": "2026-10-18T01:30:58.381843+00:00",
+      "depends_on": [],
+      "id": 2,
+      "kind": "message",
+      "recipients": [
+        "booking",
+        "notifications"
+      ],
+      "reply_to": null,
+      "revision": 0,
+      "source": "",
+      "topic": "delivery-record"
+    },
+    {
+      "author": "booking",
+      "body": "booking_request(total_cents: int, customer: str, destination: str) -> dict validates nonnegative integer cents (bool rejected) and nonblank string customer/destination, raises ValueError for invalid values, and returns exactly total_cents/customer/destination preserving strings. page() -> str returns browser form posting JSON to /book, with server-returned id/status/total_cents/refund_cents displayed; cancellation via /cancel uses returned amounts only.",
+      "created_at": "2026-10-18T01:31:07.199373+00:00",
+      "depends_on": [],
+      "id": 3,
+      "kind": "interface",
+      "recipients": [
+        "booking",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 1,
+      "source": "",
+      "topic": "booking-request"
+    },
+    {
+      "author": "billing",
+      "body": "Billing will consume the owner-published get_delivery_records() -> dict[int, dict] snapshot (event 1), iterating its values. summarize_records retains list[dict] support for existing callers and accepts the ID-keyed snapshot too. revenue_report returns {'revenue_cents': int, 'confirmed': int, 'cancelled': int}, with zero values for empty data; revenue sums saved total_cents - refund_cents regardless of status.",
+      "created_at": "2026-10-18T01:31:08.753432+00:00",
+      "depends_on": [],
+      "id": 4,
+      "kind": "message",
+      "recipients": [
+        "billing",
+        "booking",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 0,
+      "source": "",
+      "topic": "delivery-record"
+    },
+    {
+      "author": "notifications",
+      "body": "confirmation(email: str, delivery_id: int) -> str generates a local message only. Accept email with exactly one @, nonempty local/domain portions, a dotted domain with nonempty labels, and no whitespace; reject invalid values with ValueError. delivery_id must be a positive integer excluding bool; invalid values raise ValueError. Returns 'Delivery {delivery_id} is confirmed. Confirmation for {email}.' No money amounts, refund calculations, or outbound email. This formatter validates the supplied ID without fetching delivery state.",
+      "created_at": "2026-10-18T01:31:10.789420+00:00",
+      "depends_on": [],
+      "id": 5,
+      "kind": "interface",
+      "recipients": [
+        "notifications"
+      ],
+      "reply_to": null,
+      "revision": 1,
+      "source": "",
+      "topic": "confirmation"
+    },
+    {
+      "author": "delivery",
+      "body": "Implemented interface event 1 in delivery.py: validated create/get/cancel, monotonic positive IDs, copied snapshots/results, full saved refunds and idempotent cancellation. Added tests/test_delivery.py with six component tests covering lifecycle, zero amounts, isolation, invalid inputs/IDs, unknown IDs, and preserved strings. python3 -m unittest discover -s tests -v passed all 7 available tests (six delivery plus baseline). Read booking interface event 3; its request kwargs match create_delivery. No other component implementation modified.",
+      "created_at": "2026-10-18T01:31:17.678198+00:00",
+      "depends_on": [],
+      "id": 6,
+      "kind": "implementation",
+      "recipients": [
+        "billing",
+        "booking",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 0,
+      "source": "",
+      "topic": "delivery-record"
+    },
+    {
+      "author": "notifications",
+      "body": "Implemented confirmation interface event 5 in notifications.py and added tests/test_notifications.py. Local message formatting validates email and positive integer delivery IDs (rejecting bool), includes recipient and delivery ID, and contains no monetary policy. Does not fetch records or send email. Validation: python3 -m unittest discover -s tests -v passed all 5 tests, including baseline. Only owned implementation and new component tests changed.",
+      "created_at": "2026-10-18T01:31:24.176570+00:00",
+      "depends_on": [],
+      "id": 7,
+      "kind": "implementation",
+      "recipients": [
+        "notifications"
+      ],
+      "reply_to": null,
+      "revision": 0,
+      "source": "",
+      "topic": "confirmation"
+    },
+    {
+      "author": "billing",
+      "body": "Implemented billing.py against published delivery interface event 1. revenue_report calls get_delivery_records and summarizes dict values, with legacy flat-list compatibility. Counts statuses and sums actual saved total_cents minus refund_cents, including partial saved refunds, without mutation. Added tests/test_billing.py for empty shapes, both input shapes, saved refund accounting, fresh snapshots, and invalid records. All 5 locally available tests pass via python3 -m unittest discover -s tests -v. Local delivery.py remains the starter stub, so create/cancel integration was not run here; snapshot boundary is tested with mocks. Only billing.py and new billing component tests changed.",
+      "created_at": "2026-10-18T01:31:31.676155+00:00",
+      "depends_on": [],
+      "id": 8,
+      "kind": "implementation",
+      "recipients": [
+        "billing",
+        "booking",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 0,
+      "source": "",
+      "topic": "delivery-record"
+    },
+    {
+      "author": "booking",
+      "body": "Implemented published booking interface event 3 in booking.py: validated request kwargs, accessible booking form posting /book, cancellation via /cancel, server status/total/refund rendering via textContent, and request errors/busy controls. Consumes delivery interface event 1. Added tests/test_booking_component.py covering validation, /book dispatch using mocked delivery, and Node-executed browser handlers including server partial refund 375/1250 and error rendering. python3 -m unittest discover -s tests -v passed all 5 locally available tests. Local delivery remains starter stub; real delivery integration was not run. Only booking.py and new component test changed.",
+      "created_at": "2026-10-18T01:31:38.602607+00:00",
+      "depends_on": [],
+      "id": 9,
+      "kind": "implementation",
+      "recipients": [
+        "booking",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 0,
+      "source": "",
+      "topic": "booking-request"
+    },
+    {
+      "author": "delivery",
+      "body": "Apply a 400-cent cancellation fee: on first cancellation save refund_cents=max(total_cents-400, 0). Retained amount is min(total_cents,400). Repeated cancellation preserves saved refund. Billing continues using actual saved total minus refund. Human source: When a delivery is cancelled, keep a four-credit cancellation fee and refund the rest, never below zero.",
+      "created_at": "2026-10-18T01:32:23.609600+00:00",
+      "depends_on": [],
+      "id": 10,
+      "kind": "policy",
+      "recipients": [
+        "billing",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 1,
+      "source": "When a delivery is cancelled, keep a four-credit cancellation fee and refund the rest, never below zero.",
+      "topic": "cancellation-policy"
+    },
+    {
+      "author": "delivery",
+      "body": "Revision 2 supersedes full-refund behavior in event 1: cancel_delivery(delivery_id) now saves refund_cents=max(total_cents-400,0) on first cancellation and status='cancelled'; repeated cancellation preserves saved refund. All API signatures, record fields, validation, positive increasing IDs, and independent copied ID-keyed snapshots remain as in event 1. create_delivery starts status='confirmed', refund_cents=0. Fee is 4 credits = 400 cents; saved refund never negative.",
+      "created_at": "2026-10-18T01:32:23.628888+00:00",
+      "depends_on": [],
+      "id": 11,
+      "kind": "interface",
+      "recipients": [
+        "billing",
+        "booking",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 2,
+      "source": "",
+      "topic": "delivery-record"
+    },
+    {
+      "author": "delivery",
+      "body": "Applied policy 10 in delivery.py: first cancellation saves max(total_cents-400,0), retaining min(total_cents,400); subsequent cancellation returns saved amounts unchanged. Updated delivery component tests for totals 0,1,399,400,401,1250 and snapshot isolation. All 7 locally available tests pass with python3 -m unittest discover -s tests -v. Published boundary revision 2 in event 11. Only delivery.py and delivery component tests changed.",
+      "created_at": "2026-10-18T01:32:27.437557+00:00",
+      "depends_on": [],
+      "id": 12,
+      "kind": "applied",
+      "recipients": [
+        "billing",
+        "delivery"
+      ],
+      "reply_to": 10,
+      "revision": 0,
+      "source": "",
+      "topic": "cancellation-policy"
+    }
+  ],
+  "interfaces": {
+    "booking-request": {
+      "author": "booking",
+      "body": "booking_request(total_cents: int, customer: str, destination: str) -> dict validates nonnegative integer cents (bool rejected) and nonblank string customer/destination, raises ValueError for invalid values, and returns exactly total_cents/customer/destination preserving strings. page() -> str returns browser form posting JSON to /book, with server-returned id/status/total_cents/refund_cents displayed; cancellation via /cancel uses returned amounts only.",
+      "created_at": "2026-10-18T01:31:07.199373+00:00",
+      "depends_on": [],
+      "id": 3,
+      "kind": "interface",
+      "recipients": [
+        "booking",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 1,
+      "source": "",
+      "topic": "booking-request"
+    },
+    "confirmation": {
+      "author": "notifications",
+      "body": "confirmation(email: str, delivery_id: int) -> str generates a local message only. Accept email with exactly one @, nonempty local/domain portions, a dotted domain with nonempty labels, and no whitespace; reject invalid values with ValueError. delivery_id must be a positive integer excluding bool; invalid values raise ValueError. Returns 'Delivery {delivery_id} is confirmed. Confirmation for {email}.' No money amounts, refund calculations, or outbound email. This formatter validates the supplied ID without fetching delivery state.",
+      "created_at": "2026-10-18T01:31:10.789420+00:00",
+      "depends_on": [],
+      "id": 5,
+      "kind": "interface",
+      "recipients": [
+        "notifications"
+      ],
+      "reply_to": null,
+      "revision": 1,
+      "source": "",
+      "topic": "confirmation"
+    },
+    "delivery-record": {
+      "author": "delivery",
+      "body": "Revision 2 supersedes full-refund behavior in event 1: cancel_delivery(delivery_id) now saves refund_cents=max(total_cents-400,0) on first cancellation and status='cancelled'; repeated cancellation preserves saved refund. All API signatures, record fields, validation, positive increasing IDs, and independent copied ID-keyed snapshots remain as in event 1. create_delivery starts status='confirmed', refund_cents=0. Fee is 4 credits = 400 cents; saved refund never negative.",
+      "created_at": "2026-10-18T01:32:23.628888+00:00",
+      "depends_on": [],
+      "id": 11,
+      "kind": "interface",
+      "recipients": [
+        "billing",
+        "booking",
+        "delivery"
+      ],
+      "reply_to": null,
+      "revision": 2,
+      "source": "",
+      "topic": "delivery-record"
+    }
+  },
+  "objections": {},
+  "owners": {
+    "booking-request": {
+      "name": "booking",
+      "revision": 1
+    },
+    "confirmation": {
+      "name": "notifications",
+      "revision": 1
+    },
+    "delivery-record": {
+      "name": "delivery",
+      "revision": 1
+    }
+  },
+  "proposals": {},
+  "requests": {
+    "[\"billing\",\"billing-boundary-1\"]": {
+      "payload": "[\"send\",\"message\",\"Billing will consume the owner-published get_delivery_records() -> dict[int, dict] snapshot (event 1), iterating its values. summarize_records retains list[dict] support for existing callers and accepts the ID-keyed snapshot too. revenue_report returns {'revenue_cents': int, 'confirmed': int, 'cancelled': int}, with zero values for empty data; revenue sums saved total_cents - refund_cents regardless of status.\",[],\"delivery-record\",[],null,null,\"\",[]]",
+      "result": {
+        "event_id": 4,
+        "recipients": [
+          "billing",
+          "booking",
+          "delivery"
+        ],
+        "revision": 0
+      }
+    },
+    "[\"billing\",\"billing-implementation-1\"]": {
+      "payload": "[\"send\",\"implementation\",\"Implemented billing.py against published delivery interface event 1. revenue_report calls get_delivery_records and summarizes dict values, with legacy flat-list compatibility. Counts statuses and sums actual saved total_cents minus refund_cents, including partial saved refunds, without mutation. Added tests/test_billing.py for empty shapes, both input shapes, saved refund accounting, fresh snapshots, and invalid records. All 5 locally available tests pass via python3 -m unittest discover -s tests -v. Local delivery.py remains the starter stub, so create/cancel integration was not run here; snapshot boundary is tested with mocks. Only billing.py and new billing component tests changed.\",[],\"delivery-record\",[],null,null,\"\",[]]",
+      "result": {
+        "event_id": 8,
+        "recipients": [
+          "billing",
+          "booking",
+          "delivery"
+        ],
+        "revision": 0
+      }
+    },
+    "[\"billing\",\"billing-join-20261017-a\"]": {
+      "payload": "[\"join\",\"Implement billing and revenue reporting\",null,null]",
+      "result": {
+        "session_id": "84756ecb-8329-4b24-a98f-ccfe8e0bd4d0"
+      }
+    },
+    "[\"billing\",\"seed\"]": {
+      "payload": "[\"join\",\"Implement billing and revenue reporting.\",null,[\"cancellation-policy\",\"delivery-record\"]]",
+      "result": {
+        "session_id": "7573544f-1ae5-4096-bb77-a4d03d6add07"
+      }
+    },
+    "[\"booking\",\"booking-dependencies-1\"]": {
+      "payload": "[\"join\",\"Build customer booking flow in booking.py and component tests\",\"4f4a3fb0-1e3b-462d-b0a4-e0eefade2313\",[\"booking-request\",\"delivery-record\"]]",
+      "result": {
+        "session_id": "4f4a3fb0-1e3b-462d-b0a4-e0eefade2313"
+      }
+    },
+    "[\"booking\",\"booking-implementation-1\"]": {
+      "payload": "[\"send\",\"implementation\",\"Implemented published booking interface event 3 in booking.py: validated request kwargs, accessible booking form posting /book, cancellation via /cancel, server status/total/refund rendering via textContent, and request errors/busy controls. Consumes delivery interface event 1. Added tests/test_booking_component.py covering validation, /book dispatch using mocked delivery, and Node-executed browser handlers including server partial refund 375/1250 and error rendering. python3 -m unittest discover -s tests -v passed all 5 locally available tests. Local delivery remains starter stub; real delivery integration was not run. Only booking.py and new component test changed.\",[],\"booking-request\",[],null,null,\"\",[]]",
+      "result": {
+        "event_id": 9,
+        "recipients": [
+          "booking",
+          "delivery"
+        ],
+        "revision": 0
+      }
+    },
+    "[\"booking\",\"booking-interface-1\"]": {
+      "payload": "[\"send\",\"interface\",\"booking_request(total_cents: int, customer: str, destination: str) -> dict validates nonnegative integer cents (bool rejected) and nonblank string customer/destination, raises ValueError for invalid values, and returns exactly total_cents/customer/destination preserving strings. page() -> str returns browser form posting JSON to /book, with server-returned id/status/total_cents/refund_cents displayed; cancellation via /cancel uses returned amounts only.\",[],\"booking-request\",[],null,0,\"\",[]]",
+      "result": {
+        "event_id": 3,
+        "recipients": [
+          "booking",
+          "delivery"
+        ],
+        "revision": 1
+      }
+    },
+    "[\"booking\",\"booking-join-20261017-1\"]": {
+      "payload": "[\"join\",\"Build customer booking flow in booking.py and component tests\",null,null]",
+      "result": {
+        "session_id": "4f4a3fb0-1e3b-462d-b0a4-e0eefade2313"
+      }
+    },
+    "[\"booking\",\"seed\"]": {
+      "payload": "[\"join\",\"Build the customer booking flow.\",null,[\"booking-request\"]]",
+      "result": {
+        "session_id": "40019106-da53-4bd6-9863-30bbcfbf4a29"
+      }
+    },
+    "[\"delivery\",\"delivery-callers-1\"]": {
+      "payload": "[\"send\",\"message\",\"Published delivery-record interface event 1: create_delivery(total_cents, customer, destination) returns copied dict with id, total_cents, customer, destination, status, refund_cents. Positive integer IDs; nonnegative integer cents (no bool); nonblank customer/destination strings preserved. Initial confirmed/refund_cents=0; cancellation saves full refund and is idempotent. get_delivery_records() returns ID-keyed dict of copied records.\",[\"booking\",\"notifications\"],\"delivery-record\",[],null,null,\"\",[]]",
+      "result": {
+        "event_id": 2,
+        "recipients": [
+          "booking",
+          "notifications"
+        ],
+        "revision": 0
+      }
+    },
+    "[\"delivery\",\"delivery-complete-1\"]": {
+      "payload": "[\"send\",\"implementation\",\"Implemented interface event 1 in delivery.py: validated create/get/cancel, monotonic positive IDs, copied snapshots/results, full saved refunds and idempotent cancellation. Added tests/test_delivery.py with six component tests covering lifecycle, zero amounts, isolation, invalid inputs/IDs, unknown IDs, and preserved strings. python3 -m unittest discover -s tests -v passed all 7 available tests (six delivery plus baseline). Read booking interface event 3; its request kwargs match create_delivery. No other component implementation modified.\",[],\"delivery-record\",[],null,null,\"\",[]]",
+      "result": {
+        "event_id": 6,
+        "recipients": [
+          "billing",
+          "booking",
+          "delivery"
+        ],
+        "revision": 0
+      }
+    },
+    "[\"delivery\",\"delivery-fee-applied-1\"]": {
+      "payload": "[\"send\",\"applied\",\"Applied policy 10 in delivery.py: first cancellation saves max(total_cents-400,0), retaining min(total_cents,400); subsequent cancellation returns saved amounts unchanged. Updated delivery component tests for totals 0,1,399,400,401,1250 and snapshot isolation. All 7 locally available tests pass with python3 -m unittest discover -s tests -v. Published boundary revision 2 in event 11. Only delivery.py and delivery component tests changed.\",[],\"cancellation-policy\",[],10,null,\"\",[]]",
+      "result": {
+        "event_id": 12,
+        "recipients": [
+          "billing",
+          "delivery"
+        ],
+        "revision": 0
+      }
+    },
+    "[\"delivery\",\"delivery-fee-policy-1\"]": {
+      "payload": "[\"send\",\"policy\",\"Apply a 400-cent cancellation fee: on first cancellation save refund_cents=max(total_cents-400, 0). Retained amount is min(total_cents,400). Repeated cancellation preserves saved refund. Billing continues using actual saved total minus refund. Human source: When a delivery is cancelled, keep a four-credit cancellation fee and refund the rest, never below zero.\",[],\"cancellation-policy\",[],null,null,\"When a delivery is cancelled, keep a four-credit cancellation fee and refund the rest, never below zero.\",[]]",
+      "result": {
+        "event_id": 10,
+        "recipients": [
+          "billing",
+          "delivery"
+        ],
+        "revision": 1
+      }
+    },
+    "[\"delivery\",\"delivery-interface-1\"]": {
+      "payload": "[\"send\",\"interface\",\"delivery.py public boundary: create_delivery(total_cents: int, customer: str, destination: str) -> dict; get_delivery(delivery_id: int) -> dict; cancel_delivery(delivery_id: int) -> dict; get_delivery_records() -> dict[int, dict], {} when empty. Records contain id (positive integer), total_cents (nonnegative integer), customer and destination (nonblank strings), status ('confirmed' or 'cancelled'), refund_cents (initially 0; cancellation saves total_cents). All returned records and ID-keyed snapshots are copies. Cancellation is idempotent. bool is rejected for integer inputs; invalid values raise ValueError, wrong types TypeError, unknown positive IDs KeyError. Strings are preserved after checking strip() is nonempty. IDs increase within the in-memory store. Full refunds implement TASK.md initial policy.\",[],\"delivery-record\",[],null,0,\"\",[]]",
+      "result": {
+        "event_id": 1,
+        "recipients": [
+          "billing",
+          "delivery"
+        ],
+        "revision": 1
+      }
+    },
+    "[\"delivery\",\"delivery-interface-2\"]": {
+      "payload": "[\"send\",\"interface\",\"Revision 2 supersedes full-refund behavior in event 1: cancel_delivery(delivery_id) now saves refund_cents=max(total_cents-400,0) on first cancellation and status='cancelled'; repeated cancellation preserves saved refund. All API signatures, record fields, validation, positive increasing IDs, and independent copied ID-keyed snapshots remain as in event 1. create_delivery starts status='confirmed', refund_cents=0. Fee is 4 credits = 400 cents; saved refund never negative.\",[],\"delivery-record\",[],null,1,\"\",[]]",
+      "result": {
+        "event_id": 11,
+        "recipients": [
+          "billing",
+          "booking",
+          "delivery"
+        ],
+        "revision": 2
+      }
+    },
+    "[\"delivery\",\"delivery-join-20261017-a1\"]": {
+      "payload": "[\"join\",\"Implement delivery management in delivery.py and component tests\",null,null]",
+      "result": {
+        "session_id": "23fe672a-729d-409b-8b0b-b38ee3493ffe"
+      }
+    },
+    "[\"delivery\",\"seed\"]": {
+      "payload": "[\"join\",\"Implement delivery management.\",null,[\"booking-request\",\"cancellation-policy\",\"delivery-record\"]]",
+      "result": {
+        "session_id": "b5e315fb-98e0-4202-9468-bf5d1e7a3593"
+      }
+    },
+    "[\"notifications\",\"notifications-implementation-01\"]": {
+      "payload": "[\"send\",\"implementation\",\"Implemented confirmation interface event 5 in notifications.py and added tests/test_notifications.py. Local message formatting validates email and positive integer delivery IDs (rejecting bool), includes recipient and delivery ID, and contains no monetary policy. Does not fetch records or send email. Validation: python3 -m unittest discover -s tests -v passed all 5 tests, including baseline. Only owned implementation and new component tests changed.\",[],\"confirmation\",[],null,null,\"\",[]]",
+      "result": {
+        "event_id": 7,
+        "recipients": [
+          "notifications"
+        ],
+        "revision": 0
+      }
+    },
+    "[\"notifications\",\"notifications-interface-01\"]": {
+      "payload": "[\"send\",\"interface\",\"confirmation(email: str, delivery_id: int) -> str generates a local message only. Accept email with exactly one @, nonempty local/domain portions, a dotted domain with nonempty labels, and no whitespace; reject invalid values with ValueError. delivery_id must be a positive integer excluding bool; invalid values raise ValueError. Returns 'Delivery {delivery_id} is confirmed. Confirmation for {email}.' No money amounts, refund calculations, or outbound email. This formatter validates the supplied ID without fetching delivery state.\",[],\"confirmation\",[],null,0,\"\",[]]",
+      "result": {
+        "event_id": 5,
+        "recipients": [
+          "notifications"
+        ],
+        "revision": 1
+      }
+    },
+    "[\"notifications\",\"notifications-join-20261017-01\"]": {
+      "payload": "[\"join\",\"Implement customer notifications in notifications.py with component tests.\",null,null]",
+      "result": {
+        "session_id": "780224f3-9f0b-4cc2-9e91-20d007935e10"
+      }
+    },
+    "[\"notifications\",\"seed\"]": {
+      "payload": "[\"join\",\"Implement customer notifications.\",null,[\"confirmation\"]]",
+      "result": {
+        "session_id": "1a180034-d1e5-4730-9451-8b3b51610f53"
+      }
+    }
+  },
+  "sessions": {
+    "1a180034-d1e5-4730-9451-8b3b51610f53": {
+      "agent": "notifications",
+      "cursor": 0,
+      "delivered_interface_revisions": {}
+    },
+    "23fe672a-729d-409b-8b0b-b38ee3493ffe": {
+      "agent": "delivery",
+      "cursor": 12,
+      "delivered_interface_revisions": {
+        "booking-request": 1,
+        "delivery-record": 2
+      }
+    },
+    "40019106-da53-4bd6-9863-30bbcfbf4a29": {
+      "agent": "booking",
+      "cursor": 0,
+      "delivered_interface_revisions": {}
+    },
+    "4f4a3fb0-1e3b-462d-b0a4-e0eefade2313": {
+      "agent": "booking",
+      "cursor": 9,
+      "delivered_interface_revisions": {
+        "booking-request": 1,
+        "delivery-record": 1
+      }
+    },
+    "7573544f-1ae5-4096-bb77-a4d03d6add07": {
+      "agent": "billing",
+      "cursor": 0,
+      "delivered_interface_revisions": {}
+    },
+    "780224f3-9f0b-4cc2-9e91-20d007935e10": {
+      "agent": "notifications",
+      "cursor": 7,
+      "delivered_interface_revisions": {
+        "confirmation": 1
+      }
+    },
+    "84756ecb-8329-4b24-a98f-ccfe8e0bd4d0": {
+      "agent": "billing",
+      "cursor": 8,
+      "delivered_interface_revisions": {
+        "delivery-record": 1
+      }
+    },
+    "b5e315fb-98e0-4202-9468-bf5d1e7a3593": {
+      "agent": "delivery",
+      "cursor": 0,
+      "delivered_interface_revisions": {}
+    }
+  }
+}

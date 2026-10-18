@@ -87,3 +87,54 @@ def test_real_stdio_processes_recover_agreement_and_cursor(falkor_server):
     finally:
         store.graph.delete()
         store.close()
+
+
+def test_owner_publication_over_stdio_without_agree(falkor_server):
+    from midflight.communication.service import Service
+
+    graph = "published-mcp-" + uuid.uuid4().hex
+    store = Store(graph, falkor_server.port)
+
+    async def scenario():
+        async with connect(graph, falkor_server.port) as owner:
+            joined = await call(owner, "join", name="owner", task="Provide API", request_id="j")
+            Service(store).configure_interfaces({"api": "owner"})
+            published = await call(
+                owner,
+                "send",
+                session_id=joined["session_id"],
+                kind="interface",
+                body="Return copied records",
+                request_id="p",
+                topic="api",
+                expected_revision=0,
+            )
+        async with connect(graph, falkor_server.port) as consumer:
+            joined = await call(
+                consumer,
+                "join",
+                name="consumer",
+                task="Use API",
+                request_id="j",
+                dependencies=["api"],
+            )
+            assert joined["updates"]["interfaces"][0]["id"] == published["event_id"]
+            assert not Service(store).status()["proposals"]
+            bad = await consumer.call_tool(
+                "send",
+                {
+                    "session_id": joined["session_id"],
+                    "kind": "interface",
+                    "body": "Wrong owner",
+                    "request_id": "bad",
+                    "topic": "api",
+                    "expected_revision": 1,
+                },
+            )
+            assert bad.is_error and "Only the interface owner" in bad.content[0].text
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        store.graph.delete()
+        store.close()

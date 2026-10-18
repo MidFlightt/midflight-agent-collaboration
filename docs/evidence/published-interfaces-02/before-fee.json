@@ -1,0 +1,65 @@
+{
+  "sessions": {
+    "211ecd26-1634-4a83-ba26-92d573d2d69e": {
+      "agent": "delivery",
+      "cursor": 0,
+      "delivered_interface_revisions": {}
+    },
+    "545d7e7d-36fe-4fe8-b590-c6ec557ba5c5": {
+      "agent": "notifications",
+      "cursor": 6,
+      "delivered_interface_revisions": {
+        "confirmation": 1
+      }
+    },
+    "95d04396-e92a-4a9f-9b3f-f9f27c537feb": {
+      "agent": "booking",
+      "cursor": 8,
+      "delivered_interface_revisions": {
+        "booking-request": 1,
+        "delivery-record": 1
+      }
+    },
+    "b36671a4-68d0-4403-8fb4-f0541c0bd641": {
+      "agent": "billing",
+      "cursor": 7,
+      "delivered_interface_revisions": {
+        "delivery-record": 1
+      }
+    },
+    "bac352bb-5060-4099-bc2a-594c7469dfde": {
+      "agent": "delivery",
+      "cursor": 2,
+      "delivered_interface_revisions": {
+        "delivery-record": 1
+      }
+    },
+    "d691266f-522f-4c87-8c40-bad7088cb731": {
+      "agent": "notifications",
+      "cursor": 0,
+      "delivered_interface_revisions": {}
+    },
+    "ea6df5eb-5245-4666-bcd6-f8932692cde1": {
+      "agent": "billing",
+      "cursor": 0,
+      "delivered_interface_revisions": {}
+    },
+    "ff6c25fe-216d-4a8e-9b99-8b30409cb358": {
+      "agent": "booking",
+      "cursor": 0,
+      "delivered_interface_revisions": {}
+    }
+  },
+  "event_count": 8,
+  "hashes": {
+    "billing": "429f92028dbd03995d90227f685d27a94ee19f4dadef6f9a19fa78d25bf2c18c",
+    "delivery": "d6b0d28b52a3a0691bfae13ea3f972022ce1268cec18504fe4afcadbde6d9998",
+    "booking": "bf73974219a7d8ca16d5b79ae26b9c1ca32aad1984323a459e051f5329e42861",
+    "notifications": "00b932c6bae796980f693239651b3ce85c013aa3b63eb02169c55db3552f5ffa"
+  },
+  "interface_revisions": {
+    "booking-request": 1,
+    "confirmation": 1,
+    "delivery-record": 1
+  }
+}

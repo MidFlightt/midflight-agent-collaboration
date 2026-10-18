@@ -1,5 +1,9 @@
 # Measured rehearsal results — 2026-10-17
 
+For the subsequent owner-publication and no-wakeup work, see
+[the follow-up measurements](published-interfaces.md). The results below describe
+the earlier agreement-based migration.
+
 Two actual four-terminal Codex runs were executed. The CLI used its configured
 default model, displayed as GPT-6.1-Sol. Agents wrote and tested the component code;
 the operator combined their owned modules without editing their implementations.

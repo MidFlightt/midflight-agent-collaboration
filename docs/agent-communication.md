@@ -28,11 +28,18 @@ that broadcast raw developer inputs. There is no silent conversion of legacy gra
 5. Run actual agents against incompatible starters, combine their owned modules,
    introduce the fee change, and measure messages, code changes and real tests.
 
+## Owner publication follow-up
+
+The current default is owner publication, not unanimous acceptance. See
+[published interface behavior](published-interfaces.md) for ownership, objections,
+transfers, delivery metadata and the no-wakeup rehearsal. Earlier agreement-based
+rehearsals below remain historical evidence; they do not prescribe the current workflow.
+
 ## Storage and consistency
 
 One graph represents one run. `CState` contains a monotonically increasing revision
 and canonical JSON containing members, sessions, events, proposals, acceptances and
-retry receipts. `CAgent` and `CTopic` nodes with `DEPENDS_ON` edges form the routing
+retry receipts, interface owners, published interfaces and open objections. `CAgent` and `CTopic` nodes with `DEPENDS_ON` edges form the routing
 projection. This deliberately small-project design keeps the behavior auditable:
 all state and projection changes occur in one atomic, revision-guarded Cypher write.
 There is no process-local coordination lock or expiring distributed writer lease.
@@ -46,7 +53,7 @@ Inbox responses advance durable per-session cursors; replay a lost response with
 `check_in(after=last_received_cursor)`. Pagination filters recipients before slicing.
 A new chat gets a separate cursor and recovers agreements and outstanding work.
 
-An author is not an implicit accepter. Every named participant explicitly accepts
+For optional negotiated proposals, an author is not an implicit accepter. Every named participant explicitly accepts
 an exact proposal ID and revision. Superseded proposals are rejected. A new pending
 proposal does not erase the last agreed interface; it replaces that agreement only
 when all participants accept. Reports of implementation or tests are agent statements,
@@ -71,7 +78,7 @@ The demo seeds these dependencies:
 | --- | --- |
 | Billing | delivery-record, cancellation-policy |
 | Delivery | delivery-record, booking-request, cancellation-policy |
-| Booking | booking-request |
+| Booking | booking-request, delivery-record |
 | Notifications | confirmation |
 
 This distinction matters: cancellation semantics can change without changing the
@@ -99,7 +106,8 @@ Each agent has a persistent Codex session and a short prepared prompt. Check-ins
 occur at useful work boundaries; sending a message also returns available updates.
 There is no periodic agent polling or auto-turn scheduler. An idle agent needs an
 explicit notification or the human's next task prompt. The measured validation
-uses one neutral notification to Billing after the fee policy exists.
+used one neutral notification to Billing in the earlier rehearsals. The owner-publication
+follow-up leaves Billing idle, with the policy pending; no notification is sent.
 
 Reset saves the current report, marks the old run archived, closes its tmux session,
 retains code/tests/profiles and the entire graph, then creates a fresh run and
@@ -122,7 +130,7 @@ refund revenue, zero and below-fee totals, repeated cancellation, snapshot isola
 booking requests and notification generation. It is not a full deployed browser
 or production end-to-end test. Component tests may use local mocks; their passing
 alone is not evidence of integration. The validator currently follows the negotiated
-`delivery_id` shape and would need adaptation for a different valid contract.
+selected `id` or `delivery_id` shape and would need adaptation for other valid contracts.
 
 The JSON snapshot is rewritten on every operation, including cursor advancement;
 there is a single project-level CAS contention point and no retention/compaction.

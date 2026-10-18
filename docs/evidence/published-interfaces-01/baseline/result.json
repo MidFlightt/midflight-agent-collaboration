@@ -1,0 +1,34 @@
+{
+  "label": "baseline",
+  "fee_cents": 0,
+  "id_field": "id",
+  "hashes": {
+    "billing": "486412fdf4056a7a79ffea89df285d184f360ce77c849573dd3de0c67d2a6ae9",
+    "delivery": "48fa9da5b03afaeb83bdbc2aa50ab8bc51022bd6e4ecbe491be5aaf811301014",
+    "booking": "ce3d3dcd943e96d3ede6784a93ab97b4685b98bab452393d4db780033bf6e943",
+    "notifications": "ebe06b22691ff4d1db785e748e70b30c40ac75399c1d83d7c97107a7070b5347"
+  },
+  "components": {
+    "billing": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_empty_shapes (test_billing.BillingTests.test_empty_shapes) ... ok\ntest_invalid_records (test_billing.BillingTests.test_invalid_records) ... ok\ntest_report_reads_fresh_delivery_snapshot (test_billing.BillingTests.test_report_reads_fresh_delivery_snapshot) ... ok\ntest_saved_refunds_and_status_counts (test_billing.BillingTests.test_saved_refunds_and_status_counts) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.000s\n\nOK\n"
+    },
+    "delivery": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_all_results_are_independent_snapshots (test_delivery.DeliveryTests.test_all_results_are_independent_snapshots) ... ok\ntest_cancellation_saves_full_refund_and_is_idempotent (test_delivery.DeliveryTests.test_cancellation_saves_full_refund_and_is_idempotent) ... ok\ntest_create_and_retrieve (test_delivery.DeliveryTests.test_create_and_retrieve) ... ok\ntest_invalid_and_unknown_ids (test_delivery.DeliveryTests.test_invalid_and_unknown_ids) ... ok\ntest_invalid_creation_does_not_mutate_store (test_delivery.DeliveryTests.test_invalid_creation_does_not_mutate_store) ... ok\ntest_nonblank_strings_are_preserved (test_delivery.DeliveryTests.test_nonblank_strings_are_preserved) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 0.000s\n\nOK\n"
+    },
+    "booking": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_book_route_passes_validated_fields_and_returns_record (test_booking_component.BookingTests.test_book_route_passes_validated_fields_and_returns_record) ... ok\ntest_browser_submission_cancellation_and_errors (test_booking_component.BookingTests.test_browser_submission_cancellation_and_errors) ... ok\ntest_invalid_requests (test_booking_component.BookingTests.test_invalid_requests) ... ok\ntest_valid_request_preserves_fields (test_booking_component.BookingTests.test_valid_request_preserves_fields) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.052s\n\nOK\n"
+    },
+    "notifications": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_confirmation_identifies_customer_and_delivery (test_notifications.ConfirmationTests.test_confirmation_identifies_customer_and_delivery) ... ok\ntest_invalid_delivery_id_is_rejected (test_notifications.ConfirmationTests.test_invalid_delivery_id_is_rejected) ... ok\ntest_invalid_email_is_rejected (test_notifications.ConfirmationTests.test_invalid_email_is_rejected) ... ok\ntest_message_contains_no_monetary_policy (test_notifications.ConfirmationTests.test_message_contains_no_monetary_policy) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.000s\n\nOK\n"
+    }
+  },
+  "combined": {
+    "returncode": 0,
+    "output": "test_real_workflow (__main__.CombinedCode.test_real_workflow) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nOK\n",
+    "seconds": 0.02670524999848567
+  }
+}

@@ -1,10 +1,11 @@
 # MidFlight: communication between coding agents
 
-Four real coding sessions negotiate shared interfaces and receive relevant changes
+Four real coding sessions use owner-published interfaces and receive relevant changes
 through a FalkorDB dependency graph. MidFlight makes no model calls. There are no
 claims, mandatory AI reviewers or approval gates. The tools are **join, send,
-check_in, agree**. Agreement records an exact revision accepted by participants;
-it does not certify their code.
+check_in, agree**. An owner's publication is the default immediately. Consumers
+follow it without mutual acceptance. Explicit objections handle incompatibilities;
+`agree` is optional for negotiated choices and never certifies code.
 
 ## Run the four-terminal prototype
 
@@ -17,13 +18,16 @@ uv run --extra falkordb --extra demo python -m midflight.communication.harness -
 Sign into `codex` first; `codex` and `tmux` must be on PATH. Open
 http://127.0.0.1:18937. The four short task prompts are prepared but **not sent**.
 Press Enter in each terminal to begin. Billing and Delivery start with incompatible
-list/mapping interfaces; the agents choose how to resolve them.
+list/mapping interfaces. Delivery owns the published record interface; Billing
+adapts its consumer to it, or raises a concrete incompatibility.
 
 After the initial build, tell Delivery: “When a delivery is cancelled, keep a
 four-credit cancellation fee and refund the rest, never below zero.” A working
-peer receives the policy at its next checkpoint. If Billing has finished its turn,
-tell it that a MidFlight message is waiting. There is no idle polling or automatic
-model wake-up. Booking and Notifications are not subscribed to cancellation policy.
+peer receives the policy at its next natural work checkpoint. Leave idle peers alone:
+the update stays pending until their next useful task. No repeated prompts, idle
+polling or automatic model wake-up. Booking and Notifications are not subscribed to
+cancellation policy. Keep business-rule formulas in policy messages, separate from
+published API shape, so an unchanged interface does not generate unrelated updates.
 
 Reset retains the prior run's code, tests, graph and report, then prepares another
 set of unsent prompts. The run's directory is listed in `/report`. To recover a
@@ -37,14 +41,15 @@ uv run --extra falkordb --extra demo python -m midflight.communication.harness \
 Run the independent combined-code check against a run directory:
 
 ```sh
-uv run python -m midflight.communication.validate /absolute/path/to/run --label baseline
-uv run python -m midflight.communication.validate /absolute/path/to/run --fee 400 --label fee
+uv run python -m midflight.communication.validate /absolute/path/to/run --label baseline --id-field id
+uv run python -m midflight.communication.validate /absolute/path/to/run --fee 400 --label fee --id-field id
 ```
 
-This validator tests the delivery-ID record shape used in the measured rehearsal;
-if agents negotiate a different shape, update the test against that explicit contract.
+Select `--id-field id` or `--id-field delivery_id` from the actual published contract.
+Other negotiated API changes require adapting the independent test to that contract.
 It combines only each agent's owned production module and preserves the originals.
 
+[Owner-publication behavior](docs/published-interfaces.md) ·
 [Architecture, migration and limitations](docs/agent-communication.md) ·
 [Measured evidence](docs/evidence/README.md)
 

@@ -22,22 +22,22 @@ class CombinedCode(unittest.TestCase):
         second=delivery.create_delivery(1000,'B','South')
         low=delivery.create_delivery(200,'C','West')
         zero=delivery.create_delivery(0,'D','East')
-        self.assertEqual(len({r['delivery_id'] for r in [first,second,low,zero]}),4)
-        self.assertEqual(delivery.get_delivery(first['delivery_id'])['status'],'confirmed')
-        cancelled=delivery.cancel_delivery(second['delivery_id'])
+        self.assertEqual(len({r[ID_FIELD] for r in [first,second,low,zero]}),4)
+        self.assertEqual(delivery.get_delivery(first[ID_FIELD])['status'],'confirmed')
+        cancelled=delivery.cancel_delivery(second[ID_FIELD])
         self.assertEqual(cancelled['refund_cents'],max(1000-FEE,0))
-        self.assertEqual(delivery.cancel_delivery(second['delivery_id']),cancelled)
-        self.assertEqual(delivery.cancel_delivery(low['delivery_id'])['refund_cents'],max(200-FEE,0))
-        self.assertEqual(delivery.cancel_delivery(zero['delivery_id'])['refund_cents'],0)
+        self.assertEqual(delivery.cancel_delivery(second[ID_FIELD]),cancelled)
+        self.assertEqual(delivery.cancel_delivery(low[ID_FIELD])['refund_cents'],max(200-FEE,0))
+        self.assertEqual(delivery.cancel_delivery(zero[ID_FIELD])['refund_cents'],0)
         self.assertEqual(billing.revenue_report(),{'revenue_cents':1200+min(FEE,1000)+min(FEE,200),
                                                   'confirmed':1,'cancelled':3})
         snapshot=delivery.get_delivery_records()
         records=list(snapshot.values()) if isinstance(snapshot,dict) else snapshot
         records[0]['total_cents']=99999
-        self.assertEqual(delivery.get_delivery(first['delivery_id'])['total_cents'],1200)
-        message=notifications.confirmation('a@example.com',first['delivery_id'])
+        self.assertEqual(delivery.get_delivery(first[ID_FIELD])['total_cents'],1200)
+        message=notifications.confirmation('a@example.com',first[ID_FIELD])
         self.assertIsInstance(message,str)
-        self.assertIn(str(first['delivery_id']),message)
+        self.assertIn(str(first[ID_FIELD]),message)
         self.assertIsInstance(booking.page(),str)
         with self.assertRaises((KeyError,ValueError)):
             delivery.cancel_delivery(999999)
@@ -46,7 +46,9 @@ if __name__=='__main__': unittest.main()
 """
 
 
-def validate(root, fee=0, label="baseline"):
+def validate(root, fee=0, label="baseline", id_field="delivery_id"):
+    if id_field not in {"id", "delivery_id"}:
+        raise ValueError("Use the ID field from the published interface")
     root = Path(root).resolve()
     destination = root / "validation" / label
     destination.mkdir(parents=True, exist_ok=False)
@@ -63,7 +65,9 @@ def validate(root, fee=0, label="baseline"):
             capture_output=True,
         )
         components[name] = dict(returncode=test.returncode, output=test.stdout + test.stderr)
-    (destination / "test_combined.py").write_text(f"FEE={fee}\n" + INTEGRATION)
+    (destination / "test_combined.py").write_text(
+        f"FEE={fee}\nID_FIELD={id_field!r}\n" + INTEGRATION
+    )
     started = time.monotonic()
     result = subprocess.run(
         [sys.executable, "test_combined.py", "-v"], cwd=destination, text=True, capture_output=True
@@ -71,6 +75,7 @@ def validate(root, fee=0, label="baseline"):
     evidence = dict(
         label=label,
         fee_cents=fee,
+        id_field=id_field,
         hashes=hashes,
         components=components,
         combined=dict(
@@ -89,10 +94,14 @@ def main():
     parser.add_argument("root", type=Path)
     parser.add_argument("--fee", type=int, default=0)
     parser.add_argument("--label", default="baseline")
+    parser.add_argument("--id-field", choices=["id", "delivery_id"], default="delivery_id")
     args = parser.parse_args()
-    result = validate(args.root, args.fee, args.label)
+    result = validate(args.root, args.fee, args.label, args.id_field)
     print(json.dumps(result, indent=2))
-    raise SystemExit(result["combined"]["returncode"])
+    failed = result["combined"]["returncode"] != 0 or any(
+        component["returncode"] != 0 for component in result["components"].values()
+    )
+    raise SystemExit(int(failed))
 
 
 if __name__ == "__main__":

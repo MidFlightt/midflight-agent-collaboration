@@ -1,0 +1,34 @@
+{
+  "label": "baseline",
+  "fee_cents": 0,
+  "id_field": "id",
+  "hashes": {
+    "billing": "429f92028dbd03995d90227f685d27a94ee19f4dadef6f9a19fa78d25bf2c18c",
+    "delivery": "d6b0d28b52a3a0691bfae13ea3f972022ce1268cec18504fe4afcadbde6d9998",
+    "booking": "bf73974219a7d8ca16d5b79ae26b9c1ca32aad1984323a459e051f5329e42861",
+    "notifications": "00b932c6bae796980f693239651b3ce85c013aa3b63eb02169c55db3552f5ffa"
+  },
+  "components": {
+    "billing": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_empty_inputs (test_billing.BillingTests.test_empty_inputs) ... ok\ntest_entry_point_consumes_published_mapping (test_billing.BillingTests.test_entry_point_consumes_published_mapping) ... ok\ntest_invalid_container_and_records (test_billing.BillingTests.test_invalid_container_and_records) ... ok\ntest_invalid_fields (test_billing.BillingTests.test_invalid_fields) ... ok\ntest_saved_refunds_and_counts (test_billing.BillingTests.test_saved_refunds_and_counts) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.001s\n\nOK\n"
+    },
+    "delivery": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_all_public_results_are_independent_snapshots (test_delivery.DeliveryTests.test_all_public_results_are_independent_snapshots) ... ok\ntest_cancel_saves_full_refund_and_is_idempotent (test_delivery.DeliveryTests.test_cancel_saves_full_refund_and_is_idempotent) ... ok\ntest_create_and_retrieve_unique_records (test_delivery.DeliveryTests.test_create_and_retrieve_unique_records) ... ok\ntest_invalid_and_unknown_ids (test_delivery.DeliveryTests.test_invalid_and_unknown_ids) ... ok\ntest_invalid_creation_does_not_save_records (test_delivery.DeliveryTests.test_invalid_creation_does_not_save_records) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.000s\n\nOK\n"
+    },
+    "booking": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_browser_requests_and_server_amounts (test_booking.BookingTests.test_browser_requests_and_server_amounts) ... ok\ntest_invalid_requests (test_booking.BookingTests.test_invalid_requests) ... ok\ntest_valid_request (test_booking.BookingTests.test_valid_request) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 0.202s\n\nOK\n"
+    },
+    "notifications": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_confirmation_preserves_address_and_identifies_delivery (test_notifications.ConfirmationTests.test_confirmation_preserves_address_and_identifies_delivery) ... ok\ntest_invalid_addresses (test_notifications.ConfirmationTests.test_invalid_addresses) ... ok\ntest_invalid_delivery_ids (test_notifications.ConfirmationTests.test_invalid_delivery_ids) ... ok\ntest_notify_route_rejects_invalid_input (test_notifications.ConfirmationTests.test_notify_route_rejects_invalid_input) ... ok\ntest_notify_route_returns_local_message (test_notifications.ConfirmationTests.test_notify_route_returns_local_message) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.000s\n\nOK\n"
+    }
+  },
+  "combined": {
+    "returncode": 0,
+    "output": "test_real_workflow (__main__.CombinedCode.test_real_workflow) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nOK\n",
+    "seconds": 0.030349125008797273
+  }
+}
