@@ -1,0 +1,48 @@
+{
+  "billing": {
+    "requested_tool_calls": {
+      "join": 1,
+      "send": 4,
+      "agree": 1,
+      "check_in": 3
+    },
+    "turn_seconds": [
+      35.971,
+      14.386
+    ]
+  },
+  "delivery": {
+    "requested_tool_calls": {
+      "join": 1,
+      "send": 9,
+      "agree": 2,
+      "check_in": 2
+    },
+    "turn_seconds": [
+      47.404,
+      19.046
+    ]
+  },
+  "booking": {
+    "requested_tool_calls": {
+      "join": 1,
+      "send": 3,
+      "check_in": 2,
+      "agree": 2
+    },
+    "turn_seconds": [
+      54.96
+    ]
+  },
+  "notifications": {
+    "requested_tool_calls": {
+      "join": 1,
+      "send": 3,
+      "agree": 1,
+      "check_in": 1
+    },
+    "turn_seconds": [
+      30.307
+    ]
+  }
+}

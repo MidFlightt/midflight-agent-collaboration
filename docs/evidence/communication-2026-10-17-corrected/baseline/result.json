@@ -1,0 +1,33 @@
+{
+  "label": "baseline",
+  "fee_cents": 0,
+  "hashes": {
+    "billing": "6e891d1462a34235257190c89fd1cd77113c5076436d476eef524a91ad1e0040",
+    "delivery": "774c56b35d01b229b32bbc3c1b40efab82ad1b64548e60711c52b57280ff82d7",
+    "booking": "c6eb530a0b432b4aca0f4353ffd0d09a8ce173198bf5403d1e51429ffa6a78f5",
+    "notifications": "74a81a171d14ce31043a78c26c624c917ee5589c7bfc1c38496c6b1db3aa3c66"
+  },
+  "components": {
+    "billing": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_empty_records (test_billing.BillingTests.test_empty_records) ... ok\ntest_excess_refund_and_invalid_status (test_billing.BillingTests.test_excess_refund_and_invalid_status) ... ok\ntest_invalid_amounts (test_billing.BillingTests.test_invalid_amounts) ... ok\ntest_invalid_container_or_record (test_billing.BillingTests.test_invalid_container_or_record) ... ok\ntest_missing_fields (test_billing.BillingTests.test_missing_fields) ... ok\ntest_report_empty_real_store (test_billing.BillingTests.test_report_empty_real_store) ... ok\ntest_report_reads_delivery_records (test_billing.BillingTests.test_report_reads_delivery_records) ... ok\ntest_saved_amounts_and_counts_without_mutation (test_billing.BillingTests.test_saved_amounts_and_counts_without_mutation) ... ok\n\n----------------------------------------------------------------------\nRan 9 tests in 0.001s\n\nOK\n"
+    },
+    "delivery": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_cancellation_saves_full_refund_and_is_idempotent (test_delivery.DeliveryTests.test_cancellation_saves_full_refund_and_is_idempotent) ... ok\ntest_create_and_retrieve_isolated_snapshots (test_delivery.DeliveryTests.test_create_and_retrieve_isolated_snapshots) ... ok\ntest_invalid_and_unknown_ids (test_delivery.DeliveryTests.test_invalid_and_unknown_ids) ... ok\ntest_invalid_creation_leaves_store_unchanged (test_delivery.DeliveryTests.test_invalid_creation_leaves_store_unchanged) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.000s\n\nOK\n"
+    },
+    "booking": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_book_route_passes_validated_request_and_server_response (test_booking_component.BookingComponent.test_book_route_passes_validated_request_and_server_response) ... ok\ntest_browser_submission_server_amounts_and_errors (test_booking_component.BookingComponent.test_browser_submission_server_amounts_and_errors) ... ok\ntest_invalid_amounts (test_booking_component.BookingComponent.test_invalid_amounts) ... ok\ntest_invalid_booking_does_not_create_delivery (test_booking_component.BookingComponent.test_invalid_booking_does_not_create_delivery) ... ok\ntest_invalid_customer_or_destination (test_booking_component.BookingComponent.test_invalid_customer_or_destination) ... ok\ntest_page_exposes_form_and_displays_server_values_as_text (test_booking_component.BookingComponent.test_page_exposes_form_and_displays_server_values_as_text) ... ok\ntest_valid_request_normalizes_text_and_preserves_cents (test_booking_component.BookingComponent.test_valid_request_normalizes_text_and_preserves_cents) ... ok\n\n----------------------------------------------------------------------\nRan 8 tests in 0.055s\n\nOK\n"
+    },
+    "notifications": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_confirmation_preserves_recipient_and_id (test_notifications.NotificationsTests.test_confirmation_preserves_recipient_and_id) ... ok\ntest_invalid_delivery_id (test_notifications.NotificationsTests.test_invalid_delivery_id) ... ok\ntest_invalid_email (test_notifications.NotificationsTests.test_invalid_email) ... ok\ntest_notify_route (test_notifications.NotificationsTests.test_notify_route) ... ok\ntest_notify_route_rejects_invalid_input (test_notifications.NotificationsTests.test_notify_route_rejects_invalid_input) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.000s\n\nOK\n"
+    }
+  },
+  "combined": {
+    "returncode": 0,
+    "output": "test_real_workflow (__main__.CombinedCode.test_real_workflow) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nOK\n",
+    "seconds": 0.025350750016514212
+  }
+}

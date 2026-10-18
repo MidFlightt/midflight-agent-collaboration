@@ -117,6 +117,7 @@ class InteractiveTheater:
                         "MIDFLIGHT_URL": f"http://127.0.0.1:{theater.api_port}",
                         "MIDFLIGHT_TOKEN": theater.tokens[name],
                         "MIDFLIGHT_PROJECT": theater.project,
+                        "MIDFLIGHT_DB_PORT": str(theater.db_port),
                         "PYTHONPATH": str(theater.repo),
                         "MIDFLIGHT_DEMO_CONTROLLER": f"http://127.0.0.1:{self.controller_port}",
                         "MIDFLIGHT_DEMO_AGENT": name,
@@ -162,7 +163,9 @@ class InteractiveTheater:
                 "-C",
                 str(theater.root / name),
             ]
-            tools = ["check_in", "submit_claim", "acknowledge_directive"]
+            tools = getattr(
+                self, "coordination_tools", ["check_in", "submit_claim", "acknowledge_directive"]
+            )
             tools.extend(self.plan_tools(name))
             for tool in tools:
                 command += [
@@ -242,7 +245,7 @@ class InteractiveTheater:
             "-t",
             self.panes[self.names[0]],
             "-T",
-            "PRICING / LEAD — type direction here",
+            getattr(self, "first_pane_title", "PRICING / LEAD — type direction here"),
         )
         self.poller = threading.Thread(target=self._checkpoints, daemon=True)
         self.poller.start()

@@ -1,0 +1,33 @@
+{
+  "label": "cancellation-fee",
+  "fee_cents": 400,
+  "hashes": {
+    "billing": "09ad9c5a71472c53608e7882c8eb9cc9466fcbd981266b547c252893c309105b",
+    "delivery": "3f2ebae661be581d1bdd1774ed553ed35e7455cae9774a7085f3765e380bb6df",
+    "booking": "e5a49f49be64967fb27ce2a997e1a349afe2883e17ef941070f585f3b68604fe",
+    "notifications": "bfc1752c19090935395f7b5947aa04f293ccb9dde3444f782c004fefccc6e590"
+  },
+  "components": {
+    "billing": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_cancellation_fee_uses_saved_refunds_at_threshold (test_billing.BillingTests.test_cancellation_fee_uses_saved_refunds_at_threshold) ... ok\ntest_empty_report (test_billing.BillingTests.test_empty_report) ... ok\ntest_historical_refunds_are_not_recalculated (test_billing.BillingTests.test_historical_refunds_are_not_recalculated) ... ok\ntest_report_uses_current_saved_records (test_billing.BillingTests.test_report_uses_current_saved_records) ... ok\ntest_saved_refunds_determine_revenue (test_billing.BillingTests.test_saved_refunds_determine_revenue) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.001s\n\nOK\n"
+    },
+    "delivery": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_cancellation_keeps_four_credits_and_is_idempotent (test_delivery_component.DeliveryComponent.test_cancellation_keeps_four_credits_and_is_idempotent) ... ok\ntest_create_and_retrieve (test_delivery_component.DeliveryComponent.test_create_and_retrieve) ... ok\ntest_invalid_creation_does_not_save_records (test_delivery_component.DeliveryComponent.test_invalid_creation_does_not_save_records) ... ok\ntest_reject_invalid_and_unknown_ids (test_delivery_component.DeliveryComponent.test_reject_invalid_and_unknown_ids) ... ok\ntest_snapshots_cannot_modify_store_and_remain_snapshots (test_delivery_component.DeliveryComponent.test_snapshots_cannot_modify_store_and_remain_snapshots) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.000s\n\nOK\n"
+    },
+    "booking": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_book_dispatch_passes_validated_request (test_booking.BookingTests.test_book_dispatch_passes_validated_request) ... ok\ntest_browser_submits_displays_server_refund_and_recovers_from_errors (test_booking.BookingTests.test_browser_submits_displays_server_refund_and_recovers_from_errors) ... ok\ntest_rejects_invalid_amounts (test_booking.BookingTests.test_rejects_invalid_amounts) ... ok\ntest_rejects_missing_customer_or_destination (test_booking.BookingTests.test_rejects_missing_customer_or_destination) ... ok\ntest_valid_request_normalizes_text_and_allows_zero (test_booking.BookingTests.test_valid_request_normalizes_text_and_allows_zero) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.186s\n\nOK\n"
+    },
+    "notifications": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_confirmation_and_route (test_notifications.NotificationsTests.test_confirmation_and_route) ... ok\ntest_invalid_delivery_id (test_notifications.NotificationsTests.test_invalid_delivery_id) ... ok\ntest_invalid_email (test_notifications.NotificationsTests.test_invalid_email) ... ok\ntest_message_has_no_monetary_policy (test_notifications.NotificationsTests.test_message_has_no_monetary_policy) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.000s\n\nOK\n"
+    }
+  },
+  "combined": {
+    "returncode": 0,
+    "output": "test_real_workflow (__main__.CombinedCode.test_real_workflow) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nOK\n",
+    "seconds": 0.026866208005230874
+  }
+}

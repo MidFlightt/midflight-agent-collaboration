@@ -1,0 +1,10 @@
+{
+  "seconds": 1.153903625003295,
+  "old_root": "/private/tmp/midflight-agent-communication/runs/rehearsal-03",
+  "new_root": "/private/tmp/midflight-agent-communication/runs/interactive-0453d18a5b",
+  "old_graph": "communication-6a876e9afa6b4de5a70cfaf15f5e7c28",
+  "new_graph": "communication-ef6ea0ee8db54e31b187eefa734e1a25",
+  "prior_code_unchanged": true,
+  "new_event_count": 0,
+  "archived": true
+}

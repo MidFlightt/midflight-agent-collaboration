@@ -136,7 +136,8 @@ class AppServer:
                 "ephemeral": True,
                 "approvalPolicy": "never",
                 "sandbox": "read-only",
-                "baseInstructions": "You are a bounded coordination reviewer. Use supplied data only. "
+                "baseInstructions": "You are a bounded coordination reviewer. "
+                "Use supplied data only. "
                 "Never run tools or read files. Return the requested JSON.",
             },
             deadline,

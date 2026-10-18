@@ -1,0 +1,19 @@
+{
+  "source": "/tmp/midflight-peer-demo",
+  "files": {
+    "midflight/theater/warm_reviewer.py": "6503a49da1328bc976a689edfd4751d5da4290bb50c762460bb4fce25e2ee931",
+    "tests/unit/test_peer_review_latency.py": "d44635a1079bfcc66994a4e15596738e473d05c3e053812f47c91bae378c7e62",
+    "midflight/adapters/worker.py": "7df9163791a989abff02fcfd7f6ba5d408582e90bb6ea98b626b565ecdc5d0ab",
+    "midflight/config.py": "607554966e5066c7dea600c53257fb85b5f7d350bf533a28d2d8a5be3e52b11d",
+    "midflight/main.py": "22fa77b02cdca8b661656b90047c4f9dc1420a32a676c6ab5c12c5d841063fb5",
+    "midflight/services/claims.py": "0df26d5ea79c260fa9f27eaa9d7917e04ac1fd4aad063bc14c10255db13ea452",
+    "midflight/theater/app.py": "b537fd7c8b6956d8681fdbe5bc629766185fc92eab2d58be22af9f0e96fa4b9f",
+    "midflight/theater/hosted_reviewer.py": "3f2a04a29de5f460f15b32a901d429476995afb6e721e72eda1678412fde8ec6",
+    "midflight/theater/peers.py": "59172fb0df571547bc3647ab595213d9d74078dec49c02181e2272e0e5423257",
+    "midflight/theater/resume.py": "bb3ede30c2dfa1c3639c87a8eb2006d3179166555237200b2b9e2f7a74c274da",
+    "midflight/theater/review_policy.py": "4ceb5c3792ce86b84ade69f72715a817d69ddf04244d7322931bc66301139af0",
+    "tests/integration/test_falkor_worker.py": "5c833561b365d61e4bdb3df1e4f824b9e450c82cdcc11505f575cf87ec730775",
+    "tests/unit/test_peer_hosted_reviewer.py": "1aa0eb0eddb74b994ae5cd09dd24fcfacd4e410ee7291e94d366776c0bb7b253",
+    "tests/unit/test_recoverable_worker.py": "eaf37986be6c5cbd6fc76a297010ea609697dfade8a53d226152ad85300f9857"
+  }
+}

@@ -49,6 +49,7 @@ filterwarnings = [
 ]
 
 [tool.ruff]
+extend-exclude = ["docs/evidence"]
 line-length = 100
 target-version = "py312"
 

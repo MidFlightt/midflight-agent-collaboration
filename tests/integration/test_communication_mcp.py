@@ -1,0 +1,89 @@
+"""Independent MCP processes, exactly four tools, and restart recovery."""
+
+import asyncio
+import json
+import sys
+import uuid
+from contextlib import AsyncExitStack, asynccontextmanager
+
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+from midflight.communication.store import Store
+
+
+@asynccontextmanager
+async def connect(graph, port):
+    parameters = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "midflight.communication.mcp"],
+        env={"MIDFLIGHT_PROJECT": graph, "MIDFLIGHT_DB_PORT": str(port)},
+    )
+    async with stdio_client(parameters) as (read, write), ClientSession(read, write) as client:
+        await client.initialize()
+        yield client
+
+
+async def call(client, tool, **args):
+    reply = await client.call_tool(tool, args)
+    assert not reply.is_error, reply.content
+    return json.loads(reply.content[0].text)
+
+
+def test_real_stdio_processes_recover_agreement_and_cursor(falkor_server):
+    graph = "communication-mcp-" + uuid.uuid4().hex
+    store = Store(graph, falkor_server.port)
+
+    async def scenario():
+        async with AsyncExitStack() as stack:
+            a = await stack.enter_async_context(connect(graph, falkor_server.port))
+            b = await stack.enter_async_context(connect(graph, falkor_server.port))
+            assert {t.name for t in (await a.list_tools()).tools} == {
+                "join",
+                "send",
+                "check_in",
+                "agree",
+            }
+            ja, jb = await asyncio.gather(
+                call(a, "join", name="a", task="Billing", request_id="j", dependencies=["records"]),
+                call(
+                    b, "join", name="b", task="Delivery", request_id="j", dependencies=["records"]
+                ),
+            )
+            sa, sb = ja["session_id"], jb["session_id"]
+            proposal = await call(
+                a,
+                "send",
+                session_id=sa,
+                kind="proposal",
+                body="Return mapping",
+                request_id="p",
+                topic="records",
+                participants=["a", "b"],
+            )
+            answers = await asyncio.gather(
+                *[
+                    call(
+                        client,
+                        "agree",
+                        session_id=sid,
+                        proposal_id=proposal["event_id"],
+                        revision=1,
+                        request_id="agree",
+                    )
+                    for client, sid in [(a, sa), (b, sb)]
+                ]
+            )
+            assert sorted(r["state"] for r in answers) == ["agreed", "proposed"]
+            final = await call(b, "check_in", session_id=sb)
+        async with connect(graph, falkor_server.port) as recovered:
+            inbox = await call(recovered, "check_in", session_id=sb)
+            assert inbox["cursor"] == final["cursor"] and not inbox["messages"]
+            fresh = await call(recovered, "join", name="b", task="Delivery", request_id="fresh")
+            assert fresh["updates"]["agreements"][0]["body"] == "Return mapping"
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        store.graph.delete()
+        store.close()

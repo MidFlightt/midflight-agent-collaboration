@@ -1,16 +1,12 @@
 """Run the peer experiment separately: python -m midflight.theater.peers."""
 
-import argparse
 import json
 import os
-import socket
 import subprocess
 import time
-import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-import uvicorn
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -264,28 +260,11 @@ def peer_app(live):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8907)
-    parser.add_argument("--api-port", type=int, default=8908)
-    parser.add_argument("--db-port", type=int, default=6379)
-    parser.add_argument("--scenario", choices=["shop", "delivery"], default="shop")
-    parser.add_argument("--paused", action="store_true", help="Start with an empty graph")
-    args = parser.parse_args()
-    for port in (args.port, args.api_port):
-        with socket.socket() as listener:
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            listener.bind(("127.0.0.1", port))
-    os.umask(0o077)
-    root = Path.home() / ".local/share/midflight-demo" / ("peers-" + uuid.uuid4().hex[:10])
-    scenario = PeerTheater
-    if args.scenario == "delivery":
-        from midflight.theater.delivery_fixture import DeliveryTheater
+    # The hackathon entrypoint now uses agent communication. Historical classes
+    # remain importable for preserved experiments and their regression tests.
+    from midflight.communication.harness import main as communication_main
 
-        scenario = DeliveryTheater
-    live = scenario(root, args.db_port, args.api_port, args.port)
-    if not args.paused:
-        live.launch()
-    uvicorn.run(peer_app(live), host="127.0.0.1", port=args.port, access_log=False)
+    communication_main()
 
 
 if __name__ == "__main__":

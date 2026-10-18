@@ -26,3 +26,6 @@ build/
 
 # Personal learning notes (VibeWise)
 .vibe-wise/
+
+# Isolated coding sessions and local credentials
+runs/
