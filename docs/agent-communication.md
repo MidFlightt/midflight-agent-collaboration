@@ -134,3 +134,5 @@ This is suitable for the four-agent hackathon experiment, not proven at large sc
 Raw human input capture, production authentication, cross-project permissions and
 automatic idle-agent wakeups are deliberately absent. No comparative speedup versus
 the previous reviewer design has been measured.
+
+Terminal highlights use blue for MidFlight calls, orange for other-agent mentions, and red for objection calls and references. Colors label the actual terminal text; they do not establish objection state or correctness.
