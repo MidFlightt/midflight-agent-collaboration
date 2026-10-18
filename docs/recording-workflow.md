@@ -99,3 +99,16 @@ The CLI controls wrapping/truncation, so a long message may still require Show d
 New communication sessions use the MCP server name `midflight`, so calls appear as
 `midflight.join`, `midflight.send`, `midflight.check_in` and `midflight.object`.
 Existing loaded sessions retain their previous server name until relaunched.
+
+## Reversible terminal highlighting
+
+The browser has a Highlights on/off toggle, remembered locally. Blue marks the four
+MidFlight tool names (including the older theater_midflight prefix); orange marks
+explicit change-related wording such as "Adapted to", "switched to" and "policy revision".
+This is syntax highlighting of existing output, not a classification of delivery,
+application or correctness. It never injects narration, rewrites terminal bytes or
+adds success colors. Toggle off to restore original text colors immediately.
+
+Implemented with the existing xterm decoration approach. Tested against actual visible
+agent output and with `node tests/browser/communication-colors.cjs`. Matching is per
+rendered line, so phrases split across lines may not be highlighted.

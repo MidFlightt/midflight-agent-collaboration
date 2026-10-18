@@ -1,8 +1,80 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><title>MidFlight · live coding team</title><link rel="stylesheet" href="/vendor/xterm.css"><style>
 html,body{margin:0;height:100%;background:#101114;color:#ddd;font:13px system-ui}header{height:48px;display:flex;align-items:center;gap:16px;padding:0 15px}button,a{background:#273041;color:#eee;border:0;border-radius:4px;padding:7px 12px;cursor:pointer;text-decoration:none}button:disabled{opacity:.5;cursor:wait}#terminal{height:calc(100% - 48px);padding:0 8px}#note{margin-left:auto;font-size:12px;color:#c4c4cf}small{color:#9c9ca8}
 
-</style><header><b>MidFlight · live coding team</b><small>Type your direction in <strong>any agent</strong></small><button id="reset">Reset</button><button id="fullscreen" title="Expand all four coding panes">Fullscreen</button><a href="/report" target="_blank" title="Recorded communication and test evidence">Run evidence</a><span id="note">Connecting…</span></header><div id="terminal"></div>
+</style><header><b>MidFlight · live coding team</b><small>Type your direction in <strong>any agent</strong></small><button id="reset">Reset</button><button id="colors" title="Blue: MidFlight calls. Orange: change-related wording, not proof of application.">Highlights: on</button><button id="fullscreen" title="Expand all four coding panes">Fullscreen</button><a href="/report" target="_blank" title="Recorded communication and test evidence">Run evidence</a><span id="note">Connecting…</span></header><div id="terminal"></div>
 <script src="/vendor/xterm.js"></script><script src="/vendor/addon-fit.js"></script><script>
+// BEGIN DEMO TEXT COLORS — presentation only; never edits the terminal stream.
+function demoColorRanges(text) {
+  const rules = [
+    ['#79bdff', /\b(?:theater_)?midflight\.(?:join|send|check_in|object)\b/g],
+    ['#f7ba55', /\b(?:new direction|update received|implementation changed|changed (?:my |the )?approach|adapt(?:ed|ing) to|switched to|previously expected|I (?:changed|updated)|policy (?:update|revision)|cancellation fee)\b/gi],
+  ];
+  const cells = Array(text.length).fill(null);
+  for (const [color, pattern] of rules) {
+    for (const match of text.matchAll(pattern)) cells.fill(color, match.index, match.index + match[0].length);
+  }
+  const ranges = [];
+  for (let start = 0; start < cells.length;) {
+    let end = start + 1;
+    while (end < cells.length && cells[end] === cells[start]) end++;
+    if (cells[start]) ranges.push({start, end, color: cells[start]});
+    start = end;
+  }
+  return ranges;
+}
+// END DEMO TEXT COLORS
+function installDemoTextColors(term, button) {
+  let enabled = localStorage.getItem("midflight-text-colors") !== "off";
+  function label() { button.textContent = "Highlights: " + (enabled ? "on" : "off"); button.setAttribute("aria-pressed", String(enabled)); }
+  label();
+  let pending = false, previousBuffer, previousCols;
+  const decorated = new Map();
+  function dispose(entry) { for (const decoration of entry.decorations) decoration.dispose(); entry.marker.dispose(); }
+  function paint() {
+    pending = false;
+    if (!enabled) {
+      for (const entry of decorated.values()) dispose(entry);
+      decorated.clear(); return;
+    }
+    const buffer = term.buffer.active;
+    if (buffer !== previousBuffer || term.cols !== previousCols) {
+      for (const entry of decorated.values()) dispose(entry);
+      decorated.clear(); previousBuffer = buffer; previousCols = term.cols;
+    }
+    const visible = new Set();
+    for (let row = 0; row < term.rows; row++) {
+      const y = buffer.viewportY + row, line = buffer.getLine(y);
+      if (!line) continue;
+      visible.add(y);
+      let text = ''; const columns = [], ends = [];
+      for (let x = 0; x < line.length; x++) {
+        const cell = line.getCell(x); if (!cell || cell.getWidth() === 0) continue;
+        const chars = cell.getChars() || ' ';
+        for (let i = 0; i < chars.length; i++) { columns.push(x); ends.push(x + cell.getWidth()); }
+        text += chars;
+      }
+      const old = decorated.get(y);
+      if (old?.text === text && !old.marker.isDisposed && old.marker.line === y) continue;
+      if (old) { dispose(old); decorated.delete(y); }
+      const ranges = demoColorRanges(text); if (!ranges.length) continue;
+      const marker = term.registerMarker(y - buffer.baseY - buffer.cursorY);
+      if (!marker) continue;
+      const decorations = [];
+      for (const range of ranges) {
+        const x = columns[range.start], width = ends[range.end - 1] - x;
+        const decoration = term.registerDecoration({marker, x, width, foregroundColor: range.color, layer: 'bottom'});
+        if (decoration) decorations.push(decoration);
+      }
+      decorated.set(y, {text, marker, decorations});
+    }
+    for (const [y, entry] of decorated) if (!visible.has(y)) { dispose(entry); decorated.delete(y); }
+  }
+  function schedule() { if (!pending) { pending = true; requestAnimationFrame(paint); } }
+  button.onclick = () => { enabled = !enabled; localStorage.setItem("midflight-text-colors", enabled ? "on" : "off"); label(); schedule(); };
+  term.onWriteParsed(schedule); term.onResize(schedule); term.onScroll(schedule);
+  schedule();
+}
+
 // Shared tmux panes have one size: only the foreground browser may set it.
 function installTerminalSizing(term, fit, socket) {
   let scheduled=false, ownsSize=document.hasFocus();
@@ -27,7 +99,7 @@ function installTerminalSizing(term, fit, socket) {
   return schedule;
 }
 
-(async()=>{let connection,ws,generation=0,session=null,seenDirection=null,resetting=false;const note=document.getElementById('note'),button=document.getElementById('reset');const term=new Terminal({fontSize:12,fontFamily:'Menlo,monospace',cursorBlink:true,allowProposedApi:true,theme:{background:'#101114'}});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('terminal'));fit.fit();term.onData(data=>{if(ws?.readyState===1)ws.send(JSON.stringify({type:'input',data}))});const resize=installTerminalSizing(term,fit,()=>ws);
+(async()=>{let connection,ws,generation=0,session=null,seenDirection=null,resetting=false;const note=document.getElementById('note'),button=document.getElementById('reset');const term=new Terminal({fontSize:12,fontFamily:'Menlo,monospace',cursorBlink:true,allowProposedApi:true,theme:{background:'#101114'}});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('terminal'));fit.fit();installDemoTextColors(term,document.getElementById('colors'));term.onData(data=>{if(ws?.readyState===1)ws.send(JSON.stringify({type:'input',data}))});const resize=installTerminalSizing(term,fit,()=>ws);
 const fullscreen=document.getElementById('fullscreen');fullscreen.onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch(e){fullscreen.title='Fullscreen is unavailable here. Use Control–Command–F in Chrome on macOS, or open this URL in your browser.';note.textContent=fullscreen.title}};document.addEventListener('fullscreenchange',()=>{fullscreen.textContent=document.fullscreenElement?'Exit fullscreen':'Fullscreen';requestAnimationFrame(resize)});
 
 async function connect(){const current=++generation;try{connection=await(await fetch('/connection')).json();if(current!==generation)return;if(session!==connection.session){term.reset();session=connection.session;seenDirection=null}ws=new WebSocket('ws://'+location.host+'/terminal?key='+encodeURIComponent(connection.key));ws.binaryType='arraybuffer';ws.onopen=()=>{resize();term.focus()};ws.onmessage=e=>{if(current===generation)term.write(new Uint8Array(e.data))};ws.onclose=()=>{if(current===generation&&!resetting)setTimeout(connect,1500)}}catch(e){if(current===generation&&!resetting)setTimeout(connect,1500)}}

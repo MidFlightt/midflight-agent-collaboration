@@ -94,8 +94,8 @@ information-flow security boundary. Correct topic declarations remain essential.
 The current entrypoint and the former `midflight.theater.peers` command both launch
 `communication.harness`. Historical reviewer classes stay available only for legacy
 experiments/tests; the new harness never constructs their service or reviewer.
-The terminal page displays actual terminal bytes with no semantic color overlays,
-verdicts, claim badges or scripted agent narration. `/report` displays recorded state
+The terminal page displays actual terminal bytes with optional, reversible syntax
+highlighting. It adds no verdicts, claim badges or scripted agent narration. `/report` displays recorded state
 and saved independently executed test results; viewing it does not run a model.
 
 Each agent has a persistent Codex session and a short prepared prompt. Check-ins
