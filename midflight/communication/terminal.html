@@ -24,6 +24,9 @@ function demoColorRanges(text, agentAt = () => null) {
   // Objection syntax takes precedence over the general tool-call blue.
   // This labels text, not whether an objection is open, resolved or justified.
   for (const match of text.matchAll(/\b(?:(?:theater_)?midflight\.(?:objection|object)|open_objections|objection_id|objections?|objected|objecting)\b(?:\s+#\d+)?/gi)) {
+    // A field name alone is not an objection. Highlight only visible populated data.
+    if (match[0].toLowerCase() === 'open_objections' &&
+        !/^\s*["']?\s*:\s*\[\s*\{/.test(text.slice(match.index + match[0].length))) continue;
     // Ignore path components such as /runs/objection-20261017-205114.
     if (/[\/\\_-]/.test(text[match.index - 1] || '') || /[\/\\_-]/.test(text[match.index + match[0].length] || '')) continue;
     cells.fill('#ff6b6b', match.index, match.index + match[0].length);

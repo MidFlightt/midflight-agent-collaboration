@@ -11,12 +11,17 @@ for (const name of ['midflight.send', 'theater_midflight.join']) {
   assert.equal(ranges[0].color, '#79bdff');
 }
 for (const label of ['midflight.objection', 'theater_midflight.objection', 'midflight.object', 'theater_midflight.object', 'objection #7',
-                     'objections', 'OBJECTION', 'open_objections', 'objection_id']) {
+                     'objections', 'OBJECTION', 'objection_id']) {
   const ranges = classify('Called ' + label);
   assert.equal(ranges.length, 1);
   assert.equal(ranges[0].color, '#ff6b6b');
   assert.equal(('Called ' + label).slice(ranges[0].start, ranges[0].end), label);
 }
+for (const empty of ['"open_objections": []', '"open_objections": [ ]',
+                     '"open_objections": null', '"open_objections": [', 'open_objections']) {
+  assert.equal(classify(empty).length, 0, empty);
+}
+assert.equal(classify('"open_objections": [{"id": 7}]')[0].color, '#ff6b6b');
 assert.equal(classify('object objects objective objectionable midflight.object_extra').length, 0);
 assert.equal(classify('/private/tmp/runs/objection-20261017-205114/billing').length, 0);
 const mixed = classify('Called midflight.object: objection #7 from Delivery agent', () => 'billing');
