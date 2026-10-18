@@ -34,7 +34,7 @@ def publish(s, sid, key="publish", expected=0, body="Return ID-keyed records"):
 def test_publication_default_without_agreement_and_independent_delivery(team):
     s, ids = team
     initial = publish(s, ids["provider"])
-    assert not s.status()["proposals"]
+    assert not s.status().get("proposals", {})
     assert s.status()["interfaces"]["records"]["id"] == initial["event_id"]
     assert "records" not in s.status()["sessions"][ids["consumer"]].get(
         "delivered_interface_revisions", {}
@@ -89,18 +89,23 @@ def test_concurrent_owner_revisions_cannot_overwrite_each_other(team):
 def test_objection_survives_publication_read_and_restart_until_author_resolves(team):
     s, ids = team
     p = publish(s, ids["provider"])
-    objection = s.send(
+    objection = s.object(
         ids["consumer"],
-        "objection",
+        p["event_id"],
+        1,
         "Existing caller expects list",
+        "records dependency",
         "object",
-        reply_to=p["event_id"],
     )
     publish(s, ids["provider"], "v2", 1, "Return list")
-    assert s.check_in(ids["provider"])["open_objections"][0]["interface_revision"] == 1
+    assert s.check_in(ids["provider"])["open_objections"][0]["publication_revision"] == 1
     with pytest.raises(ValueError, match="Only the objection author"):
         s.send(
-            ids["provider"], "resolve", "I changed it", "silence", reply_to=objection["event_id"]
+            ids["provider"],
+            "resolve",
+            "I changed it",
+            "silence",
+            reply_to=objection["objection_id"],
         )
     restarted = Service(
         Store(
@@ -114,7 +119,7 @@ def test_objection_survives_publication_read_and_restart_until_author_resolves(t
             "resolve",
             "Combined test passes with revision 2",
             "resolved",
-            reply_to=objection["event_id"],
+            reply_to=objection["objection_id"],
         )
         assert not restarted.check_in(ids["provider"])["open_objections"]
         assert not restarted.check_in(ids["unrelated"])["messages"]
@@ -157,12 +162,13 @@ def test_late_subscriber_gets_current_contract_and_can_object(team):
     joined = s.join("late", "Consumer", "late", dependencies=["records"])
     assert joined["updates"]["interfaces"][0]["id"] == p["event_id"]
     assert joined["updates"]["interfaces"][0]["previously_delivered_revision"] == 0
-    s.send(
+    s.object(
         joined["session_id"],
-        "objection",
+        p["event_id"],
+        1,
         "Concrete incompatibility",
+        "records dependency",
         "object",
-        reply_to=p["event_id"],
     )
     assert s.check_in(ids["provider"])["open_objections"]
 
@@ -184,22 +190,14 @@ def test_human_change_does_not_revise_interface_or_advance_idle_session(team):
     assert s.check_in(ids["consumer"])["unapplied_policies"]
 
 
-def test_optional_agreement_does_not_publish_or_resolve_an_interface(team):
+def test_discussion_and_tests_do_not_publish_or_resolve(team):
     s, ids = team
     p = publish(s, ids["provider"])
-    objection = s.send(ids["consumer"], "objection", "Mismatch", "o", reply_to=p["event_id"])
-    q = s.send(
-        ids["consumer"],
-        "proposal",
-        "Alternative",
-        "q",
-        topic="records",
-        participants=["consumer", "provider"],
-    )
-    for name in ["consumer", "provider"]:
-        s.agree(ids[name], q["event_id"], 1, "agree")
+    objection = s.object(ids["consumer"], p["event_id"], 1, "Mismatch", "records", "o")
+    s.send(ids["provider"], "verification", "Tests pass", "tests", topic="records")
+    s.send(ids["provider"], "message", "Consider an alternative", "alternative", topic="records")
     assert s.status()["interfaces"]["records"]["id"] == p["event_id"]
-    assert s.status()["objections"][str(objection["event_id"])]["state"] == "open"
+    assert s.status()["objections"][str(objection["objection_id"])]["state"] == "open"
 
 
 def test_reply_link_cannot_narrow_interface_delivery(team):
@@ -220,7 +218,7 @@ def test_reply_link_cannot_narrow_interface_delivery(team):
 def test_transfer_routes_outstanding_objections_to_new_owner_without_subscription(team):
     s, ids = team
     p = publish(s, ids["provider"])
-    o = s.send(ids["consumer"], "objection", "Mismatch", "o", reply_to=p["event_id"])
+    o = s.object(ids["consumer"], p["event_id"], 1, "Mismatch", "records dependency", "o")
     s.send(
         ids["provider"],
         "transfer",
@@ -230,16 +228,16 @@ def test_transfer_routes_outstanding_objections_to_new_owner_without_subscriptio
         new_owner="unrelated",
         expected_revision=1,
     )
-    assert s.check_in(ids["unrelated"])["open_objections"][0]["id"] == o["event_id"]
-    s.send(ids["unrelated"], "message", "Here is a fix", "fix", reply_to=o["event_id"])
-    s.send(ids["consumer"], "resolve", "Fix tested", "resolve", reply_to=o["event_id"])
+    assert s.check_in(ids["unrelated"])["open_objections"][0]["id"] == o["objection_id"]
+    s.send(ids["unrelated"], "message", "Here is a fix", "fix", reply_to=o["objection_id"])
+    s.send(ids["consumer"], "resolve", "Fix tested", "resolve", reply_to=o["objection_id"])
     assert s.check_in(ids["unrelated"])["messages"][-1]["kind"] == "resolve"
 
 
 def test_database_crash_preserves_publication_objection_and_delivery_metadata(team, falkor_server):
     s, ids = team
     p = publish(s, ids["provider"])
-    s.send(ids["consumer"], "objection", "Mismatch", "o", reply_to=p["event_id"])
+    s.object(ids["consumer"], p["event_id"], 1, "Mismatch", "records dependency", "o")
     falkor_server.kill_and_restart()
     recovered = Service(Store(s.store.graph.name, falkor_server.port))
     try:

@@ -28,36 +28,6 @@ def test_routing_exact_revisions_retry_and_recovery(service):
     b = join(s, "delivery", ["records", "cancellation"])
     c = join(s, "booking", ["booking-request"])
     d = join(s, "notifications", ["confirmation"])
-    proposal = s.send(
-        a, "proposal", "List of records", "p", topic="records", participants=["billing", "delivery"]
-    )
-    assert s.send(
-        a, "proposal", "List of records", "p", topic="records", participants=["billing", "delivery"]
-    )["duplicate"]
-    with pytest.raises(ValueError, match="different input"):
-        s.send(a, "message", "different", "p", to=["delivery"])
-    assert not s.status()["proposals"][str(proposal["event_id"])]["accepted_by"]
-    s.agree(a, proposal["event_id"], 1, "agree")
-    with pytest.raises(ValueError, match="wrong revision"):
-        s.agree(b, proposal["event_id"], 2, "wrong")
-    result = s.agree(b, proposal["event_id"], 1, "agree")
-    assert result["current_proposal"]["state"] == "agreed"
-    assert not result["implemented"]
-    s.agree(b, proposal["event_id"], 1, "agree")
-    assert len([e for e in s.status()["events"] if e["kind"] == "agreement"]) == 1
-    p2 = s.send(
-        a,
-        "proposal",
-        "Mapping",
-        "p2",
-        topic="records",
-        participants=["billing", "delivery"],
-        expected_revision=1,
-    )
-    s.agree(a, p2["event_id"], 2, "a2")
-    s.agree(b, p2["event_id"], 2, "b2")
-    with pytest.raises(ValueError, match="superseded"):
-        s.agree(a, proposal["event_id"], 1, "late")
     policy = s.send(
         b,
         "policy",
@@ -144,11 +114,11 @@ def test_no_broadcast_or_implicit_authority(service):
     b = join(s, "b")
     with pytest.raises(ValueError, match="no broadcast"):
         s.send(a, "message", "raw direction", "bad")
-    p = s.send(a, "proposal", "API", "p", topic="api", participants=["a", "b"])
-    s.check_in(b)
-    assert s.status()["proposals"][str(p["event_id"])]["state"] == "proposed"
     s.send(a, "implementation", "Code exists", "code", to=["b"])
-    assert s.status()["proposals"][str(p["event_id"])]["state"] == "proposed"
+    assert s.check_in(b)["messages"][0]["kind"] == "implementation"
+    with pytest.raises(ValueError, match="Unknown message kind"):
+        s.send(a, "proposal", "Removed", "removed", topic="api")
+    assert not hasattr(s, "agree")
 
 
 def test_database_crash_preserves_receipts_cursors_and_pending_work(service, falkor_server):

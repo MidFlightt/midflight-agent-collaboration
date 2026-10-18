@@ -1,0 +1,45 @@
+{
+  "label": "fee-billing-idle",
+  "executed_by": "operator",
+  "coordination": {
+    "available": true,
+    "open_objections": []
+  },
+  "interpretation": "Test success does not resolve objections or certify compatibility",
+  "executed_at": "2026-10-18T02:04:33.811735+00:00",
+  "method": "Four owned modules copied unchanged; fresh subprocess imports actual combined code",
+  "component_scope": "Agent-local tests may mock peers; these are not integration evidence",
+  "policy_consumption": "Inspect exact agent policy reports separately; not measured by tests",
+  "success": true,
+  "fee_cents": 400,
+  "id_field": "id",
+  "hashes": {
+    "billing": "4e8e8054e6150b67947ae6a3be3a64b20b558cb4e92423d55c9c0e494c205152",
+    "delivery": "0789a42899293febf38f4acf5862c017313249e25314e3ed10bb09cb8aeaf5d7",
+    "booking": "851540a1d5fef42bbbab4ed36904f1801f4f94187a8a074bd62595c8969ddcca",
+    "notifications": "f9f599b6ef7db65edf1203fb0260a53d84c8aaec4ca6390ed80749ed16d1c349"
+  },
+  "components": {
+    "billing": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_empty_report (test_billing_component.BillingComponentTests.test_empty_report) ... ok\ntest_invalid_records (test_billing_component.BillingComponentTests.test_invalid_records) ... ok\ntest_report_reads_published_mapping (test_billing_component.BillingComponentTests.test_report_reads_published_mapping) ... ok\ntest_saved_refunds_and_status_counts (test_billing_component.BillingComponentTests.test_saved_refunds_and_status_counts) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.000s\n\nOK\n"
+    },
+    "delivery": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_cancellation_keeps_four_credits_and_is_idempotent (test_delivery_component.DeliveryTests.test_cancellation_keeps_four_credits_and_is_idempotent) ... ok\ntest_create_and_get (test_delivery_component.DeliveryTests.test_create_and_get) ... ok\ntest_invalid_and_unknown_ids (test_delivery_component.DeliveryTests.test_invalid_and_unknown_ids) ... ok\ntest_invalid_input_does_not_create_records (test_delivery_component.DeliveryTests.test_invalid_input_does_not_create_records) ... ok\ntest_return_values_are_isolated_snapshots (test_delivery_component.DeliveryTests.test_return_values_are_isolated_snapshots) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.000s\n\nOK\n"
+    },
+    "booking": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_browser_submission_cancellation_and_errors (test_booking_component.BookingValidation.test_browser_submission_cancellation_and_errors) ... ok\ntest_normalizes_request_and_accepts_zero (test_booking_component.BookingValidation.test_normalizes_request_and_accepts_zero) ... ok\ntest_rejects_invalid_amounts (test_booking_component.BookingValidation.test_rejects_invalid_amounts) ... ok\ntest_rejects_invalid_text (test_booking_component.BookingValidation.test_rejects_invalid_text) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.050s\n\nOK\n"
+    },
+    "notifications": {
+      "returncode": 0,
+      "output": "test_no_revenue (test_baseline.Baseline.test_no_revenue) ... ok\ntest_confirmation_message (test_notifications.ConfirmationTests.test_confirmation_message) ... ok\ntest_invalid_delivery_ids (test_notifications.ConfirmationTests.test_invalid_delivery_ids) ... ok\ntest_invalid_emails (test_notifications.ConfirmationTests.test_invalid_emails) ... ok\ntest_message_does_not_include_financial_language (test_notifications.ConfirmationTests.test_message_does_not_include_financial_language) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.000s\n\nOK\n"
+    }
+  },
+  "combined": {
+    "returncode": 0,
+    "output": "test_real_workflow (__main__.CombinedCode.test_real_workflow) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nOK\n",
+    "seconds": 0.03749154100660235
+  }
+}

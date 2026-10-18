@@ -3,9 +3,11 @@
 Four real coding sessions use owner-published interfaces and receive relevant changes
 through a FalkorDB dependency graph. MidFlight makes no model calls. There are no
 claims, mandatory AI reviewers or approval gates. The tools are **join, send,
-check_in, agree**. An owner's publication is the default immediately. Consumers
+check_in, object**. An owner's publication is the default immediately. Consumers
 follow it without mutual acceptance. Explicit objections handle incompatibilities;
-`agree` is optional for negotiated choices and never certifies code.
+`object` names an exact interface or policy revision, a concrete problem and the affected
+requirement or dependency. Suggested alternatives are optional. Only the author resolves
+through `send`. Silence is neither agreement nor proof of compatibility.
 
 ## Run the four-terminal prototype
 
@@ -59,3 +61,5 @@ not part of the current communication runtime; the prior README is in
 
 Recording fixes, actual-agent measurements and limitations: [rehearsal evidence](docs/evidence/routing-rehearsal.md).
 Use the [recording workflow](docs/recording-workflow.md) for operator validation and the useful Billing follow-up.
+
+Current four-tool design and measured rehearsal: [object workflow evidence](docs/evidence/object-rehearsal.md).

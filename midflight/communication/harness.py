@@ -39,7 +39,7 @@ OWNERS = {
 class CommunicationTheater(InteractiveTheater):
     names = tuple(PROMPTS)
     submit_initial_prompt = False
-    coordination_tools = ["join", "send", "check_in", "agree"]
+    coordination_tools = ["join", "send", "check_in", "object"]
     mcp_module = "midflight.communication.mcp"
     first_pane_title = "Billing"
 
@@ -201,6 +201,11 @@ class CommunicationTheater(InteractiveTheater):
             report["integration"] = evidence_status(
                 self.theater.root, json.loads(evidence.read_text())
             )
+        report["open_objections"] = [
+            o for o in report["coordination"].get("objections", {}).values() if o["state"] == "open"
+        ]
+        if report["integration"] is not None:
+            report["integration"]["current_open_objections"] = report["open_objections"]
         (self.theater.root / "report.json").write_text(json.dumps(report, indent=2))
         return report
 

@@ -47,6 +47,29 @@ if __name__=='__main__': unittest.main()
 """
 
 
+def coordination_objections(root):
+    """Read coordination without advancing agent cursors; never resolve from test results."""
+    metadata = Path(root) / "run.json"
+    if not metadata.exists():
+        return {"available": False, "reason": "No run metadata", "open_objections": None}
+    from .store import Store
+
+    run = json.loads(metadata.read_text())
+    store = Store(run["graph"], run["db_port"])
+    try:
+        state = store.read()[1]
+        return {
+            "available": True,
+            "open_objections": [
+                o
+                for o in state.get("objections", {}).values()
+                if o["state"] == "open" and set(o["recipients"] + [o["author"]]).intersection(NAMES)
+            ],
+        }
+    finally:
+        store.close()
+
+
 def validate(root, fee=0, label="baseline", id_field="delivery_id"):
     if id_field not in {"id", "delivery_id"}:
         raise ValueError("Use the ID field from the published interface")
@@ -76,6 +99,8 @@ def validate(root, fee=0, label="baseline", id_field="delivery_id"):
     evidence = dict(
         label=label,
         executed_by="operator",
+        coordination=coordination_objections(root),
+        interpretation="Test success does not resolve objections or certify compatibility",
         executed_at=datetime.now(UTC).isoformat(),
         method="Four owned modules copied unchanged; fresh subprocess imports actual combined code",
         component_scope="Agent-local tests may mock peers; these are not integration evidence",

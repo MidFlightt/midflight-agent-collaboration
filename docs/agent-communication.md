@@ -38,7 +38,7 @@ rehearsals below remain historical evidence; they do not prescribe the current w
 ## Storage and consistency
 
 One graph represents one run. `CState` contains a monotonically increasing revision
-and canonical JSON containing members, sessions, events, proposals, acceptances and
+and canonical JSON containing members, sessions, events and
 retry receipts, interface owners, published interfaces and open objections. `CAgent` and `CTopic` nodes with `DEPENDS_ON` edges form the routing
 projection. This deliberately small-project design keeps the behavior auditable:
 all state and projection changes occur in one atomic, revision-guarded Cypher write.
@@ -51,17 +51,13 @@ mutations and receipt insertion cannot commit separately. Transport errors propa
 without automatic write replay. Retry uncertain writes with the same request ID.
 Inbox responses advance durable per-session cursors; replay a lost response with
 `check_in(after=last_received_cursor)`. Pagination filters recipients before slicing.
-A new chat gets a separate cursor and recovers agreements and outstanding work.
+A new chat gets a separate cursor and recovers current publications and outstanding work.
 
-For optional negotiated proposals, an author is not an implicit accepter. Every named participant explicitly accepts
-an exact proposal ID and revision. Superseded proposals are rejected. A new pending
-proposal does not erase the last agreed interface; it replaces that agreement only
-when all participants accept. Reports of implementation or tests are agent statements,
-not independently verified facts. No tool prevents coding while agreement is pending.
-
-The compose deployment uses AOF with `appendfsync always` and a persistent volume.
-The tests kill and restart an isolated, digest-pinned FalkorDB container. Durability
-claims apply to that configuration; there is no demonstrated distributed failover.
+`object` records a problem with an exact published interface or policy revision and an
+affected requirement/dependency; an alternative is optional. Only its author can resolve
+via structured send. Objections survive new publications, tests, transfers and silence.
+Historical proposal/acceptance records are preserved but no active agreement machinery
+remains. See [current publication behavior](published-interfaces.md) for the four-tool API.
 
 ## Dependency routing
 
@@ -85,8 +81,8 @@ This distinction matters: cancellation semantics can change without changing the
 booking request or record shape. Traversing every task that uses Delivery would
 unnecessarily notify Booking. The coding agent names the changed topic; the graph
 then selects recipients. Explicit recipients are available for peer negotiation.
-Policies cannot target nonsubscribers, and replies to a policy cannot widen its
-original audience. No recipient list defaults to broadcast.
+Topic updates cannot override graph recipients with `to`. Replies retain their original
+audience plus current subscribers; direct messages omit topic. No recipient list defaults to broadcast.
 
 Human-source text on policies is attributed by the coding agent, not independently
 authenticated. Names and sessions are trusted local identifiers. An arbitrary peer

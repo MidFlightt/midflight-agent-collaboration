@@ -30,7 +30,7 @@ async def call(client, tool, **args):
     return json.loads(reply.content[0].text)
 
 
-def test_real_stdio_processes_recover_agreement_and_cursor(falkor_server):
+def test_real_stdio_processes_recover_objection_and_cursor(falkor_server):
     graph = "communication-mcp-" + uuid.uuid4().hex
     store = Store(graph, falkor_server.port)
 
@@ -42,7 +42,7 @@ def test_real_stdio_processes_recover_agreement_and_cursor(falkor_server):
                 "join",
                 "send",
                 "check_in",
-                "agree",
+                "object",
             }
             ja, jb = await asyncio.gather(
                 call(a, "join", name="a", task="Billing", request_id="j", dependencies=["records"]),
@@ -51,36 +51,33 @@ def test_real_stdio_processes_recover_agreement_and_cursor(falkor_server):
                 ),
             )
             sa, sb = ja["session_id"], jb["session_id"]
-            proposal = await call(
+            publication = await call(
                 a,
                 "send",
                 session_id=sa,
-                kind="proposal",
-                body="Return mapping",
+                kind="policy",
+                body="Retain fee",
+                source="Retain fee",
                 request_id="p",
                 topic="records",
-                participants=["a", "b"],
             )
-            answers = await asyncio.gather(
-                *[
-                    call(
-                        client,
-                        "agree",
-                        session_id=sid,
-                        proposal_id=proposal["event_id"],
-                        revision=1,
-                        request_id="agree",
-                    )
-                    for client, sid in [(a, sa), (b, sb)]
-                ]
+            objection = await call(
+                b,
+                "object",
+                session_id=sb,
+                publication_id=publication["event_id"],
+                revision=1,
+                problem="Historical refunds must not change",
+                affects="saved records requirement",
+                request_id="o",
             )
-            assert sorted(r["state"] for r in answers) == ["agreed", "proposed"]
+            assert objection["objection_id"]
             final = await call(b, "check_in", session_id=sb)
         async with connect(graph, falkor_server.port) as recovered:
             inbox = await call(recovered, "check_in", session_id=sb)
             assert inbox["cursor"] == final["cursor"] and not inbox["messages"]
             fresh = await call(recovered, "join", name="b", task="Delivery", request_id="fresh")
-            assert fresh["updates"]["agreements"][0]["body"] == "Return mapping"
+            assert fresh["updates"]["open_objections"][0]["id"] == objection["objection_id"]
 
     try:
         asyncio.run(scenario())
@@ -119,7 +116,7 @@ def test_owner_publication_over_stdio_without_agree(falkor_server):
                 dependencies=["api"],
             )
             assert joined["updates"]["interfaces"][0]["id"] == published["event_id"]
-            assert not Service(store).status()["proposals"]
+            assert not Service(store).status().get("proposals", {})
             bad = await consumer.call_tool(
                 "send",
                 {

@@ -20,13 +20,19 @@ conventions. Mutable business rules (such as a cancellation fee or refund formul
 in policy messages, not the interface body. State that saved amounts follow current policy.
 A human business-rule change alone does not require republishing an unchanged API. Publish
 an interface revision only when callers must change how they call or read it.
-Consumers adapt to the published boundary. For genuine incompatibility, send kind=objection
-with reply_to=the exact interface event ID and explain the concrete mismatch. Publishing
+Consumers adapt when the published boundary satisfies their requirements. For a genuine
+incompatibility, call object with publication_id, exact revision, problem, and affects naming the
+requirement or dependency. An alternative is optional; you need not know the solution.
+This applies to interfaces and policies, including historical revisions. Publishing
 a new revision never silently closes objections. The objection author sends kind=resolve
 with reply_to=objection ID and evidence when resolved. Continue unrelated work while waiting.
-Use questions/messages for discussion. proposal/agree are OPTIONAL for contested choices;
-they never publish an interface or grant implementation approval. Do not propose/agree
-routinely. No assigned owner: share an intention and ask the human to assign ownership.
+Use questions/messages to discuss alternatives and escalate genuinely unresolved decisions
+to the human. Ownership does not authorize overriding another component's requirements.
+Objections are persistent signals, not vetoes or global gates. Continue unaffected work;
+report unresolved incompatibilities when reporting the affected integration. Consumers may
+adapt directly without acknowledgement. Silence means only no objection recorded, never
+agreement, receipt, application or verified compatibility. No assigned owner: share an
+intention and ask the human to assign ownership.
 Current owner may send kind=transfer with topic,new_owner,expected_revision=ownership
 revision and an explanation. This transfers responsibility, not the published contract.
 Delivery metadata means sent to this session, never code adoption or agreement.
@@ -35,7 +41,7 @@ human source. Do not broadcast raw directions. Dependencies are explicit topics:
 join(dependencies=[...]) replaces your subscriptions; omitted dependencies preserves them.
 send(kind='dependency',topic=...,depends_on=[...]) declares topic prerequisites.
 Topic messages route to all dependency subscribers: omit to. For direct peer messages,
-omit topic and supply to. Proposals use their explicit participants. Replies to topic
+omit topic and supply to. Replies to topic
 messages cannot override the audience or relabel the topic. Do not copy raw human
 policy directions into unrelated direct messages.
 Only latest policy revisions are actionable in unapplied_policies. policy_history retains
@@ -43,7 +49,7 @@ superseded revisions and exact applied reports; superseded does not mean read or
 Apply the current policy and reference its exact event ID; never report an old revision
 as evidence of applying a newer one.
 Check in at a natural boundary before depending on shared work or reporting affected work
-complete. send/join/agree already include updates; do not redundantly check in after them.
+complete. send/join/object already include updates; do not redundantly check in after them.
 Never poll, schedule checkpoints, repeatedly prompt peers or wake idle sessions.
 An idle peer will receive changes only when it next resumes useful work.
 If awaiting a peer, finish your turn stating what is needed. Reading is not agreement.
@@ -82,7 +88,6 @@ def build_server(service):
         request_id: str,
         to: list[str] | None = None,
         topic: str = "",
-        participants: list[str] | None = None,
         reply_to: int | None = None,
         expected_revision: int | None = None,
         source: str = "",
@@ -91,13 +96,13 @@ def build_server(service):
     ) -> dict:
         """Communicate with named peers or graph subscribers; no broadcast default.
 
-        Kinds: intention, message, question, answer, proposal, policy, applied,
-        implementation, verification, dependency, interface, objection, resolve, transfer.
-        interface: owner publishes a default using topic and expected_revision; no agree.
-        objection: reply_to exact interface event. resolve: objection author references
-        objection event with evidence. transfer: current owner supplies topic,new_owner,
-        expected_revision of ownership. Proposal requires topic/participants;
-        revision starts at 1; updates require expected_revision. Policy requires verbatim
+        Kinds: intention, message, question, answer, policy, applied,
+        implementation, verification, dependency, interface, resolve, transfer.
+        interface: owner publishes a default using topic and expected_revision; no acceptance step.
+        resolve: objection author references objection ID in reply_to with how it was addressed
+        in body. transfer: current owner supplies topic,new_owner,expected_revision of ownership.
+        Publication revision starts at 1; updates require expected_revision. Policy requires
+        verbatim
         human source and topic. Answer/applied require reply_to. A dependency declares
         topic prerequisites in depends_on. Reports are agent evidence, not verification.
         """
@@ -109,7 +114,6 @@ def build_server(service):
             request_id,
             to,
             topic,
-            participants,
             reply_to,
             expected_revision,
             source,
@@ -127,9 +131,31 @@ def build_server(service):
         return invoke(service.check_in, session_id, after)
 
     @server.tool()
-    def agree(session_id: str, proposal_id: int, revision: int, request_id: str) -> dict:
-        """Optional acceptance of a negotiated proposal. Not needed to use published interfaces."""
-        return invoke(service.agree, session_id, proposal_id, revision, request_id)
+    def object(
+        session_id: str,
+        publication_id: int,
+        revision: int,
+        problem: str,
+        affects: str,
+        request_id: str,
+        alternative: str = "",
+    ) -> dict:
+        """Record a problem with an exact interface/policy revision. Solution optional.
+
+        affects identifies the violated requirement or dependency. Returns stable objection_id.
+        Only its author resolves through send(kind='resolve', reply_to=objection_id, body=how).
+        Publication, tests, silence and supersession never resolve an objection.
+        """
+        return invoke(
+            service.object,
+            session_id,
+            publication_id,
+            revision,
+            problem,
+            affects,
+            request_id,
+            alternative,
+        )
 
     return server
 

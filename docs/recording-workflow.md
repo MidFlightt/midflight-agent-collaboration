@@ -11,7 +11,9 @@ The operator starts useful tasks and runs combined-code validation explicitly.
 - A direct message omits `topic` and supplies `to`. It is peer conversation, not a
   publication that changes shared requirements. Agents must publish interpreted policy
   on its affected topic; the server cannot detect a policy disguised as direct prose.
-- Proposals retain explicit participants. Optional agreement records exact-revision intent.
+- `object` records exact interface/policy problems with affected requirements and an optional
+  alternative. Only its author resolves with `send(kind="resolve", reply_to=objection_id,
+  body="How it was addressed")`. Historical proposals remain data, not active workflow.
 - Replies inherit their parent's topic and audience plus current subscribers. They cannot
   relabel a topic or override its recipients. A new publication linked to a private message
   still uses the full graph audience. Interface ownership and version checks remain intact.
@@ -35,12 +37,14 @@ clear a queue, repeatedly nudge it, or run automatic check-ins.
 
 ## Recording sequence
 
-1. Open the prepared four-panel run. Submit Delivery's prepared prompt first.
-   Once Delivery has published its record interface, submit the other three prepared
-   prompts. This stagger is an explicit operator action, not autonomous scheduling.
+1. Open the prepared four-panel run and submit each of the four prepared prompts once.
+   This simultaneous start was used in the object-tool rehearsal. Let agents discuss
+   or adapt to published boundaries; do not force an objection or script dialogue.
 2. Let all four turns finish. The starters intentionally disagree: Billing's local
    prototype returns a list, Delivery's returns an ID-keyed mapping. Consumers must
-   use the published owner boundary. Local peer files remain starter snapshots.
+   use the published owner boundary when it satisfies their requirements, or raise a
+   concrete objection. Local peer files remain starter snapshots. Report any open
+   incompatibility beside integration results; a pass never resolves it.
 3. The operator runs (from this repository, substituting the current run root):
 
    `.venv/bin/python -m midflight.communication.validate RUN --label baseline --id-field id`

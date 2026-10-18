@@ -11,14 +11,12 @@ KINDS = {
     "message",
     "question",
     "answer",
-    "proposal",
     "policy",
     "applied",
     "implementation",
     "verification",
     "dependency",
     "interface",
-    "objection",
     "resolve",
     "transfer",
 }
@@ -107,14 +105,12 @@ class Service:
         page = unread[:50]
         cursor = page[-1]["id"] if page else start
         session["cursor"] = max(session["cursor"], cursor)
-        proposals = [p for p in state["proposals"].values() if actor in p["participants"]]
         result = dict(
             session_id=sid,
             agent=actor,
             cursor=cursor,
             messages=page,
             more=len(unread) > 50,
-            pending_proposals=[p for p in proposals if p["state"] == "proposed"],
             questions=[
                 e
                 for e in visible
@@ -190,12 +186,12 @@ class Service:
             if objection["state"] == "open"
             and (
                 objection["topic"] in owners
+                or objection["topic"] in relevant_topics
                 or actor == objection["author"]
                 or actor in objection["recipients"]
             )
         ]
         if full:
-            result["agreements"] = [p for p in proposals if p["state"] == "agreed"]
             result["policies"] = [e for e in visible if e["kind"] == "policy"]
             result["intentions"] = [e for e in visible if e["kind"] == "intention"]
         return result
@@ -239,7 +235,6 @@ class Service:
         request_id,
         to=None,
         topic="",
-        participants=None,
         reply_to=None,
         expected_revision=None,
         source="",
@@ -249,15 +244,13 @@ class Service:
         if kind not in KINDS:
             raise ValueError("Unknown message kind")
         body = text(body, "body")
-        to, participants = names(to or []), names(participants or [])
-        if kind in {"proposal", "policy", "intention", "dependency", "interface", "transfer"}:
+        to = names(to or [])
+        if kind in {"policy", "intention", "dependency", "interface", "transfer"}:
             topic = text(topic, "topic", 120)
         if kind == "policy":
             text(source, "verbatim human source", 20000)
         elif source:
             raise ValueError("Only policies have a human source")
-        if participants and kind != "proposal":
-            raise ValueError("Only proposals have participants")
         if depends_on is not None and kind != "dependency":
             raise ValueError("Use dependency kind to declare topic prerequisites")
         if new_owner is not None and kind != "transfer":
@@ -269,7 +262,7 @@ class Service:
             body,
             to,
             topic,
-            participants,
+            [],  # Retain historical send retry fingerprints.
             reply_to,
             expected_revision,
             source,
@@ -283,7 +276,7 @@ class Service:
             actor = self._session(state, session_id)["agent"]
 
             def action():
-                if not set(to + participants) <= state["agents"].keys():
+                if not set(to) <= state["agents"].keys():
                     raise ValueError("Unknown recipient or participant; join first")
                 routed = self.store.recipients(revision, [topic])
                 if topic and to:
@@ -302,7 +295,8 @@ class Service:
                         )
                     if actor != owner["name"]:
                         raise ValueError(
-                            "Only the interface owner may publish or transfer; send an objection"
+                            "Only the interface owner may publish or transfer; "
+                            "use object for problems"
                         )
                     if to:
                         raise ValueError(
@@ -318,7 +312,7 @@ class Service:
                         )
                     current = owner["revision"] + 1
                     recipients = sorted(set(recipients + [new_owner]))
-                if kind in {"proposal", "policy", "dependency", "interface"}:
+                if kind in {"policy", "dependency", "interface"}:
                     current = max(
                         (
                             e.get("revision", 0)
@@ -330,11 +324,7 @@ class Service:
                     if (expected_revision or 0) != current:
                         raise ValueError(f"Stale {kind}; current revision is {current}")
                     current += 1
-                if kind == "proposal":
-                    if actor not in participants or len(participants) < 2:
-                        raise ValueError("Proposal needs author and at least one peer")
-                    recipients = participants
-                if kind in {"answer", "applied", "objection", "resolve"} and reply_to is None:
+                if kind in {"answer", "applied", "resolve"} and reply_to is None:
                     raise ValueError("reply_to is required")
                 if reply_to is not None:
                     parent = next((e for e in state["events"] if e["id"] == reply_to), None)
@@ -356,23 +346,6 @@ class Service:
                         raise ValueError("Only recipients can answer a question")
                     if kind == "applied" and parent["kind"] != "policy":
                         raise ValueError("Applied reports reference a policy")
-                    if kind == "objection":
-                        if parent["kind"] != "interface":
-                            raise ValueError(
-                                "Objection must reference an exact published interface event"
-                            )
-                        if topic and topic != parent["topic"]:
-                            raise ValueError("Objection topic must match its interface")
-                        if to:
-                            raise ValueError(
-                                "Objections route to the owner and subscribers; omit to"
-                            )
-                        recipients = sorted(
-                            set(
-                                self.store.recipients(revision, [parent["topic"]])
-                                + [actor, state["owners"][parent["topic"]]["name"]]
-                            )
-                        )
                     if kind == "resolve":
                         objection = state["objections"].get(str(reply_to))
                         if not objection or objection["author"] != actor:
@@ -385,7 +358,9 @@ class Service:
                             raise ValueError("Resolution reaches the objection audience; omit to")
                     audience = set(parent["recipients"] + [parent["author"]])
                     if parent["kind"] == "objection":
-                        audience.add(state["owners"][parent["topic"]]["name"])
+                        owner_now = state["owners"].get(parent["topic"])
+                        if owner_now:
+                            audience.add(owner_now["name"])
                     if parent.get("topic") and parent["kind"] != "proposal":
                         if to:
                             raise ValueError(
@@ -402,7 +377,6 @@ class Service:
                         and (not topic or parent.get("topic"))
                         and kind
                         not in {
-                            "objection",
                             "interface",
                             "transfer",
                             "policy",
@@ -446,24 +420,10 @@ class Service:
                 if kind == "transfer":
                     event["new_owner"] = new_owner
                     state["owners"][topic] = {"name": new_owner, "revision": current}
-                if kind == "objection":
-                    event["topic"] = parent["topic"]
-                    state["objections"][str(event["id"])] = event | {
-                        "interface_revision": parent["revision"],
-                        "state": "open",
-                        "resolution_id": None,
-                    }
                 if kind == "resolve":
                     event["topic"] = parent["topic"]
                     objection["state"] = "resolved"
                     objection["resolution_id"] = event["id"]
-                if kind == "proposal":
-                    for proposal in state["proposals"].values():
-                        if proposal["topic"] == topic and proposal["state"] == "proposed":
-                            proposal["state"] = "superseded"
-                    state["proposals"][str(event["id"])] = event | dict(
-                        participants=participants, accepted_by=[], state="proposed"
-                    )
                 return {"event_id": event["id"], "revision": current, "recipients": recipients}
 
             result = self._once(state, actor, request_id, payload, action)
@@ -471,49 +431,70 @@ class Service:
 
         return self._mutate(mutate)
 
-    def agree(self, session_id, proposal_id, revision, request_id):
-        def mutate(state, rev):
+    def object(
+        self, session_id, publication_id, revision, problem, affects, request_id, alternative=""
+    ):
+        """Persist a problem with an exact published revision, without requiring a solution."""
+        if type(publication_id) is not int or type(revision) is not int or revision < 1:
+            raise ValueError("publication_id and revision must be exact positive integers")
+        problem = text(problem, "problem")
+        affects = text(affects, "affected requirement or dependency", 500)
+        if alternative:
+            alternative = text(alternative, "suggested alternative")
+
+        def mutate(state, graph_revision):
             actor = self._session(state, session_id)["agent"]
 
             def action():
-                proposal = state["proposals"].get(str(proposal_id))
+                publication = next((e for e in state["events"] if e["id"] == publication_id), None)
                 if (
-                    not proposal
-                    or proposal["revision"] != revision
-                    or proposal["state"] == "superseded"
+                    not publication
+                    or publication["kind"] not in {"interface", "policy"}
+                    or publication["revision"] != revision
                 ):
-                    raise ValueError("Unknown, wrong revision or superseded proposal")
-                if actor not in proposal["participants"]:
-                    raise ValueError("Only a participant can agree")
-                proposal["accepted_by"] = sorted(set(proposal["accepted_by"] + [actor]))
-                if (
-                    proposal["accepted_by"] == proposal["participants"]
-                    and proposal["state"] != "agreed"
-                ):
-                    for old in state["proposals"].values():
-                        if old["topic"] == proposal["topic"] and old["state"] == "agreed":
-                            old["state"] = "superseded"
-                    proposal["state"] = "agreed"
-                    self._event(
-                        state,
-                        actor,
-                        "agreement",
-                        "Participants explicitly agreed",
-                        proposal["participants"],
-                        topic=proposal["topic"],
-                        revision=revision,
-                        reply_to=proposal_id,
-                    )
-                return dict(
-                    proposal_id=proposal_id, revision=revision, accepted=True, implemented=False
+                    raise ValueError("Unknown publication or wrong exact revision")
+                topic = publication["topic"]
+                subscribers = self.store.recipients(graph_revision, [topic])
+                owner = state["owners"].get(topic, {}).get("name")
+                audience = set(publication["recipients"] + subscribers + [publication["author"]])
+                if owner:
+                    audience.add(owner)
+                if actor not in audience:
+                    raise ValueError("Publication is not relevant to this agent")
+                audience.add(actor)
+                event = self._event(
+                    state,
+                    actor,
+                    "objection",
+                    problem,
+                    audience,
+                    topic=topic,
+                    publication_id=publication_id,
+                    publication_revision=revision,
+                    publication_kind=publication["kind"],
+                    reply_to=publication_id,
+                    affects=affects,
+                    alternative=alternative,
                 )
+                state["objections"][str(event["id"])] = event | {
+                    "state": "open",
+                    "resolution_id": None,
+                }
+                return {
+                    "objection_id": event["id"],
+                    "publication_id": publication_id,
+                    "publication_revision": revision,
+                    "recipients": event["recipients"],
+                }
 
-            result = self._once(state, actor, request_id, ["agree", proposal_id, revision], action)
-            return result | {
-                "current_proposal": state["proposals"][str(proposal_id)],
-                "state": state["proposals"][str(proposal_id)]["state"],
-                "updates": self._inbox(state, session_id),
-            }
+            result = self._once(
+                state,
+                actor,
+                request_id,
+                ["object", publication_id, revision, problem, affects, alternative],
+                action,
+            )
+            return result | {"updates": self._inbox(state, session_id)}
 
         return self._mutate(mutate)
 

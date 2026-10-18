@@ -29,11 +29,14 @@ These are trusted local labels, not authenticated multi-tenant permissions.
 
 ## Disagreement without a blanket work gate
 
-A consumer sends `kind="objection"`, `reply_to=published_interface_event_id`, and a
-concrete incompatibility. The record captures the exact interface revision; it is sent
-to the current owner and subscribers and remains in relevant checkpoint context.
-Discussion uses ordinary messages or questions. Publishing a new interface, reading
-an objection, transferring ownership or mutually agreeing to a proposal does not close it.
+A consumer calls `object(session_id, publication_id, revision, problem, affects,
+request_id, alternative="")`. The affected publication must be an exact interface or
+policy event/revision. `affects` identifies the requirement or dependency that is broken;
+a solution is optional. The stable objection ID is routed to the publisher, original
+publication audience, current subscribers and current interface owner if any. An unrelated
+agent cannot object to an invisible publication. Historical revisions may be challenged.
+Discussion uses ordinary messages or questions. Publication, supersession, ownership
+transfer, passing tests, reading and silence never resolve the objection.
 
 The objection's author sends `kind="resolve"`, `reply_to=objection_event_id`, with an
 explanation/evidence. That resolves the record and notifies its audience, including the
@@ -42,10 +45,11 @@ or forced choice by MidFlight. The last publication remains available beside the
 objection. Agents can continue unrelated work and identify the affected work they cannot
 safely finish. If human requirements conflict, ask the human rather than guessing.
 
-`proposal` and `agree` retain their exact-revision semantics for optional negotiations.
-Even a fully agreed proposal does not itself publish a contract: the responsible owner
-publishes the resulting interface if needed. Agents are instructed not to use this
-ceremony for ordinary interfaces they can simply follow.
+Ownership is responsibility, not authority to override another component's requirements.
+Agents may adapt directly if the boundary satisfies their requirements, without any
+acknowledgement. Objections are persistent signals, not vetoes or global approval gates.
+Report open incompatibilities alongside results for the affected integration; continue
+unaffected work and escalate genuinely unresolved decisions to the human.
 
 ## Policy changes and natural checkpoints
 
@@ -63,7 +67,7 @@ policy updates. Agents still must correctly separate these topics; arbitrary pro
 classification is not an enforcement guarantee.
 
 `join` recovers relevant current publications and outstanding objections. `send`,
-`check_in` and `agree` return that context too. A session records
+`check_in` and `object` return that context too. A session records
 `delivered_interface_revisions`; each interface response includes
 `previously_delivered_revision`. This means the server sent the revision, not that the
 agent received a lost response, understood it, adopted it in code, or agreed to it.
@@ -76,18 +80,16 @@ sender published it or independently combined code passes tests.
 
 ## Compatibility and validation
 
-The four-tool surface remains `join`, `send`, `check_in`, `agree`; new behavior is carried
-by send kinds and the optional `new_owner` argument. Legacy communication state gains
-empty owner/interface/objection maps on its next write. Existing requests retain their
-fingerprints. Legacy proposals are not silently promoted to published interfaces and
-retained runs are not automatically assigned owners. New reset runs get seeded ownership;
-restart MCP processes to load the new tool schema/instructions.
+The active tools are `join`, `send`, `check_in`, `object`. No proposal or agreement write
+path remains. Historical events, proposal/acceptance state and retry receipts are retained
+verbatim; they are not returned as actionable proposals or promoted to interfaces. Old
+send-objection records remain visible and author-resolvable, without invented requirements.
+Existing send fingerprints are retained for unchanged operations. New reset runs get seeded
+ownership; existing MCP processes need restart to load the new schema. Existing runs are
+never rewritten or reset automatically.
 
-Real FalkorDB tests cover concurrent publications, wrong-owner declarations, optional
-agreements, objections surviving restarts and revisions, author-only resolution,
-transfers, late subscribers, independent delivery metadata, policy-only changes and
-database SIGKILL recovery. Real stdio processes verify publication and use without agree.
-
-See [rehearsal evidence](evidence/published-interfaces.md) for measured behavior and
-limitations, including a first run that unnecessarily revised an interface because it
-contained the initial refund formula.
+Real FalkorDB tests cover exact interface and policy objections, optional alternatives,
+wrong revisions, author-only resolution, concurrent publication/retries, supersession,
+independent session delivery, ownership transfers and crash recovery. Real stdio tests
+verify exactly four tools and recovered objections. Operator integration results include
+open objections even when every test passes; they never close objections themselves.

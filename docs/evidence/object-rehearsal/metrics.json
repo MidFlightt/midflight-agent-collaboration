@@ -1,0 +1,122 @@
+{
+  "events": 16,
+  "objections_recorded": 0,
+  "fee_id": 14,
+  "fee_revision": 2,
+  "agents": {
+    "billing": {
+      "task_events": [
+        [
+          "2026-10-18T02:02:37.199Z",
+          "task_started"
+        ],
+        [
+          "2026-10-18T02:03:12.769Z",
+          "task_complete"
+        ],
+        [
+          "2026-10-18T02:04:34.365Z",
+          "task_started"
+        ],
+        [
+          "2026-10-18T02:04:51.860Z",
+          "task_complete"
+        ]
+      ],
+      "tool_calls": {
+        "check_in": 1,
+        "join": 1,
+        "send": 4
+      },
+      "module_unchanged_after_fee": true,
+      "sessions_unchanged_after_fee": false,
+      "fee_events_routed_to": [
+        14,
+        15,
+        16
+      ],
+      "fee_policy_delivered": true,
+      "applied_report_ids": [
+        16
+      ]
+    },
+    "delivery": {
+      "task_events": [
+        [
+          "2026-10-18T02:02:37.149Z",
+          "task_started"
+        ],
+        [
+          "2026-10-18T02:03:15.235Z",
+          "task_complete"
+        ],
+        [
+          "2026-10-18T02:04:00.376Z",
+          "task_started"
+        ],
+        [
+          "2026-10-18T02:04:15.007Z",
+          "task_complete"
+        ]
+      ],
+      "tool_calls": {
+        "join": 1,
+        "send": 7
+      },
+      "module_unchanged_after_fee": false,
+      "sessions_unchanged_after_fee": false,
+      "fee_events_routed_to": [
+        14,
+        15,
+        16
+      ],
+      "fee_policy_delivered": true,
+      "applied_report_ids": [
+        15
+      ]
+    },
+    "booking": {
+      "task_events": [
+        [
+          "2026-10-18T02:02:37.141Z",
+          "task_started"
+        ],
+        [
+          "2026-10-18T02:03:38.786Z",
+          "task_complete"
+        ]
+      ],
+      "tool_calls": {
+        "check_in": 1,
+        "join": 1,
+        "send": 4
+      },
+      "module_unchanged_after_fee": true,
+      "sessions_unchanged_after_fee": true,
+      "fee_events_routed_to": [],
+      "fee_policy_delivered": false,
+      "applied_report_ids": []
+    },
+    "notifications": {
+      "task_events": [
+        [
+          "2026-10-18T02:02:37.151Z",
+          "task_started"
+        ],
+        [
+          "2026-10-18T02:03:06.016Z",
+          "task_complete"
+        ]
+      ],
+      "tool_calls": {
+        "join": 1,
+        "send": 2
+      },
+      "module_unchanged_after_fee": true,
+      "sessions_unchanged_after_fee": true,
+      "fee_events_routed_to": [],
+      "fee_policy_delivered": false,
+      "applied_report_ids": []
+    }
+  }
+}

@@ -42,7 +42,6 @@ class Store:
                         "sessions": {},
                         "events": [],
                         "requests": {},
-                        "proposals": {},
                         "dependencies": {},
                     }
                 )
