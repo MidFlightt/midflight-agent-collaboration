@@ -24,6 +24,12 @@ def main():
         type=Path,
         help="Private signing_key/admin_hash JSON; preserved on later updates",
     )
+    parser.add_argument(
+        "--github-oauth",
+        type=Path,
+        help="Private client_id/client_secret JSON for the hosted connector's GitHub sign-in; "
+        "preserved on later updates",
+    )
     parser.add_argument("--execute", help="Exact change-set ID printed by the preview")
     args = parser.parse_args()
     session = boto3.Session(profile_name=args.profile, region_name=args.region)
@@ -87,6 +93,7 @@ def main():
     try:
         existing = cf.describe_stacks(StackName=STACK)["Stacks"][0]
         existing_parameters = {p["ParameterKey"] for p in existing.get("Parameters", [])}
+        outputs = {o["OutputKey"]: o["OutputValue"] for o in existing.get("Outputs", [])}
         status = existing["StackStatus"]
         change_type = "CREATE" if status == "REVIEW_IN_PROGRESS" else "UPDATE"
     except ClientError as error:
@@ -94,6 +101,30 @@ def main():
             raise
         change_type = "CREATE"
         existing_parameters = set()
+        outputs = {}
+    # The connector must know its own URL for sign-in, but a Function URL exists only after
+    # the first deployment creates it. That deployment serves an "unconfigured" page; the
+    # next one passes the URL in. Rerun this script once after the first apply.
+    hosted_url = outputs.get("HostedUrl", "").rstrip("/")
+    if not hosted_url:
+        print("Hosted connector URL not known yet: apply this, then run deploy.py again.")
+    hosted_parameters = [{"ParameterKey": "HostedPublicUrl", "ParameterValue": hosted_url}]
+    if args.github_oauth:
+        oauth = json.loads(args.github_oauth.read_text())
+        if not oauth.get("client_id") or not oauth.get("client_secret"):
+            raise SystemExit("GitHub OAuth JSON needs client_id and client_secret")
+        hosted_parameters += [
+            {"ParameterKey": "GitHubClientId", "ParameterValue": oauth["client_id"]},
+            {"ParameterKey": "GitHubClientSecret", "ParameterValue": oauth["client_secret"]},
+        ]
+    elif change_type == "UPDATE":
+        hosted_parameters += [
+            {"ParameterKey": key, "UsePreviousValue": True}
+            for key in ("GitHubClientId", "GitHubClientSecret")
+            if key in existing_parameters
+        ]
+    if hosted_url and not args.github_oauth and "GitHubClientId" not in existing_parameters:
+        print("No GitHub sign-in configured yet: pass --github-oauth so people can sign in.")
     invite_parameters = []
     if args.invite_secrets:
         secrets = json.loads(args.invite_secrets.read_text())
@@ -123,7 +154,8 @@ def main():
                 "ConfigJson": config_json,
             }.items()
         ]
-        + invite_parameters,
+        + invite_parameters
+        + hosted_parameters,
     )
     cf.get_waiter("change_set_create_complete").wait(ChangeSetName=result["Id"])
     changes = cf.describe_change_set(ChangeSetName=result["Id"])

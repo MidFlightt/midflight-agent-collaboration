@@ -35,8 +35,11 @@ def names(values):
 
 
 class Service:
-    def __init__(self, store):
+    def __init__(self, store, *, claim_unowned=False):
+        """`claim_unowned`: the first interface publication on an unowned topic makes its
+        author the owner. Self-serve hosted projects use it; operator rosters do not."""
         self.store = store
+        self.claim_unowned = claim_unowned
 
     def _mutate(self, action):
         for _ in range(50):
@@ -287,6 +290,11 @@ class Service:
                 recipients = to or routed
                 current = 0
                 owner = state["owners"].get(topic)
+                claimed = False
+                if kind == "interface" and owner is None and self.claim_unowned:
+                    # Nothing is committed unless the whole publication below succeeds.
+                    owner = state["owners"][topic] = {"name": actor, "revision": 1}
+                    claimed = True
                 if kind in {"interface", "transfer"}:
                     if owner is None:
                         raise ValueError(
@@ -415,6 +423,8 @@ class Service:
                     source=source,
                     depends_on=dependencies,
                 )
+                if claimed:
+                    event["claimed_ownership"] = True
                 if kind == "interface":
                     state["interfaces"][topic] = event.copy()
                 if kind == "transfer":
@@ -424,7 +434,10 @@ class Service:
                     event["topic"] = parent["topic"]
                     objection["state"] = "resolved"
                     objection["resolution_id"] = event["id"]
-                return {"event_id": event["id"], "revision": current, "recipients": recipients}
+                result = {"event_id": event["id"], "revision": current, "recipients": recipients}
+                if claimed:
+                    result["claimed_ownership"] = True
+                return result
 
             result = self._once(state, actor, request_id, payload, action)
             return result | {"updates": self._inbox(state, session_id)}
@@ -495,6 +508,50 @@ class Service:
                 action,
             )
             return result | {"updates": self._inbox(state, session_id)}
+
+        return self._mutate(mutate)
+
+    def assign_owner(self, topic, agent, assigned_by):
+        """A project lead's override: give a topic to a joined agent, notifying the topic.
+
+        `assigned_by` labels the person (for example `lead:somesh`); it can never collide
+        with an agent name. The published contract stays; only responsibility moves.
+        """
+        topic = text(topic, "topic", 120)
+        agent = text(agent, "agent", 60)
+
+        def mutate(state, revision):
+            if agent not in state["agents"]:
+                raise ValueError(f"No agent named {agent} has joined this project yet")
+            old = state["owners"].get(topic)
+            if old and old["name"] == agent:
+                return {"topic": topic, "owner": agent, "revision": old["revision"]}
+            current = old["revision"] + 1 if old else 1
+            recipients = self.store.recipients(revision, [topic]) + [agent]
+            if old:
+                recipients.append(old["name"])
+            body = f"{assigned_by} made {agent} the owner of {topic}"
+            event = self._event(
+                state,
+                assigned_by,
+                "transfer",
+                body,
+                recipients,
+                topic=topic,
+                revision=current,
+                reply_to=None,
+                source="",
+                depends_on=[],
+                new_owner=agent,
+            )
+            state["owners"][topic] = {"name": agent, "revision": current}
+            return {
+                "topic": topic,
+                "owner": agent,
+                "revision": current,
+                "event_id": event["id"],
+                "recipients": event["recipients"],
+            }
 
         return self._mutate(mutate)
 

@@ -9,6 +9,20 @@ follow it without mutual acceptance. Explicit objections handle incompatibilitie
 requirement or dependency. Suggested alternatives are optional. Only the author resolves
 through `send`. Silence is neither agreement nor proof of compatibility.
 
+## Use MidFlight from any computer: add the connector
+
+Add one MCP connector to your coding client and sign in with GitHub. Nothing to clone.
+
+```sh
+claude mcp add --transport http midflight https://<HostedUrl>/mcp     # Claude Code
+codex mcp add midflight --url https://<HostedUrl>/mcp && codex mcp login midflight   # Codex
+```
+
+In Claude or ChatGPT, add a custom connector with the same URL. Then tell your agent
+“create a MidFlight project called Food app” and share the join code it gives you.
+Teammates add the same connector and say “join MidFlight project MF-XXXX-XXXX as
+payments”. Details, rules and deployment: [hosted connector](docs/hosted-connector.md).
+
 ## Try the cloud demo with an invite
 
 An invite opens a setup page and creates an isolated four-agent cloud project.

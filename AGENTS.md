@@ -5,6 +5,8 @@ This collaboration repository's current hackathon entrypoint is
 Read [architecture and measured validation](docs/agent-communication.md).
 
 - The four coordination tools are `join`, `send`, `check_in`, `objection`.
+- The hosted connector (`midflight.communication.hosted`, [docs](docs/hosted-connector.md))
+  adds self-serve projects and join codes around the same `Service`; see its rules there.
 - Coding agents interpret human directions and negotiate interfaces. MidFlight makes no model calls.
 - No claim, mandatory reviewer, approval or revision gate belongs in this runtime.
 - Owners publish versioned interfaces; consumers follow them without mutual acceptance.

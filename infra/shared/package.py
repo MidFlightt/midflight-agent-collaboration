@@ -52,10 +52,12 @@ def main():
     shutil.copytree(
         ROOT / "midflight", site / "midflight", ignore=shutil.ignore_patterns("__pycache__")
     )
+    # One archive, two functions: the token RPC API and the hosted connector choose their
+    # app through MIDFLIGHT_APP (default: the RPC API, unchanged).
     script = """#!/bin/bash
 export PYTHONPATH=/var/task:$PYTHONPATH
 cd /var/task
-exec python3 -m uvicorn midflight.communication.cloud:create_app --factory \\
+exec python3 -m uvicorn "${MIDFLIGHT_APP:-midflight.communication.cloud:create_app}" --factory \\
     --host 0.0.0.0 --port 8080 --no-access-log --log-level warning
 """
     archive = BUILD / "lambda.zip"

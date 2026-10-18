@@ -22,6 +22,18 @@ Parameters:
   ImageId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+  HostedPublicUrl:
+    Type: String
+    Default: ""
+    Description: The hosted connector's own Function URL (output HostedUrl); deploy.py fills it.
+  GitHubClientId:
+    Type: String
+    Default: ""
+    Description: Sign in with GitHub for the hosted connector (GitHub App or OAuth App).
+  GitHubClientSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
 Resources:
   Vpc:
     Type: AWS::EC2::VPC
@@ -70,6 +82,10 @@ Resources:
           FromPort: 6379
           ToPort: 6379
           SourceSecurityGroupId: !Ref LambdaSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref HostedSecurityGroup
       SecurityGroupEgress:
         - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0}
         - {IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0}
@@ -201,7 +217,94 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/lambda/${Function}
       RetentionInDays: 14
+  # Hosted connector: people add <HostedUrl>/mcp and sign in with GitHub. It needs the
+  # internet (GitHub sign-in), so it runs in a private subnet behind a NAT gateway.
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.76.2.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+  NatAddress:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Properties: {Domain: vpc}
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatAddress.AllocationId
+      SubnetId: !Ref Subnet
+  PrivateRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref Vpc}
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRoutes
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+  PrivateRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: {SubnetId: !Ref PrivateSubnet, RouteTableId: !Ref PrivateRoutes}
+  HostedSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Hosted connector Lambda; database and HTTPS out only
+      VpcId: !Ref Vpc
+      SecurityGroupEgress:
+        - {IpProtocol: tcp, FromPort: 6379, ToPort: 6379, CidrIp: 10.76.1.0/24}
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0}
+  HostedFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [DataAttachment, PrivateRoute, PrivateRouteAssociation]
+    Properties:
+      Runtime: python3.12
+      Architectures: [arm64]
+      Handler: run.sh
+      Role: !GetAtt FunctionRole.Arn
+      MemorySize: 1024
+      Timeout: 30
+      Code: {S3Bucket: !Ref ArtifactBucket, S3Key: !Ref ArtifactKey}
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerArm64:30
+      VpcConfig:
+        SubnetIds: [!Ref PrivateSubnet]
+        SecurityGroupIds: [!Ref HostedSecurityGroup]
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_PORT: '8080'
+          AWS_LWA_READINESS_CHECK_PATH: /healthz
+          MIDFLIGHT_APP: midflight.communication.hosted:create_app_from_env
+          MIDFLIGHT_DB_HOST: !GetAtt Database.PrivateIp
+          MIDFLIGHT_PUBLIC_URL: !Ref HostedPublicUrl
+          MIDFLIGHT_GITHUB_CLIENT_ID: !Ref GitHubClientId
+          MIDFLIGHT_GITHUB_CLIENT_SECRET: !Ref GitHubClientSecret
+  HostedFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties: {TargetFunctionArn: !GetAtt HostedFunction.Arn, AuthType: NONE}
+  HostedUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HostedFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+  HostedInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HostedFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+  HostedLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${HostedFunction}
+      RetentionInDays: 14
 Outputs:
+  HostedUrl: {Value: !GetAtt HostedFunctionUrl.FunctionUrl}
+  ConnectorUrl: {Value: !Sub '${HostedFunctionUrl.FunctionUrl}mcp'}
   Url: {Value: !GetAtt FunctionUrl.FunctionUrl}
   DatabaseInstance: {Value: !Ref Database}
   DataVolume: {Value: !Ref DataVolume}
