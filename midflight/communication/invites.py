@@ -9,12 +9,13 @@ import uuid
 from .service import Service
 
 AGENTS = {
-    "billing": ["delivery-record", "cancellation-policy"],
+    "billing": ["delivery-record", "cancellation-policy", "revenue-report"],
     "delivery": ["delivery-record", "booking-request", "cancellation-policy"],
     "booking": ["booking-request", "delivery-record"],
     "notifications": ["confirmation"],
 }
 OWNERS = {
+    "revenue-report": "billing",
     "delivery-record": "delivery",
     "booking-request": "booking",
     "confirmation": "notifications",

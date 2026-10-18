@@ -23,13 +23,14 @@ from .store import Store
 from .validate import evidence_status
 
 DEPENDENCIES = {
-    "billing": ["delivery-record", "cancellation-policy"],
+    "billing": ["delivery-record", "cancellation-policy", "revenue-report"],
     "delivery": ["delivery-record", "booking-request", "cancellation-policy"],
     "booking": ["booking-request", "delivery-record"],
     "notifications": ["confirmation"],
 }
 
 OWNERS = {
+    "revenue-report": "billing",
     "delivery-record": "delivery",
     "booking-request": "booking",
     "confirmation": "notifications",
@@ -98,8 +99,11 @@ class CommunicationTheater(InteractiveTheater):
                 "\n".join([PROMPTS[name]] + [item for r in own for item in r.acceptance_criteria])
                 + "\n"
             )
+            owned_topic = next(topic for topic, owner in OWNERS.items() if owner == name)
             (folder / "AGENTS.md").write_text(
                 f"You are {name}. Read TASK.md and inspect your starter code.\n"
+                f"Your owned interface topic is {owned_topic}. "
+                "Use that existing topic when publishing your component interface.\n"
                 f"Own only {name}.py and your new component tests. Stay in this workspace.\n"
                 "Peer modules here are incompatible starter snapshots, "
                 "not current shared implementations. "

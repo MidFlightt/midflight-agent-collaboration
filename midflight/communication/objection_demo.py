@@ -141,8 +141,65 @@ class ObjectionTheater(CommunicationTheater):
         return PUBLISH_PROMPT if name == "delivery" else WORK_PROMPTS[name]
 
 
+OVERLAP_STARTER = '''"""Active-listing prototype; management operations are unfinished."""
+_records = {}
+
+
+def get_delivery_records():
+    """Existing active-listing boundary; cancellation history is retained privately."""
+    return {key: record.copy() for key, record in _records.items()
+            if record["status"] == "confirmed"}
+
+
+def create_delivery(total_cents, customer, destination):
+    raise NotImplementedError("Implement delivery creation and validation")
+
+
+def get_delivery(delivery_id):
+    raise NotImplementedError("Implement delivery lookup and snapshot isolation")
+
+
+def cancel_delivery(delivery_id):
+    raise NotImplementedError("Implement saved refunds and idempotent cancellation")
+'''
+
+
 class OverlapObjectionTheater(ObjectionTheater):
     """Two unsent tasks: the owner publishes and implements in the same turn."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        folder = self.theater.root / "delivery"
+        (folder / "delivery.py").write_text(OVERLAP_STARTER)
+        (folder / "TASK.md").write_text(
+            "Implement create_delivery, get_delivery and cancel_delivery; they are unfinished.\n"
+            "Use nonnegative integer cents, positive integer IDs and confirmed/cancelled status.\n"
+            "Validate inputs and return copied records without exposing stored state.\n"
+            "Keep the customer-facing listing active-only, retaining cancelled records.\n"
+            "Cancellation initially saves a full refund and is idempotent.\n"
+            "Publish the intended interface early, then implement and test these operations.\n"
+        )
+        (folder / "README.md").write_text(
+            "# Delivery component\n\n"
+            "The active-listing helper is an existing prototype. Creation, lookup and "
+            "cancellation still need implementation, validation and tests.\n"
+            "Peer modules are local snapshots; current shared interfaces come from MidFlight.\n"
+        )
+        subprocess.run(["git", "add", "."], cwd=folder, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Demo",
+                "-c",
+                "user.email=demo@localhost",
+                "commit",
+                "-qm",
+                "Start overlap run with unfinished delivery operations",
+            ],
+            cwd=folder,
+            check=True,
+        )
 
     def initial_prompt(self, name, default):
         if name == "delivery":
