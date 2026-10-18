@@ -163,3 +163,29 @@ about every future model run. Do not hide an early adaptation if one occurs.
 
 Automated suite after this fixture change: 489 passed, 47 skipped. The cancellation
 policy test still verifies that only Billing and Delivery receive its update.
+
+## Review latency
+
+The three coherent-branch runs measured roughly 6–10 seconds for an initial approval
+and 22–26 seconds for a conflict review (pending-to-verdict observations). Conflict
+reviews previously ran detection, independent confirmation and correction selection
+in sequence. Confirmation and correction selection now run in parallel over the
+same evidence. Their prompts, schemas, classification and fallbacks are unchanged;
+the ruling is ignored unless confirmation explicitly reports a contradiction.
+Straight approvals still need only the initial detection call. A candidate dismissed
+by confirmation may now have an unused speculative ruling call.
+
+A live hosted-model comparison replayed exactly the same recorded claims through
+the old serial policy and the new parallel policy:
+
+| Recorded request | Serial | Parallel | Outcome in both |
+| --- | --- | --- | --- |
+| Mapping/list mismatch | 17.200 s | 14.359 s | Blocking semantic mismatch |
+| Aligned list interface | 3.674 s | 3.651 s | No findings |
+
+This is about 17% less latency on that conflict review, not a promise for every run.
+The comparison measures reviewer calls, not agent implementation time or complete MCP
+round trips. Evidence: ~/.local/share/midflight-demo/review-latency/comparison.json.
+Tests verify actual overlap, confirmation gating and unavailable-response fallbacks.
+The existing live four-agent run was preserved; loading the optimized policy requires
+a controller restart. Do not reset a user's work simply to install this optimization.
