@@ -250,8 +250,8 @@ class CommunicationTheater(InteractiveTheater):
         super().close()
 
 
-def app_for(live):
-    app = terminal_app(live, factory=CommunicationTheater)
+def app_for(live, *, factory=CommunicationTheater):
+    app = terminal_app(live, factory=factory)
     app.routes.remove(next(r for r in app.routes if getattr(r, "path", None) == "/"))
 
     @app.get("/")
