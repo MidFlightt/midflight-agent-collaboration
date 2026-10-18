@@ -7,7 +7,7 @@ html,body{margin:0;height:100%;background:#101114;color:#ddd;font:13px system-ui
 function demoColorRanges(text) {
   const rules = [
     ['#79bdff', /\b(?:theater_)?midflight\.(?:join|send|check_in|object)\b/g],
-    ['#f7ba55', /\b(?:new direction|update received|implementation changed|changed (?:my |the )?approach|adapt(?:ed|ing) to|switched to|previously expected|I (?:changed|updated)|policy (?:update|revision)|cancellation fee)\b/gi],
+    ['#f7ba55', /\b(?:new direction|update received|implementation changed|changed (?:my |the )?approach|adapt(?:ed|ing)(?: to)?|switched to|previously expected|I (?:changed|updated)|policy (?:update|revision)|cancellation fee)\b/gi],
   ];
   const cells = Array(text.length).fill(null);
   for (const [color, pattern] of rules) {

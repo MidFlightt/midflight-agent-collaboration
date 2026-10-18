@@ -19,3 +19,10 @@ assert.ok(html.includes('midflight-text-colors'));
 assert.ok(html.includes('if (!enabled)'));
 new vm.Script(html.split('<script>')[1].split('</script>')[0]);
 console.log('Communication highlighting checks passed');
+
+const actual = "The Billing agent adapted the starter’s list assumption to the Delivery agent’s published ID-keyed dictionary interface (#2).";
+const adaptation = classify(actual);
+assert.equal(adaptation.length, 1);
+assert.equal(adaptation[0].color, '#f7ba55');
+assert.equal(actual.slice(adaptation[0].start, adaptation[0].end), 'adapted');
+assert.equal(classify('Adapted to the published mapping.')[0].color, '#f7ba55');
