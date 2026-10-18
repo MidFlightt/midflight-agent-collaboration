@@ -99,3 +99,16 @@ MCP use the same renderer. Approval covers declared intent, not implementation t
 There are no external claim badges or ready labels. Agent commentary is generated
 by the coding agent; it is not the source of the verdict. The coding client controls
 whether a tool response is collapsed; expand tool details to read the full review.
+
+The complete claim response also ends with a short receipt generated from the same
+saved verdict. This keeps the verdict visible in clients that preview the tail of
+collapsed tool results. Rejections include the first blocking reason and correction;
+all findings and directives remain in the full result. No agent narration is required.
+
+Validated with a fresh real Codex CLI Billing session on October 17: its collapsed
+submit_claim output displayed `Claim C-1 rev 1: APPROVED` and the code-verification
+limit, matching the saved FalkorDB claim. The original user session was preserved.
+Evidence: local run `~/.local/share/midflight-demo/peers-3647e35d29/`, including
+`native-reply-validation.json` and `billing-native-reply-transcript.txt`. Rejection
+receipts are covered by automated renderer tests; this check did not produce a fresh
+autonomous rejection. Full suite: 488 passed, 47 skipped.

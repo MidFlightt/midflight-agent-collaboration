@@ -72,6 +72,36 @@ def verdict_text(
     return "\n".join(lines).strip()
 
 
+def claim_reply(verdict: dict[str, Any], *, same_contracts: bool = False) -> str:
+    """Full review plus a saved-verdict receipt at the end for terminal previews.
+
+    Some clients show the tail of a collapsed tool result. Keep the actual verdict
+    visible there too, rather than ending on boilerplate or an empty directive list.
+    No inference or agent narration is involved in this receipt.
+    """
+    details = verdict_text(verdict, same_contracts=same_contracts)
+    directives = directives_block(verdict.get("directives", []), ())
+    receipt = [f"Claim {verdict['claim_id']} rev {verdict['revision']}: {verdict['state'].upper()}"]
+    findings = verdict.get("findings", [])
+    blockers = [f for f in findings if f["severity"] == "blocking"]
+    if blockers:
+        first = blockers[0]
+        receipt.append("Why: " + " ".join(first["explanation"].split()))
+        if first.get("proposed_correction"):
+            receipt.append("Fix: " + " ".join(first["proposed_correction"].split()))
+        if len(blockers) > 1:
+            receipt.append(
+                f"{len(blockers) - 1} more blocking finding(s) in the full review above."
+            )
+    elif not verdict.get("review_complete", True):
+        receipt.append("Review incomplete; approval has not been granted.")
+    elif verdict["state"] == "approved":
+        receipt.append("Declared intent approved; code and tests are not verified by this review.")
+    else:
+        receipt.append("See the review and next step above.")
+    return details + "\n\n" + directives + "\n\n" + "\n".join(receipt)
+
+
 def contracts_text(contracts: Sequence[dict[str, Any]]) -> list[str]:
     if not contracts:
         return ["Contracts: none for this task."]

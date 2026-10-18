@@ -518,3 +518,51 @@ def test_approval_does_not_request_performative_checkpoint_narration() -> None:
     assert "Findings: none." in reply
     assert "before finishing" in reply
     assert "tell your developer the list" not in reply
+
+
+def test_collapsed_claim_preview_ends_with_saved_verdict_and_fix() -> None:
+    from midflight.mcp.replies import claim_reply
+
+    reply = claim_reply(
+        {
+            "claim_id": "C-2",
+            "revision": 3,
+            "state": "needs_revision",
+            "note": "Long reference material.",
+            "findings": [
+                {
+                    "severity": "blocking",
+                    "kind": "interface_mismatch",
+                    "explanation": "Billing expects a list.\nDelivery returns a mapping.",
+                    "proposed_correction": "Return a list of records.",
+                }
+            ],
+            "directives": [],
+        }
+    )
+    assert reply.splitlines()[-3:] == [
+        "Claim C-2 rev 3: NEEDS_REVISION",
+        "Why: Billing expects a list. Delivery returns a mapping.",
+        "Fix: Return a list of records.",
+    ]
+    assert "MIDFLIGHT DIRECTIVES: none open." in reply
+    assert "Long reference material." in reply
+
+
+def test_collapsed_approval_preview_keeps_code_verification_limit() -> None:
+    from midflight.mcp.replies import claim_reply
+
+    reply = claim_reply({"claim_id": "C-1", "revision": 2, "state": "approved"})
+    assert reply.splitlines()[-2:] == [
+        "Claim C-1 rev 2: APPROVED",
+        "Declared intent approved; code and tests are not verified by this review.",
+    ]
+
+
+def test_collapsed_incomplete_review_never_implies_approval() -> None:
+    from midflight.mcp.replies import claim_reply
+
+    reply = claim_reply(
+        {"claim_id": "C-3", "revision": 1, "state": "pending", "review_complete": False}
+    )
+    assert reply.endswith("Review incomplete; approval has not been granted.")

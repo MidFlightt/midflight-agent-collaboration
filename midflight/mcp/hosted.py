@@ -52,7 +52,7 @@ from midflight.mcp.instructions import (
     HOSTED_INSTRUCTIONS,
     SUBMIT_CLAIM,
 )
-from midflight.mcp.replies import check_in_text, directives_block, refused_text, verdict_text
+from midflight.mcp.replies import check_in_text, claim_reply, directives_block, refused_text
 from midflight.services.claims import ClaimSubmission
 from midflight.services.decisions import MIDFLIGHT, decided_by, decisions_in_force
 from midflight.services.directives import ACK_NOTE
@@ -292,8 +292,7 @@ def build_hosted_server(
                 )
                 return with_directives(text, member, task_id)
             verdict = verdict_json(services.claims.verdict(result.claim_id, result.revision))
-            text = verdict_text(verdict, same_contracts=known)
-            return f"{text}\n\n{directives_block(verdict['directives'], ())}"
+            return claim_reply(verdict, same_contracts=known)
 
         return answer(act)
 

@@ -33,9 +33,9 @@ from midflight.mcp.instructions import (
 from midflight.mcp.local.client import MidflightApi, MidflightUnavailable, NotSignedIn, Refused
 from midflight.mcp.replies import (
     check_in_text,
+    claim_reply,
     directives_block,
     refused_text,
-    verdict_text,
 )
 
 # The agent instructions from docs/domain.md (Interfaces, D10). Keep the two in sync.
@@ -138,9 +138,7 @@ def build_server(
                 job = api.job(submitted["job_id"])
                 if job["job"]["state"] in DONE_STATES and job["verdict"]:
                     verdict = job["verdict"]
-                    return (
-                        f"{verdict_text(verdict)}\n\n{directives_block(verdict['directives'], ())}"
-                    )
+                    return claim_reply(verdict)
                 if time.monotonic() >= deadline:
                     text = (
                         f"Claim {submitted['claim_id']} rev {submitted['revision']}: PENDING. "
