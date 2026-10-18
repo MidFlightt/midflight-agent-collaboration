@@ -112,3 +112,16 @@ Evidence: local run `~/.local/share/midflight-demo/peers-3647e35d29/`, including
 `native-reply-validation.json` and `billing-native-reply-transcript.txt`. Rejection
 receipts are covered by automated renderer tests; this check did not produce a fresh
 autonomous rejection. Full suite: 488 passed, 47 skipped.
+
+## Multiple terminal viewers
+
+All viewers attach to one tmux window, so the coding panes share one size. Background
+or unfocused viewers must not resize it. The foreground viewer restores its size on
+focus or a click; a ResizeObserver also handles container changes. New tmux viewers
+use ignore-size so attaching a small background viewer cannot implicitly shrink the
+window. This changes terminal geometry only, preserving processes and prompt input.
+
+Validated on the existing live session with both Chrome (204 columns) and the narrow
+in-app viewer (95 columns): clicking each viewer transferred sizing, and returning to
+Chrome restored all four full-width panes without resetting agents. Automated sizing
+checks cover focus, hidden tabs, zero-size containers and coalesced resize events.

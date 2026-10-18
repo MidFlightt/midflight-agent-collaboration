@@ -512,7 +512,7 @@ def terminal_app(live, *, factory=None, allow_staged_reset=False):
 
         attached_session = live.session
         proc = subprocess.Popen(
-            ["tmux", "attach-session", "-t", attached_session],
+            ["tmux", "attach-session", "-f", "ignore-size", "-t", attached_session],
             stdin=slave,
             stdout=slave,
             stderr=slave,
