@@ -56,3 +56,6 @@ It combines only each agent's owned production module and preserves the original
 The former implementation and documentation are retained for comparison. They are
 not part of the current communication runtime; the prior README is in
 [the archive](docs/archive/readme-before-communication.md).
+
+Recording fixes, actual-agent measurements and limitations: [rehearsal evidence](docs/evidence/routing-rehearsal.md).
+Use the [recording workflow](docs/recording-workflow.md) for operator validation and the useful Billing follow-up.

@@ -34,8 +34,14 @@ Interpret human changes yourself. Send policy on the affected topic with the ver
 human source. Do not broadcast raw directions. Dependencies are explicit topics:
 join(dependencies=[...]) replaces your subscriptions; omitted dependencies preserves them.
 send(kind='dependency',topic=...,depends_on=[...]) declares topic prerequisites.
-Omit to to route through dependency edges; explicit to targets named peers.
-Policies and their replies cannot include agents outside the policy audience.
+Topic messages route to all dependency subscribers: omit to. For direct peer messages,
+omit topic and supply to. Proposals use their explicit participants. Replies to topic
+messages cannot override the audience or relabel the topic. Do not copy raw human
+policy directions into unrelated direct messages.
+Only latest policy revisions are actionable in unapplied_policies. policy_history retains
+superseded revisions and exact applied reports; superseded does not mean read or applied.
+Apply the current policy and reference its exact event ID; never report an old revision
+as evidence of applying a newer one.
 Check in at a natural boundary before depending on shared work or reporting affected work
 complete. send/join/agree already include updates; do not redundantly check in after them.
 Never poll, schedule checkpoints, repeatedly prompt peers or wake idle sessions.

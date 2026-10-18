@@ -20,6 +20,7 @@ from midflight.theater.peers import PeerTheater
 from .mcp import INSTRUCTIONS
 from .service import Service
 from .store import Store
+from .validate import evidence_status
 
 DEPENDENCIES = {
     "billing": ["delivery-record", "cancellation-policy"],
@@ -96,6 +97,11 @@ class CommunicationTheater(InteractiveTheater):
             (folder / "AGENTS.md").write_text(
                 f"You are {name}. Read TASK.md and inspect your starter code.\n"
                 f"Own only {name}.py and your new component tests. Stay in this workspace.\n"
+                "Peer modules here are incompatible starter snapshots, "
+                "not current shared implementations. "
+                "Local tests may mock peers; only operator combined-code validation "
+                "tests integration. "
+                "Do not claim end-to-end success from local tests.\n"
                 "Use theater_midflight for coordination. Do not commit, push or delegate.\n"
                 "Join with your name and a fresh request ID. "
                 "Existing topic subscriptions are seeded.\n"
@@ -192,7 +198,9 @@ class CommunicationTheater(InteractiveTheater):
         )
         evidence = self.theater.root / "integration.json"
         if evidence.exists():
-            report["integration"] = json.loads(evidence.read_text())
+            report["integration"] = evidence_status(
+                self.theater.root, json.loads(evidence.read_text())
+            )
         (self.theater.root / "report.json").write_text(json.dumps(report, indent=2))
         return report
 

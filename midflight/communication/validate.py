@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 NAMES = ("billing", "delivery", "booking", "notifications")
@@ -74,6 +75,12 @@ def validate(root, fee=0, label="baseline", id_field="delivery_id"):
     )
     evidence = dict(
         label=label,
+        executed_by="operator",
+        executed_at=datetime.now(UTC).isoformat(),
+        method="Four owned modules copied unchanged; fresh subprocess imports actual combined code",
+        component_scope="Agent-local tests may mock peers; these are not integration evidence",
+        policy_consumption="Inspect exact agent policy reports separately; not measured by tests",
+        success=result.returncode == 0 and all(c["returncode"] == 0 for c in components.values()),
         fee_cents=fee,
         id_field=id_field,
         hashes=hashes,
@@ -87,6 +94,16 @@ def validate(root, fee=0, label="baseline", id_field="delivery_id"):
     (destination / "result.json").write_text(json.dumps(evidence, indent=2))
     (root / "integration.json").write_text(json.dumps(evidence, indent=2))
     return evidence
+
+
+def evidence_status(root, evidence):
+    """Saved success applies only to the exact tested module bytes."""
+    root = Path(root)
+    current = {n: hashlib.sha256((root / n / (n + ".py")).read_bytes()).hexdigest() for n in NAMES}
+    return evidence | {
+        "matches_current_modules": current == evidence["hashes"],
+        "current_hashes": current,
+    }
 
 
 def main():

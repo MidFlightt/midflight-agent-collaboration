@@ -123,15 +123,37 @@ class Service:
                     a["kind"] == "answer" and a.get("reply_to") == e["id"] for a in state["events"]
                 )
             ],
-            unapplied_policies=[
-                e
-                for e in visible
-                if e["kind"] == "policy"
-                and not any(
-                    a["kind"] == "applied" and a.get("reply_to") == e["id"] and a["author"] == actor
-                    for a in state["events"]
-                )
-            ],
+        )
+        # Supersession is not application. Keep every exact revision and its report.
+        policies = [e for e in visible if e["kind"] == "policy"]
+        latest = {e["topic"]: e["id"] for e in state["events"] if e["kind"] == "policy"}
+        delivered_policies = session.setdefault("delivered_policy_ids", [])
+        policy_states = []
+        for policy in policies:
+            applied = [
+                e["id"]
+                for e in state["events"]
+                if e["kind"] == "applied"
+                and e.get("reply_to") == policy["id"]
+                and e["author"] == actor
+            ]
+            policy_states.append(
+                policy
+                | {
+                    "superseded_by": (
+                        latest[policy["topic"]] if latest[policy["topic"]] != policy["id"] else None
+                    ),
+                    "applied_report_ids": applied,
+                    "previously_delivered": policy["id"] in delivered_policies,
+                }
+            )
+        result["policy_history"] = policy_states
+        result["unapplied_policies"] = [
+            p for p in policy_states if p["superseded_by"] is None and not p["applied_report_ids"]
+        ]
+        # These bodies are included in this response, independently of message pagination.
+        session["delivered_policy_ids"] = sorted(
+            set(delivered_policies + [p["id"] for p in policies])
         )
         # Current shared interfaces are context, including for a newly subscribed session.
         # Delivery is recorded per session; it never implies agreement or code adoption.
@@ -264,8 +286,11 @@ class Service:
                 if not set(to + participants) <= state["agents"].keys():
                     raise ValueError("Unknown recipient or participant; join first")
                 routed = self.store.recipients(revision, [topic])
-                if kind == "policy" and to and not set(to) <= set(routed):
-                    raise ValueError("Policy recipients must be dependency subscribers; omit to")
+                if topic and to:
+                    raise ValueError(
+                        "Topic updates route to all dependency subscribers; omit to. "
+                        "Use a topic-free direct message for named peers"
+                    )
                 recipients = to or routed
                 current = 0
                 owner = state["owners"].get(topic)
@@ -361,11 +386,29 @@ class Service:
                     audience = set(parent["recipients"] + [parent["author"]])
                     if parent["kind"] == "objection":
                         audience.add(state["owners"][parent["topic"]]["name"])
-                    if parent["kind"] == "policy" and to and not set(to) <= audience:
-                        raise ValueError(
-                            "Policy replies cannot expand the policy audience; omit to"
-                        )
-                    if not to and kind not in {"objection", "interface", "transfer"}:
+                    if parent.get("topic") and parent["kind"] != "proposal":
+                        if to:
+                            raise ValueError(
+                                "Topic replies cannot expand or narrow their audience; omit to"
+                            )
+                        if topic and topic != parent["topic"]:
+                            raise ValueError("Reply topic must match its parent")
+                        if kind not in {"interface", "transfer", "policy", "dependency"}:
+                            # Replies retain the original relevant audience. New publications
+                            # always use the current graph, even when linked to an older event.
+                            audience.update(self.store.recipients(revision, [parent["topic"]]))
+                    if (
+                        not to
+                        and (not topic or parent.get("topic"))
+                        and kind
+                        not in {
+                            "objection",
+                            "interface",
+                            "transfer",
+                            "policy",
+                            "dependency",
+                        }
+                    ):
                         recipients = sorted(audience)
                     if kind == "answer" and parent["author"] not in recipients:
                         raise ValueError("Answer must reach question author")
@@ -392,7 +435,7 @@ class Service:
                     kind,
                     body,
                     recipients,
-                    topic=topic,
+                    topic=(parent["topic"] if reply_to is not None and not topic else topic),
                     revision=current,
                     reply_to=reply_to,
                     source=source,
