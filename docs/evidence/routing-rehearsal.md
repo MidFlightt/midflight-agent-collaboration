@@ -94,3 +94,39 @@ not a measured large-project performance design. The Python combined test does n
 browser JavaScript or a deployed service. This is one real rehearsal, not a reliability rate.
 
 Exact recording instructions: [recording-workflow.md](../recording-workflow.md).
+
+## Recovery, reset and prepared recording
+
+A controller crash/reconnect preserved the exact coordination state and existing terminals.
+The first immediate restart exposed a preflight socket `TIME_WAIT` issue; setting
+`SO_REUSEADDR` to match uvicorn fixed it. The recovered report matched all tested module
+hashes. This was an operator controller restart, not an agent wakeup.
+
+The operator then clicked Reset in the browser. All **62** archived source, test and
+validation files matched their pre-reset SHA-256 hashes. The prior graph remained exactly
+unchanged. `ARCHIVED` and the full report are retained in `runs/routing-rehearsal`.
+See [reset-verification.json](routing-rehearsal/reset-verification.json).
+
+Fresh recording: http://127.0.0.1:18939/ — all four real panels connected, all four
+prepared starter prompts unsent, zero agent tasks started, zero coordination events.
+Root: `/private/tmp/midflight-agent-communication/runs/interactive-6da9d6d5d2`.
+Session: `midflight-2716e6af`. Screenshot: [recording-ready.png](routing-rehearsal/recording-ready.png).
+
+For this prepared run, set:
+
+```sh
+cd /tmp/midflight-agent-communication
+RUN=/private/tmp/midflight-agent-communication/runs/interactive-6da9d6d5d2
+```
+
+Follow the [recording sequence](../recording-workflow.md). The operator commands are:
+
+```sh
+.venv/bin/python -m midflight.communication.validate "$RUN" --label baseline --id-field id
+# After the fee task and the one useful Billing follow-up have completed:
+.venv/bin/python -m midflight.communication.validate "$RUN" --fee 400 --label fee --id-field id
+```
+
+Use `delivery_id` instead if that is the freshly published contract. The new agents have
+not yet chosen their implementation. Do not promise a repeat of this rehearsal's choices
+or timing, and do not report a passing test until it actually passes in the recording run.

@@ -237,6 +237,8 @@ def main():
             parser.error("--resume requires --root")
         args.root = Path(__file__).resolve().parents[2] / "runs" / uuid.uuid4().hex[:12]
     with socket.socket() as listener:
+        # Match uvicorn: permit immediate recovery while old sockets are in TIME_WAIT.
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind(("127.0.0.1", args.port))
     if args.resume:
         live = CommunicationTheater.restore(args.root, args.port)

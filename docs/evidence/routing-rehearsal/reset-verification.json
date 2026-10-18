@@ -1,0 +1,32 @@
+{
+  "archived_root": "/private/tmp/midflight-agent-communication/runs/routing-rehearsal",
+  "preserved_file_count": 62,
+  "all_archived_file_hashes_match": true,
+  "archived_graph_unchanged": true,
+  "new_root": "/private/tmp/midflight-agent-communication/runs/interactive-6da9d6d5d2",
+  "new_graph": "communication-64e1b1fd347c494799b50bcc93a036d8",
+  "new_session": "midflight-2716e6af",
+  "new_event_count": 0,
+  "panels": {
+    "billing": {
+      "pane": "%240",
+      "tasks_started": 0,
+      "prepared_prompt": "Implement billing and revenue reporting."
+    },
+    "delivery": {
+      "pane": "%241",
+      "tasks_started": 0,
+      "prepared_prompt": "Implement delivery management."
+    },
+    "booking": {
+      "pane": "%242",
+      "tasks_started": 0,
+      "prepared_prompt": "Build the customer booking flow."
+    },
+    "notifications": {
+      "pane": "%243",
+      "tasks_started": 0,
+      "prepared_prompt": "Implement customer notifications."
+    }
+  }
+}
