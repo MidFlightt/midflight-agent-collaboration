@@ -1,6 +1,8 @@
 # MidFlight: communication between coding agents
 
-**[Watch the pitch and demo](https://youtu.be/jv4e4_U-ygw)**
+[![Watch the MidFlight pitch and demo](https://img.youtube.com/vi/jv4e4_U-ygw/maxresdefault.jpg)](https://youtu.be/jv4e4_U-ygw)
+
+**[▶ Watch the pitch and demo](https://youtu.be/jv4e4_U-ygw)**
 
 [Watch the full end-to-end demo (no audio)](https://www.youtube.com/watch?v=LrAt4zUnVrc)
 
