@@ -18,7 +18,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", default="midflight-dev")
     parser.add_argument("--region", default="us-east-1")
-    parser.add_argument("--config", type=Path)
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="Operator roster for the token RPC pilot. Needed to create the stack or change "
+        "the roster; omitted on an update, the roster already deployed is kept.",
+    )
     parser.add_argument(
         "--invite-secrets",
         type=Path,
@@ -43,18 +48,21 @@ def main():
         cf.execute_change_set(ChangeSetName=args.execute)
         print(f"Deployment started: {STACK}. Inspect stack events and outputs before sharing URL.")
         return
-    if args.config is None:
-        parser.error("--config is required for a preview")
     # Permission preflight before creating paid resources or uploading artifacts.
     session.client("ec2").describe_vpcs()
     cf.list_stacks(StackStatusFilter=["CREATE_COMPLETE", "UPDATE_COMPLETE"])
-    from midflight.communication.cloud import validate_config
+    config_parameter = {"ParameterKey": "ConfigJson", "UsePreviousValue": True}
+    if args.config is not None:
+        from midflight.communication.cloud import validate_config
 
-    config = json.loads(args.config.read_text())
-    validate_config(config)
-    config_json = json.dumps(config, separators=(",", ":"))
-    if len(config_json.encode()) > 3000:
-        raise SystemExit("Roster too large for Lambda environment; use a mounted-config deployment")
+        config = json.loads(args.config.read_text())
+        validate_config(config)
+        config_json = json.dumps(config, separators=(",", ":"))
+        if len(config_json.encode()) > 3000:
+            raise SystemExit(
+                "Roster too large for Lambda environment; use a mounted-config deployment"
+            )
+        config_parameter = {"ParameterKey": "ConfigJson", "ParameterValue": config_json}
     template = (ROOT / "infra/shared/aws.yaml").read_text()
     cf.validate_template(TemplateBody=template)
     artifact = ROOT / "build/shared/lambda.zip"
@@ -104,6 +112,10 @@ def main():
             raise
         change_type = "CREATE"
         existing_values, existing_parameters, outputs = {}, set(), {}
+    if "UsePreviousValue" in config_parameter:
+        if change_type == "CREATE" or "ConfigJson" not in existing_parameters:
+            raise SystemExit("Creating the stack needs --config with the operator roster")
+        print("Keeping the token RPC roster already deployed (no --config given).")
     # The connector must know its own URL for sign-in, but a Function URL exists only after
     # the first deployment creates it. That deployment serves an "unconfigured" page; the
     # next one passes the URL in. Rerun this script once after the first apply.
@@ -153,12 +165,9 @@ def main():
         Capabilities=["CAPABILITY_IAM"],
         Parameters=[
             {"ParameterKey": k, "ParameterValue": v}
-            for k, v in {
-                "ArtifactBucket": bucket,
-                "ArtifactKey": key,
-                "ConfigJson": config_json,
-            }.items()
+            for k, v in {"ArtifactBucket": bucket, "ArtifactKey": key}.items()
         ]
+        + [config_parameter]
         + invite_parameters
         + hosted_parameters,
     )

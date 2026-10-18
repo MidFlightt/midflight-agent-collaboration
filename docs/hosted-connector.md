@@ -116,8 +116,7 @@ persistent local storage (`docker compose -f compose.graph-hacks.yml up -d`).
 
    ```sh
    uv run --extra falkordb python infra/shared/package.py
-   uv run --extra falkordb python infra/shared/deploy.py --profile midflight-dev \
-     --config "$HOME/.midflight-shared/teammate-pilot/config.json"
+   uv run --extra falkordb python infra/shared/deploy.py --profile midflight-dev
    uv run --extra falkordb python infra/shared/deploy.py --profile midflight-dev --execute CHANGE_SET_ID
    ```
 
@@ -131,11 +130,12 @@ persistent local storage (`docker compose -f compose.graph-hacks.yml up -d`).
 
    ```sh
    uv run --extra falkordb python infra/shared/deploy.py --profile midflight-dev \
-     --config "$HOME/.midflight-shared/teammate-pilot/config.json" \
      --github-oauth /private/path/github-oauth.json
    ```
 
    Later deployments keep both without the flag.
+   Without `--config`, an update keeps the token RPC pilot's roster already in AWS;
+   pass `--config` only to create the stack or change that roster.
 4. **Check** `https://<HostedUrl>/healthz` returns `{"status":"ok"}`. Until the URL and
    GitHub credentials are both set it answers `"configured": false` with the reason, and
    `/mcp` returns 503 instead of failing to start. Open the landing page, then add the
