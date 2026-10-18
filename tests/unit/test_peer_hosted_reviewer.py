@@ -3,6 +3,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from midflight.ports import ReviewerUnavailable
 from midflight.theater.hosted_reviewer import HostedReviewer, strict_schema
 
@@ -34,12 +36,12 @@ class HostedReviewerTest(unittest.TestCase):
             self.assertIn("--ignore-user-config", command)
             self.assertIn("--ephemeral", command)
             self.assertEqual(command[command.index("--sandbox") + 1], "read-only")
-            self.assertIn("<data>", kwargs["input"])
-            return subprocess.CompletedProcess(command, 0, "", "")
+            self.assertIn("<data>", kwargs["prompt"])
+            return 0
 
         with (
             patch("midflight.theater.hosted_reviewer.shutil.which", return_value="/path/codex"),
-            patch("midflight.theater.hosted_reviewer.subprocess.run", side_effect=respond),
+            patch("midflight.theater.hosted_reviewer._run_cli", side_effect=respond),
         ):
             self.assertEqual(
                 HostedReviewer()._call("policy", "review", {}, "findings", {"type": "object"}),
@@ -47,10 +49,10 @@ class HostedReviewerTest(unittest.TestCase):
             )
 
     def test_failure_and_timeout_never_return_approval_or_cli_secrets(self):
-        failure = subprocess.CompletedProcess([], 1, "", "private CLI diagnostics")
+        failure = 1
         with (
             patch("midflight.theater.hosted_reviewer.shutil.which", return_value="/path/codex"),
-            patch("midflight.theater.hosted_reviewer.subprocess.run", return_value=failure),
+            patch("midflight.theater.hosted_reviewer._run_cli", return_value=failure),
         ):
             with self.assertRaises(ReviewerUnavailable) as caught:
                 HostedReviewer()._call("", "", {}, "", {})
@@ -58,7 +60,7 @@ class HostedReviewerTest(unittest.TestCase):
         with (
             patch("midflight.theater.hosted_reviewer.shutil.which", return_value="/path/codex"),
             patch(
-                "midflight.theater.hosted_reviewer.subprocess.run",
+                "midflight.theater.hosted_reviewer._run_cli",
                 side_effect=subprocess.TimeoutExpired("codex", 90),
             ),
             self.assertRaises(ReviewerUnavailable),
@@ -68,3 +70,67 @@ class HostedReviewerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_review_budget_is_shared_across_calls_and_timeout_cannot_approve():
+    from midflight.theater.review_policy import PeerReviewPolicy
+
+    reviewer = HostedReviewer(call_timeout=20, review_timeout=30)
+    timeouts = []
+
+    def run(command, **kwargs):
+        timeouts.append(kwargs["timeout"])
+        if len(timeouts) == 1:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        raise AssertionError("Unexpected extra model call")
+
+    def review(self, request):
+        # Emulate the generic second-check fallback: it swallows transport errors.
+        try:
+            self._call("policy", "confirm", {}, "confirm_conflict", {"type": "object"})
+        except ReviewerUnavailable:
+            return {"findings": []}
+
+    with (
+        patch("midflight.theater.hosted_reviewer.shutil.which", return_value="/path/codex"),
+        patch("midflight.theater.hosted_reviewer._run_cli", side_effect=run),
+        patch.object(PeerReviewPolicy, "review_claim", review),
+        patch("midflight.theater.hosted_reviewer.time.monotonic", side_effect=[100, 125]),
+        pytest.raises(ReviewerUnavailable),
+    ):
+        reviewer.review_claim(None)
+    assert timeouts == [5]
+    assert reviewer._deadline is None
+
+
+def test_timeout_kills_the_cli_wrapper_and_its_child(tmp_path):
+    import os
+    import sys
+    import time
+
+    import pytest
+
+    from midflight.theater.hosted_reviewer import _run_cli
+
+    pidfile = tmp_path / "child.pid"
+    program = (
+        "import subprocess,sys,time; "
+        "from pathlib import Path; "
+        "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); "
+        f"Path({str(pidfile)!r}).write_text(str(p.pid)); "
+        "time.sleep(30)"
+    )
+    started = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        _run_cli([sys.executable, "-c", program], prompt="", cwd=tmp_path, timeout=1)
+    assert time.monotonic() - started < 5
+    pid = int(pidfile.read_text())
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return
+    # A killed child may remain briefly as a zombie awaiting its OS reaper.
+    state = subprocess.run(
+        ["ps", "-p", str(pid), "-o", "stat="], capture_output=True, text=True
+    ).stdout.strip()
+    assert not state or state.startswith("Z")

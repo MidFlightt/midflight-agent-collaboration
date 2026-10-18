@@ -163,3 +163,38 @@ about every future model run. Do not hide an early adaptation if one occurs.
 
 Automated suite after this fixture change: 489 passed, 47 skipped. The cancellation
 policy test still verifies that only Billing and Delivery receive its update.
+
+## Bounded review waits and controller recovery
+
+The parallel-review experiment was reverted. The live controller had not loaded that
+change; a stalled inference call and the serial durable job queue were observed in
+the slow run. Earlier single-request benchmark gains did not establish live end-to-end
+performance. Keep independent confirmation and correction selection serial for now.
+
+The hosted reviewer now limits each CLI call to 20 seconds and shares a 30-second
+budget across detection, confirmation and correction within one review attempt.
+The claims service can retry an unavailable attempt once, so this is not a 30-second
+end-to-end SLA; queued jobs and agent thinking add time. Infrastructure failures at
+any review stage leave the review incomplete; they cannot become approval through a
+secondary-check fallback. The entire CLI process group is killed and reaped after a
+call, including the Node wrapper's native child. Raw CLI diagnostics remain private.
+
+Live hosted-model controls using recorded real claims: the restored serial bounded
+review caught the mapping/list conflict in 19.084 seconds and accepted the aligned
+list claim in 3.442 seconds. Evidence is in
+~/.local/share/midflight-demo/review-latency/bounded-serial-controls.json. This is a
+review replay, not a new autonomous four-agent run or a guaranteed response time.
+
+A controller can now resume a delivery run with:
+
+```sh
+python -m midflight.theater.resume /absolute/path/to/existing/run
+```
+
+Stop the previous controller/worker first: there must never be two workers against
+the same graph. Resume reads interactive.json, the saved report and the existing
+private agent launch configuration. It validates the original identities and ports,
+reuses the graph, plan, claims, durable jobs, workspaces and tmux sessions, and starts
+no new coding agents. It does not seed/reset the project or extend credentials.
+Tests verify preservation and identity/port refusal, the shared time budget, failure
+gating, and cleanup of a real wrapper/child process on timeout.
