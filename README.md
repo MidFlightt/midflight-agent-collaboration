@@ -11,9 +11,25 @@ through `send`. Silence is neither agreement nor proof of compatibility.
 
 ## Run the four-terminal prototype
 
+This is the hackathon prototype in **MidFlightt/midflight-agent-collaboration**.
+Use the `codex/agent-communication` branch; the official MidFlight repository is separate.
+
+Prerequisites: Git, [uv](https://docs.astral.sh/uv/), Docker with Compose,
+`tmux`, and an authenticated `codex` CLI on PATH. Python 3.12 or newer is required
+(uv can provision it). The recorded workflow was tested on macOS with Codex CLI
+0.162.1. Linux and other CLI versions have not been verified; native Windows is
+not supported by this tmux harness. Coding sessions use your own Codex account and
+usage allowance; MidFlight itself does not call a model.
+
+The harness currently expects login credentials at `~/.codex/auth.json`; a
+keychain-only login or custom CODEX_HOME is not supported. Each isolated local
+profile links to that file. Never share the generated `runs/` directory.
+
 ```sh
+git clone --branch codex/agent-communication https://github.com/MidFlightt/midflight-agent-collaboration.git
+cd midflight-agent-collaboration
 uv sync --locked --extra falkordb --extra demo
-docker compose -f compose.graph-hacks.yml up -d
+docker compose -f compose.graph-hacks.yml up -d --wait
 uv run --extra falkordb --extra demo python -m midflight.communication.harness --port 18937
 ```
 
@@ -43,9 +59,13 @@ uv run --extra falkordb --extra demo python -m midflight.communication.harness \
 Run the independent combined-code check against a run directory:
 
 ```sh
-uv run python -m midflight.communication.validate /absolute/path/to/run --label baseline --id-field id
-uv run python -m midflight.communication.validate /absolute/path/to/run --fee 400 --label fee --id-field id
+uv run --extra falkordb --extra demo python -m midflight.communication.validate /absolute/path/to/run --label baseline --id-field id
+uv run --extra falkordb --extra demo python -m midflight.communication.validate /absolute/path/to/run --fee 400 --label fee --id-field id
 ```
+
+Use a fresh `--label` for each validation; existing evidence is never overwritten.
+The validator is operator-run and identifies itself as such. A passing test is not
+proof that a peer read or applied a policy.
 
 Select `--id-field id` or `--id-field delivery_id` from the actual published contract.
 Other negotiated API changes require adapting the independent test to that contract.
@@ -63,3 +83,32 @@ Recording fixes, actual-agent measurements and limitations: [rehearsal evidence]
 Use the [recording workflow](docs/recording-workflow.md) for operator validation and the useful Billing follow-up.
 
 Current four-tool design and measured rehearsal: [object workflow evidence](docs/evidence/object-rehearsal.md).
+
+## Local checks and troubleshooting
+
+```sh
+uv run --extra falkordb --extra demo ruff check .
+uv run --extra falkordb --extra demo pytest
+uv run --extra falkordb --extra demo pytest --falkordb
+node tests/browser/communication-colors.cjs
+```
+
+The database tests require Docker and use an isolated container. The highlighting
+check requires Node.js. No real coding-agent turns are started by these checks.
+
+- If port 6379 is occupied, inspect the existing service before starting Compose;
+  do not stop someone else's database. The harness also accepts `--db-port`.
+- If the web port is occupied, choose another `--port` and open that URL.
+- If agents fail to launch, check `codex --version`, `tmux -V`, and the login file
+  above. Four sessions require available account capacity.
+- Keep the controller terminal running. Use Reset to archive and prepare a new run;
+  it does not submit the starter prompts. For recovery, use `--resume` above.
+- Compose stores coordination in a persistent Docker volume. Do not use
+  `docker compose down -v` if you need retained run history. Back up both the
+  database volume and `runs/` privately to preserve a run across machines.
+
+This is a local, trusted-machine prototype, not a hardened hosted service. Do not
+expose its terminal controller to the internet. Agent decisions are nondeterministic;
+local tests may use mocks, and combined-code validation covers the Python modules,
+not a deployed application. See the measured evidence for observed behavior and
+remaining limitations rather than treating the recording as a guarantee.

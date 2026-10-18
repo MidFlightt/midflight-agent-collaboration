@@ -1,4 +1,15 @@
-# Measured rehearsal results — 2026-10-17
+# Measured rehearsal evidence
+
+Start with [the current four-tool objection workflow](object-rehearsal.md) for the
+latest real-agent rehearsal: `join`, `send`, `check_in`, `object`, owner publication,
+selective policy routing, and explicitly operator-run combined-code validation.
+The [recording workflow](../recording-workflow.md) describes how to reproduce it.
+
+The results below and the other retained runs are historical evidence. They are
+preserved for comparison, including failures; agreement-based behavior below is
+not the current runtime.
+
+## Earlier agreement-based rehearsal — 2026-10-17
 
 For the subsequent owner-publication and no-wakeup work, see
 [the follow-up measurements](published-interfaces.md). The results below describe
