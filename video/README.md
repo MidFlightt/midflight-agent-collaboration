@@ -1,6 +1,6 @@
 # Midflight video handoff
 
-The editable 3:42 pitch lives here. Start with the native Remotion project;
+The editable 3:07 pitch lives here. Start with the native Remotion project;
 `presentation/Midflight-animated.html` is the self-contained presentation reference.
 The video does not capture or play that HTML file.
 
@@ -9,7 +9,7 @@ The video does not capture or play that HTML file.
 | Recording | File | Use |
 |---|---|---|
 | **Primary demo — full original** | [Demo.mov](recordings/Demo.mov) | Most important source; preserved in full for further editing (about 65 seconds). |
-| Primary demo — trimmed version | [live-agent-demo.mp4](public/demo/live-agent-demo.mp4) | 52-second cut already used in the 3:42 product video. |
+| Primary demo — trimmed version | [live-agent-demo.mp4](public/demo/live-agent-demo.mp4) | 52-second cut already used in the 3:07 product video. |
 | Second take — separate footage | [agent-interface-demo-take-2.mp4](recordings/agent-interface-demo-take-2.mp4) | 58-second alternate take for teammates; not in the product video. |
 
 Both takes are retained. `Demo.mov` matches the first recording used for the
@@ -45,36 +45,36 @@ Exports go into ignored `out/`. Remotion may download its browser on first rende
 | Project/task delegation and flight chapter | `src/merged-story/MergedStory.tsx` |
 | Planes, check-ins, agent labels and team expansion | `src/flight3d/FlightFilm.tsx` |
 | Benchmark setup and results | `src/combined-story/BenchmarkSetup.tsx` |
-| Three selected flowcharts | `public/flowcharts/` |
+| Animated architecture, workflow and selective updates | `public/architecture/midflight-architecture.mp4` |
+| Original diagram reference artwork | `public/flowcharts/` |
 | Research still and soundtrack | `public/research/`, `public/audio/` |
 | HTML presentation reference | `presentation/Midflight-animated.html` |
 
-The workflow and architecture charts include editable SVGs plus their PNG renders.
-The selective-update chart is supplied as a PNG. These are the latest selected
-source files from the shared workspace, including the updated architecture chart.
-When editing SVGs, update the matching PNG: the video renders the PNGs.
+The 30-second architecture video replaces all three static chart sections. It
+plays continuously at its original speed, covering MCP calls, the dependency graph,
+guarded writes, policy changes, and notifications to affected subscribers.
+The original PNG/SVG charts remain in `public/flowcharts/` as reference artwork;
+they are not shown in the current product video.
 
 ## Current sequence
 
-1920 × 1080, 30 fps, 6,660 frames, exactly 3:42.
+1920 × 1080, 30 fps, 5,610 frames, exactly 3:07.
 
 | Time | Section |
 |---|---|
 | 0:00–0:47 | Project delegation → team lead → direct chip-to-plane handoff → flight and team |
 | 0:47–1:39 | Live coding demo |
-| 1:39–1:59 | How Midflight works |
-| 1:59–2:24 | How Midflight shares changes |
-| 2:24–2:44 | System architecture |
-| 2:44–3:09 | Benchmark setup |
-| 3:09–3:24 | Benchmark results |
-| 3:24–3:37 | Context research |
-| 3:37–3:42 | Thank you |
+| 1:39–2:09 | Animated architecture, workflow and selective updates |
+| 2:09–2:34 | Benchmark setup |
+| 2:34–2:49 | Benchmark results |
+| 2:49–3:02 | Context research |
+| 3:02–3:07 | Thank you |
 
 The opening uses the original native animations. It shows one merge attempt, then
 fades the lead scene while Agent A/B chips move directly onto their plane labels.
 There is no second merge attempt or return to the project diagram in that handoff.
-The charts and research still retain their reading time. The closing slogan and
-failure-path section are omitted.
+The research still retains its reading time. The closing slogan and failure-path
+section are omitted.
 
 ## Demo recording
 
@@ -111,5 +111,5 @@ trimmed to 0:12–1:10. Browser/fullscreen setup and ending recording controls a
 excluded; the macOS menu/status strips are cropped. All four panes, original speed,
 and audio are retained, at 1080p/30 fps.
 
-This extra take is outside `public/` and is not referenced by Remotion. The
-3:42 product video and its existing demo clip are unchanged.
+This extra take is outside `public/` and is not referenced by Remotion. The product
+video uses the primary trimmed demo listed above.

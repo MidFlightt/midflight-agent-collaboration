@@ -11,13 +11,13 @@ const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 // The trimmed recording is included by default. Override its path with --props.
 export const DEMO_FILE = 'demo/live-agent-demo.mp4';
 export const DEMO_SECONDS = 52;
+export const ARCHITECTURE_FILE = 'architecture/midflight-architecture.mp4';
+export const ARCHITECTURE_SECONDS = 30;
 export type PitchProps = {demoFile?: string};
 export const PITCH_CHAPTERS = [
   {name: 'Opening — project, team lead, planes, team of agents', seconds: 47},
   {name: 'Demo — live coding team', seconds: DEMO_SECONDS},
-  {name: 'How Midflight works', seconds: 20},
-  {name: 'How Midflight shares changes', seconds: 25},
-  {name: 'System architecture', seconds: 20},
+  {name: 'Architecture — workflow and selective updates', seconds: ARCHITECTURE_SECONDS},
   {name: 'Benchmark setup', seconds: 25},
   {name: 'Benchmark results', seconds: 15},
   {name: 'Context research', seconds: 13},
@@ -55,9 +55,7 @@ export const Pitch: React.FC<PitchProps> = ({demoFile = DEMO_FILE}) => {
   const scenes = [
     <ReorderedOpening key="opening"/>,
     demoFile ? <OffthreadVideo key="demo" src={staticFile(demoFile)} style={{width: '100%', height: '100%', objectFit: 'contain'}}/> : <Title key="demo" title="Demo" subtitle="Demo footage to be inserted"/>,
-    <Still key="works" file="flowcharts/how-midflight-works.png"/>,
-    <Still key="changes" file="flowcharts/how-midflight-shares-changes.png"/>,
-    <Still key="architecture" file="flowcharts/midflight-system-architecture.png"/>,
+    <OffthreadVideo key="architecture" src={staticFile(ARCHITECTURE_FILE)} muted style={{width: '100%', height: '100%', objectFit: 'contain'}}/>,
     <BenchmarkChapter key="setup"/>,
     <BenchmarkChapter key="results" results/>,
     <Still key="research" file="research/context-research.jpg"/>,
