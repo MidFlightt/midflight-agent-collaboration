@@ -8,7 +8,8 @@ def excerpt(value, limit=180):
 
 def activity(operation, result, args):
     context = result.get("updates", result)
-    actor = context["agent"]
+    actor_id = context["agent"]
+    actor = actor_id.title() + " agent"
     if operation == "send":
         _, kind, body, _, _, topic, reply_to, *_ = args
         verbs = {
@@ -22,7 +23,9 @@ def activity(operation, result, args):
         verb = verbs.get(kind, "sent " + kind)
         target = f" {topic} r{result['revision']}" if kind in {"interface", "policy"} else ""
         reference = f" referencing #{reply_to}" if reply_to is not None else ""
-        peers = ", ".join(result["recipients"]) or "no subscribers"
+        peers = (
+            ", ".join(name.title() + " agent" for name in result["recipients"]) or "no subscribers"
+        )
         retry = "Retry: existing event; not sent again. " if result.get("duplicate") else ""
         summary = (
             f"{retry}{actor}: {verb}{target}{reference} → {peers} "
@@ -42,7 +45,7 @@ def activity(operation, result, args):
             "session context returned." if operation == "join" else "checkpoint updates returned."
         )
 
-    incoming = [e for e in context.get("messages", []) if e["author"] != actor]
+    incoming = [e for e in context.get("messages", []) if e["author"] != actor_id]
     if incoming:
         e = incoming[-1]
         summary += (

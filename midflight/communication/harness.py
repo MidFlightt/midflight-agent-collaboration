@@ -41,7 +41,7 @@ class CommunicationTheater(InteractiveTheater):
     submit_initial_prompt = False
     coordination_tools = ["join", "send", "check_in", "object"]
     mcp_module = "midflight.communication.mcp"
-    first_pane_title = "Billing"
+    first_pane_title = "Billing agent"
 
     def __init__(self, root, db_port=6379, api_port=8928, controller_port=8927):
         root = Path(root).resolve()
@@ -186,6 +186,10 @@ class CommunicationTheater(InteractiveTheater):
 
     def launch(self):
         super().launch()
+        for name, pane in self.panes.items():
+            self.tmux(
+                "set-option", "-p", "-t", pane, "pane-border-format", f" {name.title()} agent "
+            )
         PeerTheater.prepare_prompts(self)
 
     def report(self):
