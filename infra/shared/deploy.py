@@ -1,4 +1,8 @@
-"""Preview a separate AWS stack; --execute applies the reviewed change set."""
+"""Preview a separate AWS stack; --execute applies the reviewed change set.
+
+Defaults target the team's shared stack. `--account` deploys a separate copy to another
+account you control (for example, a hosted connector of your own, without the pilot).
+"""
 
 import argparse
 import hashlib
@@ -19,10 +23,17 @@ def main():
     parser.add_argument("--profile", default="midflight-dev")
     parser.add_argument("--region", default="us-east-1")
     parser.add_argument(
+        "--account",
+        default=EXPECTED_ACCOUNT,
+        help="AWS account to deploy to; the login must be in this account",
+    )
+    parser.add_argument("--stack", default=STACK, help="CloudFormation stack name")
+    parser.add_argument(
         "--config",
         type=Path,
-        help="Operator roster for the token RPC pilot. Needed to create the stack or change "
-        "the roster; omitted on an update, the roster already deployed is kept.",
+        help="Operator roster for the token RPC pilot. Omitted on an update, the roster "
+        "already deployed is kept; omitted on a new stack, only the hosted connector is "
+        "deployed.",
     )
     parser.add_argument(
         "--invite-secrets",
@@ -38,15 +49,26 @@ def main():
     parser.add_argument("--execute", help="Exact change-set ID printed by the preview")
     args = parser.parse_args()
     session = boto3.Session(profile_name=args.profile, region_name=args.region)
-    if session.client("sts").get_caller_identity()["Account"] != EXPECTED_ACCOUNT:
-        raise SystemExit("Wrong AWS account; refusing deployment")
+    account = session.client("sts").get_caller_identity()["Account"]
+    if account != args.account:
+        raise SystemExit(
+            f"This login is in account {account}, not {args.account}; refusing deployment. "
+            f"To deploy a separate copy there, pass --account {account}."
+        )
+    stack = args.stack
     cf = session.client("cloudformation")
     if args.execute:
         change = cf.describe_change_set(ChangeSetName=args.execute)
-        if change["StackName"] != STACK:
+        if change["StackName"] != stack:
             raise SystemExit("Refusing to execute another stack's change set")
+        status = cf.describe_stacks(StackName=stack)["Stacks"][0]["StackStatus"]
         cf.execute_change_set(ChangeSetName=args.execute)
-        print(f"Deployment started: {STACK}. Inspect stack events and outputs before sharing URL.")
+        print(f"Deployment started: {stack}. Inspect stack events and outputs before sharing URL.")
+        print(
+            "Wait for it: aws cloudformation wait "
+            f"stack-{'create' if status == 'REVIEW_IN_PROGRESS' else 'update'}-complete "
+            f"--stack-name {stack} --profile {args.profile} --region {args.region}"
+        )
         return
     # Permission preflight before creating paid resources or uploading artifacts.
     session.client("ec2").describe_vpcs()
@@ -68,7 +90,7 @@ def main():
     artifact = ROOT / "build/shared/lambda.zip"
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
     key = f"shared/{digest}.zip"
-    bucket = f"midflight-shared-artifacts-{EXPECTED_ACCOUNT}-{args.region}"
+    bucket = f"midflight-shared-artifacts-{account}-{args.region}"
     s3 = session.client("s3")
     try:
         s3.head_bucket(Bucket=bucket)
@@ -99,7 +121,7 @@ def main():
         )
     s3.upload_file(str(artifact), bucket, key)
     try:
-        existing = cf.describe_stacks(StackName=STACK)["Stacks"][0]
+        existing = cf.describe_stacks(StackName=stack)["Stacks"][0]
         existing_values = {
             p["ParameterKey"]: p.get("ParameterValue", "") for p in existing.get("Parameters", [])
         }
@@ -114,8 +136,10 @@ def main():
         existing_values, existing_parameters, outputs = {}, set(), {}
     if "UsePreviousValue" in config_parameter:
         if change_type == "CREATE" or "ConfigJson" not in existing_parameters:
-            raise SystemExit("Creating the stack needs --config with the operator roster")
-        print("Keeping the token RPC roster already deployed (no --config given).")
+            config_parameter = {"ParameterKey": "ConfigJson", "ParameterValue": ""}
+            print("No --config: deploying the hosted connector only, without the token RPC pilot.")
+        else:
+            print("Keeping the token RPC roster already deployed (no --config given).")
     # The connector must know its own URL for sign-in, but a Function URL exists only after
     # the first deployment creates it. That deployment serves an "unconfigured" page; the
     # next one passes the URL in. Rerun this script once after the first apply.
@@ -158,7 +182,7 @@ def main():
             if key in existing_parameters
         ]
     result = cf.create_change_set(
-        StackName=STACK,
+        StackName=stack,
         ChangeSetName=f"shared-{int(time.time())}",
         ChangeSetType=change_type,
         TemplateBody=template,

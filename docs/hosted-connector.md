@@ -141,6 +141,14 @@ persistent local storage (`docker compose -f compose.graph-hacks.yml up -d`).
    `/mcp` returns 503 instead of failing to start. Open the landing page, then add the
    connector in a client and create a project.
 
+### A separate copy in another AWS account
+
+The same steps deploy an independent connector (its own database, no token RPC pilot)
+to an account you control. Add `--account <id>` (the account your profile logs into) to
+every `deploy.py` call; the first run creates the stack, so wait with
+`stack-create-complete` instead of `stack-update-complete`. The team's shared stack is
+untouched.
+
 ## Tests and limits
 
 - `tests/unit/test_hosted_connector.py`: tool surface, two people sharing a project,

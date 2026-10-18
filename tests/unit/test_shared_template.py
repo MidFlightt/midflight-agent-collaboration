@@ -58,3 +58,38 @@ def test_hosted_connector_reaches_the_database_and_the_internet():
     original = resources["Function"]["Properties"]
     assert "MIDFLIGHT_APP" not in original["Environment"]["Variables"]
     assert original["VpcConfig"]["SubnetIds"] == [{"Ref": "Subnet"}]
+
+
+def referenced(node):
+    """Resource names a template fragment points at through Ref, GetAtt or Sub."""
+    found = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "Ref" and isinstance(value, str):
+                found.add(value)
+            elif key == "GetAtt" and isinstance(value, str):
+                found.add(value.split(".")[0])
+            elif key == "Sub" and isinstance(value, str):
+                found |= {m.split(".")[0] for m in re.findall(r"\$\{([\w:.]+)\}", value)}
+            elif key == "DependsOn":
+                found |= set([value] if isinstance(value, str) else value)
+            else:
+                found |= referenced(value)
+    elif isinstance(node, list):
+        for item in node:
+            found |= referenced(item)
+    return found
+
+
+def test_token_pilot_is_optional_and_nothing_else_depends_on_it():
+    template = load()
+    pilot = {"Function", "FunctionUrl", "UrlPermission", "InvokePermission", "Logs"}
+    resources = template["Resources"]
+    assert {n for n, r in resources.items() if r.get("Condition") == "HasRoster"} == pilot
+    assert template["Parameters"]["ConfigJson"]["Default"] == ""
+    for name, resource in resources.items():
+        if name not in pilot:
+            assert not referenced(resource) & pilot, name
+    for name, output in template["Outputs"].items():
+        if referenced(output) & pilot:
+            assert output.get("Condition") == "HasRoster", name

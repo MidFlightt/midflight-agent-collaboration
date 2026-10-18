@@ -8,7 +8,10 @@ Parameters:
   ConfigJson:
     Type: String
     NoEcho: true
-    Description: Operator roster and SHA256 token hashes only; no raw bearer tokens.
+    Default: ""
+    Description: >-
+      Operator roster and SHA256 token hashes only; no raw bearer tokens. Empty deploys
+      the hosted connector without the token RPC pilot.
   InviteSigningKey:
     Type: String
     NoEcho: true
@@ -34,6 +37,8 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ""
+Conditions:
+  HasRoster: !Not [!Equals [!Ref ConfigJson, ""]]
 Resources:
   Vpc:
     Type: AWS::EC2::VPC
@@ -172,6 +177,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
   Function:
     Type: AWS::Lambda::Function
+    Condition: HasRoster
     DependsOn: DataAttachment
     Properties:
       Runtime: python3.12
@@ -197,9 +203,11 @@ Resources:
           MIDFLIGHT_INVITE_ADMIN_HASH: !Ref InviteAdminHash
   FunctionUrl:
     Type: AWS::Lambda::Url
+    Condition: HasRoster
     Properties: {TargetFunctionArn: !GetAtt Function.Arn, AuthType: NONE}
   UrlPermission:
     Type: AWS::Lambda::Permission
+    Condition: HasRoster
     Properties:
       FunctionName: !Ref Function
       Action: lambda:InvokeFunctionUrl
@@ -207,6 +215,7 @@ Resources:
       FunctionUrlAuthType: NONE
   InvokePermission:
     Type: AWS::Lambda::Permission
+    Condition: HasRoster
     Properties:
       FunctionName: !Ref Function
       Action: lambda:InvokeFunction
@@ -214,6 +223,7 @@ Resources:
       InvokedViaFunctionUrl: true
   Logs:
     Type: AWS::Logs::LogGroup
+    Condition: HasRoster
     Properties:
       LogGroupName: !Sub /aws/lambda/${Function}
       RetentionInDays: 14
@@ -305,7 +315,11 @@ Resources:
 Outputs:
   HostedUrl: {Value: !GetAtt HostedFunctionUrl.FunctionUrl}
   ConnectorUrl: {Value: !Sub '${HostedFunctionUrl.FunctionUrl}mcp'}
-  Url: {Value: !GetAtt FunctionUrl.FunctionUrl}
+  Url:
+    Condition: HasRoster
+    Value: !GetAtt FunctionUrl.FunctionUrl
   DatabaseInstance: {Value: !Ref Database}
   DataVolume: {Value: !Ref DataVolume}
-  Function: {Value: !Ref Function}
+  Function:
+    Condition: HasRoster
+    Value: !Ref Function
