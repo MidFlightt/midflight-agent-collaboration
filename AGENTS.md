@@ -4,7 +4,7 @@ This collaboration repository's current hackathon entrypoint is
 `python -m midflight.communication.harness` (also `midflight.theater.peers`).
 Read [architecture and measured validation](docs/agent-communication.md).
 
-- The four coordination tools are `join`, `send`, `check_in`, `object`.
+- The four coordination tools are `join`, `send`, `check_in`, `objection`.
 - Coding agents interpret human directions and negotiate interfaces. MidFlight makes no model calls.
 - No claim, mandatory reviewer, approval or revision gate belongs in this runtime.
 - Owners publish versioned interfaces; consumers follow them without mutual acceptance.

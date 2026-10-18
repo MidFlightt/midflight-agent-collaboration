@@ -40,7 +40,7 @@ class CommunicationTheater(InteractiveTheater):
     cloud = None
     names = tuple(PROMPTS)
     submit_initial_prompt = False
-    coordination_tools = ["join", "send", "check_in", "object"]
+    coordination_tools = ["join", "send", "check_in", "objection"]
     mcp_module = "midflight.communication.mcp"
     mcp_server_name = "midflight"
     first_pane_title = "Billing agent"

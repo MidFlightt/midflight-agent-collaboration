@@ -42,7 +42,7 @@ def test_real_stdio_processes_recover_objection_and_cursor(falkor_server):
                 "join",
                 "send",
                 "check_in",
-                "object",
+                "objection",
             }
             ja, jb = await asyncio.gather(
                 call(a, "join", name="a", task="Billing", request_id="j", dependencies=["records"]),
@@ -65,7 +65,7 @@ def test_real_stdio_processes_recover_objection_and_cursor(falkor_server):
             )
             objection = await call(
                 b,
-                "object",
+                "objection",
                 session_id=sb,
                 publication_id=publication["event_id"],
                 revision=1,

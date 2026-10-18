@@ -129,7 +129,7 @@ def test_independent_mcp_clients_over_https_and_server_restart(falkor_server, tm
                 "join",
                 "send",
                 "check_in",
-                "object",
+                "objection",
             }
             ja, jb = await asyncio.gather(
                 call(a, "join", name="billing", task="Billing", request_id="j"),

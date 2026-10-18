@@ -53,7 +53,7 @@ Inbox responses advance durable per-session cursors; replay a lost response with
 `check_in(after=last_received_cursor)`. Pagination filters recipients before slicing.
 A new chat gets a separate cursor and recovers current publications and outstanding work.
 
-`object` records a problem with an exact published interface or policy revision and an
+`objection` records a problem with an exact published interface or policy revision and an
 affected requirement/dependency; an alternative is optional. Only its author can resolve
 via structured send. Objections survive new publications, tests, transfers and silence.
 Historical proposal/acceptance records are preserved but no active agreement machinery
@@ -136,3 +136,5 @@ automatic idle-agent wakeups are deliberately absent. No comparative speedup ver
 the previous reviewer design has been measured.
 
 Terminal highlights use blue for MidFlight calls, orange for other-agent mentions, and red for objection calls and references. Colors label the actual terminal text; they do not establish objection state or correctness.
+
+The MCP tool is named `objection` so the native terminal call reads `midflight.objection`. The internal service and cloud RPC retain `object` for compatibility. Existing terminal transcripts retain the tool name originally called; reconnect clients to discover the new MCP name.

@@ -24,7 +24,7 @@ in policy messages, not the interface body. State that saved amounts follow curr
 A human business-rule change alone does not require republishing an unchanged API. Publish
 an interface revision only when callers must change how they call or read it.
 Consumers adapt when the published boundary satisfies their requirements. For a genuine
-incompatibility, call object with publication_id, exact revision, problem, and affects naming the
+incompatibility, call objection with publication_id, exact revision, problem, and affects naming the
 requirement or dependency. An alternative is optional; you need not know the solution.
 This applies to interfaces and policies, including historical revisions. Publishing
 a new revision never silently closes objections. The objection author sends kind=resolve
@@ -52,7 +52,7 @@ superseded revisions and exact applied reports; superseded does not mean read or
 Apply the current policy and reference its exact event ID; never report an old revision
 as evidence of applying a newer one.
 Check in at a natural boundary before depending on shared work or reporting affected work
-complete. send/join/object already include updates; do not redundantly check in after them.
+complete. send/join/objection already include updates; do not redundantly check in after them.
 Never poll, schedule checkpoints, repeatedly prompt peers or wake idle sessions.
 An idle peer will receive changes only when it next resumes useful work.
 If awaiting a peer, finish your turn stating what is needed. Reading is not agreement.
@@ -150,7 +150,7 @@ def build_server(service, *, remote=False):
         return invoke(service.check_in, session_id, after)
 
     @server.tool()
-    def object(
+    def objection(
         session_id: str,
         publication_id: int,
         revision: int,

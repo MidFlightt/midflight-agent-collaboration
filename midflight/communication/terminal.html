@@ -12,7 +12,7 @@ function paneAgentAt(layout, x, y) {
 }
 function demoColorRanges(text, agentAt = () => null) {
   const cells = Array(text.length).fill(null);
-  for (const match of text.matchAll(/\b(?:theater_)?midflight\.(?:join|send|check_in|object)\b/g)) {
+  for (const match of text.matchAll(/\b(?:theater_)?midflight\.(?:join|send|check_in|objection|object)\b/g)) {
     cells.fill('#79bdff', match.index, match.index + match[0].length);
   }
   for (const match of text.matchAll(/\b(Billing|Delivery|Booking|Notifications) agent\b/gi)) {
@@ -23,7 +23,9 @@ function demoColorRanges(text, agentAt = () => null) {
   }
   // Objection syntax takes precedence over the general tool-call blue.
   // This labels text, not whether an objection is open, resolved or justified.
-  for (const match of text.matchAll(/\b(?:(?:theater_)?midflight\.object|open_objections|objection_id|objections?|objected|objecting)\b(?:\s+#\d+)?/gi)) {
+  for (const match of text.matchAll(/\b(?:(?:theater_)?midflight\.(?:objection|object)|open_objections|objection_id|objections?|objected|objecting)\b(?:\s+#\d+)?/gi)) {
+    // Ignore path components such as /runs/objection-20261017-205114.
+    if (/[\/\\_-]/.test(text[match.index - 1] || '') || /[\/\\_-]/.test(text[match.index + match[0].length] || '')) continue;
     cells.fill('#ff6b6b', match.index, match.index + match[0].length);
   }
   const ranges = [];
