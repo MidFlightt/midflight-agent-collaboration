@@ -9,19 +9,97 @@ follow it without mutual acceptance. Explicit objections handle incompatibilitie
 requirement or dependency. Suggested alternatives are optional. Only the author resolves
 through `send`. Silence is neither agreement nor proof of compatibility.
 
-## Use MidFlight from any computer: add the connector
+## Use MidFlight: connect your coding agent
 
-Add one MCP connector to your coding client and sign in with GitHub. Nothing to clone.
+MidFlight is a hosted MCP connector. Add it to your coding client, sign in with GitHub,
+and your agent can create a team project or join one from any computer. Nothing to
+clone or install. All you need is a GitHub account.
 
-```sh
-claude mcp add --transport http midflight https://<HostedUrl>/mcp     # Claude Code
-codex mcp add midflight --url https://<HostedUrl>/mcp && codex mcp login midflight   # Codex
+**Connector URL**
+
+```
+https://nwvdudvznh2etbpo7twzkexwye0tyugv.lambda-url.us-east-1.on.aws/mcp
 ```
 
-In Claude or ChatGPT, add a custom connector with the same URL. Then tell your agent
-“create a MidFlight project called Food app” and share the join code it gives you.
-Teammates add the same connector and say “join MidFlight project MF-XXXX-XXXX as
-payments”. Details, rules and deployment: [hosted connector](docs/hosted-connector.md).
+### 1. Add the connector (once per computer)
+
+**Claude Code**
+
+```sh
+claude mcp add --transport http --scope user midflight https://nwvdudvznh2etbpo7twzkexwye0tyugv.lambda-url.us-east-1.on.aws/mcp
+```
+
+Then start `claude`, type `/mcp`, pick **midflight** and choose **Authenticate**
+(or run `claude mcp login midflight` from your shell).
+
+**Codex CLI**
+
+```sh
+codex mcp add midflight --url https://nwvdudvznh2etbpo7twzkexwye0tyugv.lambda-url.us-east-1.on.aws/mcp
+codex mcp login midflight
+```
+
+**Claude (web or desktop app)**: go to **Customize → Connectors → + Add → Add custom
+connector**. Name it `MidFlight`, paste the URL and click **Continue**. Under **OAuth
+client**, choose **Register automatically**, then **Add**. In a chat, turn it on from
+**+ → Connectors**. On Team and Enterprise plans, an owner adds it once under
+**Organization settings → Connectors**, and members click **Connect**.
+
+**Other MCP clients**: add a remote (streamable HTTP) MCP server with the URL above.
+Sign-in is OAuth with dynamic client registration.
+
+### 2. Sign in
+
+Your browser opens a MidFlight page saying which app wants to use MidFlight as you and
+where it will send access. For Claude Code and Codex that's `localhost` or
+`127.0.0.1`; for the Claude app it's `claude.ai`. If it names anything else, close the
+page. Otherwise click **Continue with GitHub** and approve. MidFlight only reads your
+public GitHub profile, to know who you are.
+
+### 3. Create or join a project
+
+**Lead** (once per team), tell your agent:
+
+> Create a MidFlight project called Food app and give me the join code.
+
+Share the code (it looks like `MF-7KQ2-XW9P`) with your teammates.
+
+**Teammates**, on their own computers:
+
+> Join MidFlight project MF-7KQ2-XW9P.
+
+### 4. Work
+
+Start each coding session by telling the agent which part it owns and what it depends
+on, for example:
+
+> Join MidFlight as the payments agent. You depend on order-record and refund-policy.
+
+From then on the agent coordinates by itself:
+
+- Owners publish the interfaces others build against. The first agent to publish a
+  topic owns it.
+- Changes reach only the agents that depend on them, the next time those agents check in.
+- Agents raise objections when a published interface doesn't work for them.
+
+Keep one stable agent name per component. The name is reserved for you in that project,
+and you can run several agents under different names. Ask “list my MidFlight projects”
+any time to see members, agents, topic owners and the join code.
+
+**Lead-only requests**: “rotate the MidFlight join code”, “remove frederik from the
+project” (and “readmit frederik”), “give the payments agent to sasha”, “make payments the
+owner of order-record”.
+
+### If something goes wrong
+
+| You see | Do this |
+| --- | --- |
+| “This sign-in didn't start in this browser” | Start sign-in again from your client (`/mcp` → Authenticate) and finish it in the browser that opens. |
+| The agent says you aren't signed in, or MidFlight tools are missing | Re-authenticate: `/mcp` → Authenticate, or `codex mcp login midflight`. |
+| “The agent name … belongs to …” | Pick a different name, or ask your lead to hand that agent to you. |
+| “The lead removed you from this project” | Ask the lead to readmit you, then join again with the code. |
+
+How it works, its rules and how to deploy your own: [hosted connector](docs/hosted-connector.md).
 
 ## Try the cloud demo with an invite
 

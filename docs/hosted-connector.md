@@ -1,7 +1,9 @@
 # Hosted connector: add one URL, create or join a project
 
-Status: built and tested on branch `hosted-connector`; not yet deployed. Until the
-first deployment, the connector URL below is a placeholder.
+Status: live since October 18, 2026 at `https://nwvdudvznh2etbpo7twzkexwye0tyugv.lambda-url.us-east-1.on.aws/mcp`, deployed from branch
+`hosted-connector` as a separate stack (its own database, without the token RPC pilot).
+How people connect is in the [README](../README.md#use-midflight-connect-your-coding-agent).
+`<HostedUrl>` below stands for a deployment's own address.
 
 People use MidFlight by adding a single MCP connector to their coding client and
 signing in with GitHub. No clone, no Python, no token files, no tmux. It works from any
@@ -25,7 +27,7 @@ Adding the connector:
 | --- | --- |
 | Claude Code | `claude mcp add --transport http midflight https://<HostedUrl>/mcp` |
 | Codex CLI | `codex mcp add midflight --url https://<HostedUrl>/mcp` then `codex mcp login midflight` |
-| Claude, ChatGPT | Add a custom connector with the same URL |
+| Claude (web, desktop) | Customize → Connectors → Add custom connector; OAuth client: **Register automatically** |
 
 The server's landing page (`https://<HostedUrl>/`) shows the same instructions.
 
