@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1260" viewBox="0 0 2400 1260">
+<rect width="2400" height="1260" fill="#080f15"/>
+<defs>
+<marker id="cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#66cce2"/></marker>
+<marker id="green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#99d5aa"/></marker>
+<marker id="orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#ffad7b"/></marker>
+<marker id="gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#7e8a9e"/></marker>
+</defs>
+<text x="128" y="126" fill="#f0eee6" font-family="Arial, Helvetica, sans-serif" font-size="76" font-weight="400" text-anchor="start">How Midflight works</text>
+<text x="130" y="203" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="400" text-anchor="start">Midflight is the team’s shared coordination service</text>
+<text x="940" y="289" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="400" text-anchor="middle">Shared plan · active claims · decisions · dependencies</text>
+<path d="M940 306 V354" fill="none" stroke="#7e8a9e" stroke-width="3" stroke-linejoin="round" marker-end="url(#gray)"/>
+<rect x="128" y="360" width="400" height="218" rx="15" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="328.0" y="410" fill="#66cce2" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="600" text-anchor="middle">Submit a claim</text>
+<text x="328.0" y="454" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Files and interfaces</text>
+<text x="328.0" y="491" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Assumptions</text>
+<text x="328.0" y="528" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Acceptance criteria</text>
+<rect x="648" y="360" width="580" height="218" rx="15" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="938.0" y="410" fill="#66cce2" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="600" text-anchor="middle">Midflight reviews</text>
+<text x="938.0" y="454" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Rules + optional AI review</text>
+<text x="938.0" y="491" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Findings checked by Midflight</text>
+<path d="M528 469 H644" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#cyan)"/>
+<path d="M1228 469 H1320" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#cyan)"/>
+<path d="M1465 360 L1605 469 L1465 578 L1325 469 Z" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="1465" y="484" fill="#66cce2" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="600" text-anchor="middle">Verdict</text>
+<path d="M1465 578 V745" fill="none" stroke="#99d5aa" stroke-width="3" stroke-linejoin="round" marker-end="url(#green)"/>
+<text x="1495" y="674" fill="#99d5aa" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="start">Aligned</text>
+<rect x="1265" y="745" width="400" height="140" rx="15" fill="#101923" stroke="#99d5aa" stroke-width="2.5"/>
+<text x="1465.0" y="795" fill="#99d5aa" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="600" text-anchor="middle">Approved</text>
+<text x="1465.0" y="839" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Proceed with the claim</text>
+<path d="M1465 578 V625 H825 V740" fill="none" stroke="#ffad7b" stroke-width="3" stroke-linejoin="round" marker-end="url(#orange)"/>
+<text x="940" y="606" fill="#ffad7b" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="start">Mismatch</text>
+<rect x="625" y="745" width="400" height="140" rx="15" fill="#101923" stroke="#ffad7b" stroke-width="2.5"/>
+<text x="825.0" y="795" fill="#ffad7b" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="600" text-anchor="middle">Revise claim</text>
+<text x="825.0" y="839" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Correct and resubmit</text>
+<path d="M625 815 H328 V582" fill="none" stroke="#ffad7b" stroke-width="3" stroke-linejoin="round" marker-end="url(#orange)"/>
+<text x="410" y="793" fill="#ffad7b" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="start">Resubmit</text>
+<path d="M1605 469 H1925 V740" fill="none" stroke="#ffad7b" stroke-width="3" stroke-linejoin="round" marker-end="url(#orange)"/>
+<text x="1680" y="445" fill="#ffad7b" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="start">Requirement conflict</text>
+<rect x="1725" y="745" width="400" height="140" rx="15" fill="#101923" stroke="#ffad7b" stroke-width="2.5"/>
+<text x="1925.0" y="795" fill="#ffad7b" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="600" text-anchor="middle">Ask the lead</text>
+<text x="1925.0" y="839" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Pause the affected work</text>
+<path d="M1465 885 V980" fill="none" stroke="#99d5aa" stroke-width="3" stroke-linejoin="round" marker-end="url(#green)"/>
+<rect x="1180" y="985" width="570" height="160" rx="15" fill="#101923" stroke="#99d5aa" stroke-width="2.5"/>
+<text x="1465.0" y="1035" fill="#99d5aa" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="600" text-anchor="middle">Build and check in</text>
+<text x="1465.0" y="1079" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Dependency-aware updates + reasons</text>
+<text x="1465.0" y="1116" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Recheck changed assumptions</text>
+<path d="M1180 1065 H825 V890" fill="none" stroke="#ffad7b" stroke-width="3" stroke-linejoin="round" marker-end="url(#orange)"/>
+<text x="845" y="1040" fill="#ffad7b" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="start">Assumptions changed</text>
+<rect x="1830" y="985" width="400" height="160" rx="15" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="2030.0" y="1035" fill="#66cce2" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="600" text-anchor="middle">Verify the commit</text>
+<text x="2030.0" y="1079" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">Actual code + contract tests</text>
+<text x="2030.0" y="1116" fill="#9cabb8" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="400" text-anchor="middle">midflight/verify</text>
+<path d="M1750 1065 H1825" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#cyan)"/>
+<text x="1760" y="1040" fill="#66cce2" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="400" text-anchor="start">Push</text>
+</svg>
