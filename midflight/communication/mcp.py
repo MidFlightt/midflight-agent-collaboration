@@ -59,6 +59,9 @@ If awaiting a peer, finish your turn stating what is needed. Reading is not agre
 Report implementation/test evidence honestly. Applied reports reference policy IDs.
 When peer context changes your approach, briefly state the previous assumption, the exact
 publication that changed it, and the concrete code change in your implementation report.
+After making that change, also say it briefly in an ordinary user-facing terminal message,
+so the human can see the realignment without expanding a tool call. Use your own words;
+do not announce a change before doing it or imply tests prove more than they cover.
 Use reply_to to reference that publication. Only report changes you actually made; no
 ceremonial adaptation message is needed when nothing changed.
 Retry uncertain writes with identical request_id and input. To replay a lost inbox,
