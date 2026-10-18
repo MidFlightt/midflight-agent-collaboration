@@ -32,8 +32,12 @@ charges/refunds. Booking displays server-provided amounts. Notifications generat
 nonmonetary confirmation messages.
 
 Billing's branch expects get_delivery_records() to return a flat list of records.
-Delivery's prototype proposes a dictionary keyed by ID. Neither is fixed by business
-policy. Agents declare their own assumptions; an AI review can identify their public
+Delivery's branch has an ID-keyed provider and an existing mapping-based Billing
+caller. Both branches work with their own callers and baseline tests; composing
+Billing's list caller with Delivery's mapping provider fails on nonempty records.
+This branch drift is the real incompatibility for the AI reviewer to resolve. The
+basic prompts do not specify a return shape or tell an agent to disagree.
+Neither return shape is fixed by business policy. Agents declare their own assumptions; an AI review can identify their public
 interface incompatibility, confirm it in a second check and propose a technical fix.
 No bad claim, rejection or scripted correction is injected. An agent may learn the
 approved peer expectation and adapt before submitting: that is a valid outcome too.
@@ -125,3 +129,37 @@ Validated on the existing live session with both Chrome (204 columns) and the na
 in-app viewer (95 columns): clicking each viewer transferred sizing, and returning to
 Chrome restored all four full-width panes without resetting agents. Automated sizing
 checks cover focus, hidden tabs, zero-size containers and coalesced resize events.
+
+## Coherent branch setup: three fresh real-agent runs
+
+The earlier setup gave Delivery Billing's list-based caller, making early adaptation
+an obvious choice. Delivery now starts with its own mapping-based caller and baseline
+test. Each branch is coherent on its own; integrating the unchanged branches fails
+with a TypeError for a nonempty delivery. This models independently evolved branches.
+The generic repository rule is to preserve existing callers and coordinate interface
+changes. No prompt asks agents to disagree; no verdicts or claims are injected.
+
+Three independent fresh Codex CLI pairs, same basic prompts, starting Delivery after
+Billing's first approval:
+
+| Run | Billing first claim | Delivery first claim | Delivery corrected claim | Generated-module integration |
+| --- | --- | --- | --- | --- |
+| run-1-6c273e | APPROVED r1 | NEEDS_REVISION r1 | APPROVED r2 | Passed |
+| run-2-37080d | APPROVED r1 | NEEDS_REVISION r1 | APPROVED r2 | Passed |
+| run-3-0ab85d | APPROVED r1 | NEEDS_REVISION r1 | APPROVED r2 | Passed |
+
+In all three, the hosted AI reviewer identified the actual list-versus-ID-keyed-map
+boundary conflict and required Delivery to preserve Billing's approved list interface.
+Billing remained approved. The actual generated Billing and Delivery modules were
+combined and exercised with creation, saved revenue, full refunds and post-refund
+revenue. Local evidence, original sessions, timelines, first revisions and terminal
+transcripts are in ~/.local/share/midflight-demo/coherent-branch-trials/. The repeat
+runner is rehearse.py, with summary.json and one trial-results.json per run.
+
+For this demonstration, send Billing first; once its tool result says APPROVED, send
+Delivery. Sending both while their reviews are pending can require both to revise.
+Three successes demonstrate repeatability for this setup, not a deterministic promise
+about every future model run. Do not hide an early adaptation if one occurs.
+
+Automated suite after this fixture change: 489 passed, 47 skipped. The cancellation
+policy test still verifies that only Billing and Delivery receive its update.

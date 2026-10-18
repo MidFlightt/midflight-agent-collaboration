@@ -170,6 +170,21 @@ def summarize_records(records: list[dict]) -> dict:
 def revenue_report() -> dict:
     raise NotImplementedError("Revenue report and validation are unfinished")
 '''
+# Each branch is coherent on its own. Delivery's existing local caller uses its
+# ID-keyed API; only cross-branch integration reveals the incompatible proposals.
+MAPPING_BILLING = (
+    BILLING.replace("records: list[dict]", "records: dict[int, dict]")
+    .replace(
+        "Consume a flat list of delivery dictionaries, iterating records directly.",
+        "Consume delivery records keyed by delivery ID, iterating the saved values.",
+    )
+    .replace(
+        "get_delivery_records() returns list[dict], [] if empty.",
+        "get_delivery_records() returns dict[int, dict], {} if empty.",
+    )
+    .replace("for r in records)", "for r in records.values())")
+)
+
 BOOKING = '''"""Customer booking flow. Monetary policy belongs to the server."""
 
 
@@ -236,10 +251,10 @@ One credit = 100 integer cents. Midflight holds current requirements and policy.
 
 Ownership: Billing owns billing.py; Delivery owns delivery.py; Booking owns booking.py;
 Notifications owns notifications.py. Each owns its tests; app.py is shared routing.
-Use real delivery records. Public APIs keep their names. Branch-local prototypes
-propose different get_delivery_records() return shapes. Declare the boundary you
-actually intend and settle incompatibilities before implementation. Neither shape is
-product policy. Do not silently assume another agent will convert your output.
+Use real delivery records. Public APIs keep their names. Preserve existing callers
+and tests when completing a feature. Describe the public interfaces and assumptions
+in your claim before implementation; coordinate any required compatibility change
+through Midflight. Do not change another task's implementation or tests.
 
 Initial cancellation policy is full refunds. Billing uses saved total/refund amounts.
 Booking displays returned server values. Notifications contain no monetary policy.
@@ -249,7 +264,7 @@ HTTP JSON: /deliveries creates, /delivery reads by delivery_id, /cancel cancels,
 """,
         ".gitignore": "__pycache__/\n*.pyc\n",
         "delivery.py": MAPPING_DELIVERY if agent == "delivery" else LIST_DELIVERY,
-        "billing.py": BILLING,
+        "billing.py": MAPPING_BILLING if agent == "delivery" else BILLING,
         "booking.py": BOOKING,
         "notifications.py": NOTIFICATIONS,
         "app.py": APP,
@@ -262,6 +277,10 @@ class Baseline(unittest.TestCase):
         self.assertEqual(summarize_records([]), {"revenue_cents":0,"confirmed":0,"cancelled":0})
 """,
     }
+    if agent == "delivery":
+        files["tests/test_baseline.py"] = files["tests/test_baseline.py"].replace(
+            "summarize_records([])", "summarize_records({})"
+        )
     for name, source in files.items():
         path = folder / name
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -57,8 +57,50 @@ def test_delivery_starters_import_and_reproduce_the_interface_drift(tmp_path):
                 "-c",
                 "import app,delivery,billing; "
                 f"assert type(delivery.get_delivery_records()).__name__=='{shape}'; "
-                "assert billing.summarize_records([])['revenue_cents']==0",
+                f"assert billing.summarize_records({'{}' if name == 'delivery' else '[]'})"
+                "['revenue_cents']==0",
             ],
             cwd=folder,
             check=True,
         )
+
+
+def test_branches_work_locally_but_their_public_interfaces_do_not_integrate(tmp_path):
+    import shutil
+
+    for owner in ["billing", "delivery"]:
+        folder = tmp_path / owner
+        folder.mkdir()
+        write_starter(folder, owner)
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import delivery,billing; "
+                "delivery._records[1]={'id':1,'total_cents':1200,'refund_cents':0,"
+                "'status':'confirmed'}; "
+                "assert billing.summarize_records(delivery.get_delivery_records())"
+                "['revenue_cents']==1200",
+            ],
+            cwd=folder,
+            check=True,
+        )
+    combined = tmp_path / "combined"
+    combined.mkdir()
+    shutil.copy2(tmp_path / "billing/billing.py", combined / "billing.py")
+    shutil.copy2(tmp_path / "delivery/delivery.py", combined / "delivery.py")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import delivery,billing; "
+            "delivery._records[1]={'id':1,'total_cents':1200,'refund_cents':0,"
+            "'status':'confirmed'}; "
+            "billing.summarize_records(delivery.get_delivery_records())",
+        ],
+        cwd=combined,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "TypeError" in result.stderr
