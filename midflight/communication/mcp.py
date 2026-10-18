@@ -5,6 +5,7 @@ import os
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+from .activity import activity
 from .service import Service
 from .store import Store
 
@@ -54,6 +55,10 @@ Never poll, schedule checkpoints, repeatedly prompt peers or wake idle sessions.
 An idle peer will receive changes only when it next resumes useful work.
 If awaiting a peer, finish your turn stating what is needed. Reading is not agreement.
 Report implementation/test evidence honestly. Applied reports reference policy IDs.
+When peer context changes your approach, briefly state the previous assumption, the exact
+publication that changed it, and the concrete code change in your implementation report.
+Use reply_to to reference that publication. Only report changes you actually made; no
+ceremonial adaptation message is needed when nothing changed.
 Retry uncertain writes with identical request_id and input. To replay a lost inbox,
 pass check_in(after=last_received_cursor). New chat: join recovers outstanding context.
 This is a trusted local prototype; agent names are labels, not authenticated identities.
@@ -65,7 +70,9 @@ def build_server(service):
 
     def invoke(action, *args):
         try:
-            return action(*args)
+            result = action(*args)
+            # Keep all structured evidence; put the readable factual footer last.
+            return result | {"activity": activity(action.__name__, result, args)}
         except ValueError as error:
             raise ToolError(str(error)) from error
 

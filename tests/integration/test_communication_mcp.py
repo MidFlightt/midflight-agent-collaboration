@@ -50,6 +50,8 @@ def test_real_stdio_processes_recover_objection_and_cursor(falkor_server):
                     b, "join", name="b", task="Delivery", request_id="j", dependencies=["records"]
                 ),
             )
+            assert list(ja)[-1] == "activity"
+            assert "session context returned" in ja["activity"]
             sa, sb = ja["session_id"], jb["session_id"]
             publication = await call(
                 a,

@@ -76,3 +76,22 @@ validation directory. `integration.json` points to the latest result, with earli
 retained. There is no claim that mocked local tests are end-to-end validation. The combined
 suite exercises Python calls, not browser JavaScript or a production deployment. Agent
 choices and timings vary; failed runs must remain in the evidence.
+
+## Collapsed tool-result previews
+
+Tool results end with a deterministic `activity` line so the terminal's collapsed
+result can expose useful content instead of trailing empty arrays. Full structured
+context remains available under Show details. The line identifies publications,
+returned peer updates, exact references, recipients, retries and agent-authored reports.
+It never labels delivery as reading or an implementation report as verified compatibility.
+Open objections, remaining pages and unapplied policy context remain explicit.
+
+To show realignment, follow the actual evidence: prior assumption, peer publication,
+then an implementation report referencing that publication and describing the code
+change. Agents are asked to state this only when it happened; no ceremonial message
+is required. Inspect the diff and actual combined test separately. In the observed
+list/mapping example Billing adapted to `get_delivery_records().values()`.
+
+Existing MCP processes retain their loaded code. This preview change takes effect on
+new/reconnected MCP sessions; it does not reset, wake or interrupt any current agent.
+The CLI controls wrapping/truncation, so a long message may still require Show details.
