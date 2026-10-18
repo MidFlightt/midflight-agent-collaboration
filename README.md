@@ -39,9 +39,31 @@ Teammates add the same connector on their own computers and tell their agent:
 > Join MidFlight project MF-XXXX-XXXX as the payments agent.
 
 Each agent then publishes and follows interfaces, receives changes that affect it, and
-raises objections, like the agents in the demo below.
+raises objections. To see it in action, play with the ready-made project below.
 [Full connection guide and troubleshooting](https://github.com/MidFlightt/midflight-agent-collaboration/blob/hosted-connector/README.md#use-midflight-connect-your-coding-agent).
 The connector's code is on the
 [`hosted-connector`](https://github.com/MidFlightt/midflight-agent-collaboration/tree/hosted-connector)
 branch.
 
+## Try it: one command
+
+This opens Claude Code in **PigeonPost**, a small six-part app, already connected to the
+hosted MidFlight server:
+
+```sh
+git clone https://github.com/MidFlightt/pigeonpost-playground && cd pigeonpost-playground && claude
+```
+
+On Windows PowerShell, use `;` instead of `&&`. You need Claude Code and a GitHub account.
+Approve the `midflight` connector when Claude Code asks, then type `/mcp`, pick
+**midflight** and choose **Authenticate** to sign in. Then use the ready-made commands:
+
+- `/mf-start` creates a project. Share its join code; teammates run `/mf-join MF-XXXX-XXXX`.
+- `/mf-take pricing` (or `roost`, `dispatch`, `billing`, `tracking`, `cli`) claims a part and
+  publishes its contracts; `/mf-build` builds it.
+- `/mf-cancel-fee` changes a business rule, and only dispatch and billing receive it.
+  `/mf-change-quote` changes a contract, and the parts that use it adapt or object.
+  `/mf-news` shows what each agent received.
+
+Playing alone? Open a few terminals in the folder and take a different part in each.
+Details: [the playground's README](https://github.com/MidFlightt/pigeonpost-playground#readme).
