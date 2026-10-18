@@ -9,6 +9,7 @@ the tools. Two people on "different computers" share a project through its join 
 import base64
 import hashlib
 import json
+import re
 import secrets
 import socket
 import threading
@@ -204,7 +205,11 @@ def test_unconfigured_deployment_is_healthy_but_explains(monkeypatch):
 
     monkeypatch.delenv("MIDFLIGHT_PUBLIC_URL", raising=False)
     with TestClient(create_app_from_env()) as client:
-        assert client.get("/healthz").json() == {"status": "ok", "configured": False}
+        assert client.get("/healthz").json() == {
+            "status": "ok",
+            "configured": False,
+            "reason": "set MIDFLIGHT_PUBLIC_URL",
+        }
         assert client.post("/mcp").status_code == 503
 
 
@@ -219,3 +224,127 @@ def test_memory_mode_from_environment(monkeypatch):
     with TestClient(create_app_from_env(), base_url="http://127.0.0.1:8123") as client:
         assert client.get("/healthz").json() == {"status": "ok"}
         assert client.post("/mcp", json={}).status_code == 401
+
+
+# Sign in with GitHub: a consent page and browser-bound cookies -----------------------------
+
+
+class FakeGitHub:
+    """Like GitHub for someone who already authorized the app: no prompt, straight back."""
+
+    def authorize_url(self, state, redirect_uri):
+        return f"https://github.example/login/oauth/authorize?state={state}"
+
+    def account_for_code(self, code, redirect_uri):
+        from midflight.ports import GitHubAccount
+
+        return GitHubAccount(4242, "victim")
+
+
+GITHUB_BASE = "https://midflight.example"
+
+
+def github_client():
+    from starlette.testclient import TestClient
+
+    registry, services = memory_backend()
+    app = create_app(GITHUB_BASE, registry, services, github_sign_in=FakeGitHub())
+    return TestClient(app, base_url=GITHUB_BASE, follow_redirects=False)
+
+
+def start_sign_in(http, redirect_uri, client_name="Claude Code"):
+    client_id = http.post(
+        "/register",
+        json={
+            "client_name": client_name,
+            "redirect_uris": [redirect_uri],
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+            "token_endpoint_auth_method": "none",
+        },
+    ).json()["client_id"]
+    verifier = secrets.token_urlsafe(48)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=")
+    start = http.get(
+        "/authorize",
+        params={
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "code_challenge": challenge.decode(),
+            "code_challenge_method": "S256",
+            "state": "s",
+        },
+    )
+    consent = urlparse(start.headers["location"])
+    assert consent.path == "/oauth/consent"
+    return client_id, verifier, parse_qs(consent.query)["pending"][0]
+
+
+def test_github_sign_in_asks_for_consent_in_the_same_browser():
+    with github_client() as browser:
+        client_id, verifier, pending = start_sign_in(browser, REDIRECT)
+        page = browser.get("/oauth/consent", params={"pending": pending})
+        assert page.status_code == 200
+        assert "Claude Code" in page.text and "127.0.0.1:9" in page.text
+        assert page.headers["x-frame-options"] == "DENY"
+        set_cookie = page.headers["set-cookie"].lower()
+        assert "httponly" in set_cookie and "samesite=strict" in set_cookie
+        assert "secure" in set_cookie
+        csrf = re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)
+
+        to_github = browser.post("/oauth/consent", data={"pending": pending, "csrf": csrf})
+        assert to_github.status_code == 302
+        assert to_github.headers["location"].startswith("https://github.example/")
+        assert "samesite=lax" in to_github.headers["set-cookie"].lower()
+
+        back = browser.get("/oauth/github/callback", params={"code": "c", "state": pending})
+        assert back.status_code == 302, back.text
+        code = parse_qs(urlparse(back.headers["location"]).query)["code"][0]
+        tokens = browser.post(
+            "/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": REDIRECT,
+                "client_id": client_id,
+                "code_verifier": verifier,
+            },
+        )
+        assert tokens.status_code == 200, tokens.text
+
+
+def test_a_crafted_github_link_cannot_sign_someone_in_to_another_app():
+    with github_client() as http:
+        # The attacker registers their own client and starts a sign-in...
+        _client_id, _verifier, pending = start_sign_in(http, "https://attacker.example/cb")
+        # ...then sends the link to the victim, whose browser has none of their cookies.
+        http.cookies.clear()
+        # 1. Straight to GitHub's callback (GitHub skips its prompt): refused.
+        direct = http.get("/oauth/github/callback", params={"code": "c", "state": pending})
+        assert direct.status_code == 400
+        assert "start in this browser" in direct.text
+        # 2. A cross-site auto-submitted Continue carries no consent cookie: refused.
+        forged = http.post("/oauth/consent", data={"pending": pending, "csrf": "guess"})
+        assert forged.status_code == 400
+        # 3. Opening the consent page shows exactly where access would go.
+        page = http.get("/oauth/consent", params={"pending": pending})
+        assert "attacker.example" in page.text
+
+
+def test_production_without_github_credentials_explains_instead_of_crashing(monkeypatch):
+    from starlette.testclient import TestClient
+
+    from midflight.communication.hosted import create_app_from_env
+
+    monkeypatch.setenv("MIDFLIGHT_PUBLIC_URL", "https://midflight.example")
+    for name in (
+        "MIDFLIGHT_DEV_LOGIN",
+        "MIDFLIGHT_GITHUB_CLIENT_ID",
+        "MIDFLIGHT_GITHUB_CLIENT_SECRET",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    with TestClient(create_app_from_env()) as client:
+        health = client.get("/healthz").json()
+        assert health["configured"] is False and "GITHUB_CLIENT_ID" in health["reason"]
+        assert client.post("/mcp").status_code == 503

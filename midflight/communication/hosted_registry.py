@@ -36,12 +36,13 @@ def new_join_code():
 
 
 def normalized_code(value):
-    code = re.sub(r"\s+", "", str(value)).upper()
-    if not code.startswith("MF-") and len(code) == 8:
-        code = f"MF-{code[:4]}-{code[4:]}"
-    if not JOIN_CODE.fullmatch(code):
+    """Accept a code however it was typed: any case, with or without MF, dashes or spaces."""
+    raw = re.sub(r"[^A-Za-z0-9]", "", str(value)).upper()
+    if len(raw) == 10 and raw.startswith("MF"):
+        raw = raw[2:]
+    if len(raw) != 8 or any(c not in JOIN_ALPHABET for c in raw):
         raise ValueError("That isn't a MidFlight join code; it looks like MF-XXXX-XXXX")
-    return code
+    return f"MF-{raw[:4]}-{raw[4:]}"
 
 
 class Registry:
@@ -130,6 +131,7 @@ class Registry:
             "agents": {
                 name: self._login(state, owner) for name, owner in sorted(project["agents"].items())
             },
+            "retired_agents": sorted(project.get("retired", {})),
         }
 
     def create_project(self, uid, name):
@@ -166,6 +168,8 @@ class Registry:
             if project_id is None:
                 raise ValueError("No project has that join code; ask your lead for the current one")
             project = state["projects"][project_id]
+            if uid in project.get("removed", {}):
+                raise ValueError("The lead removed you from this project")
             project["members"].setdefault(uid, {"joined_at": int(self.clock())})
             return self._view(state, uid, project)
 
@@ -207,35 +211,81 @@ class Registry:
 
         return self._mutate(action)
 
+    def _target(self, state, project, login):
+        target = next(
+            (m for m in project["members"] if self._login(state, m).lower() == login.lower()),
+            None,
+        )
+        if target is None:
+            raise ValueError(f"{login} isn't a member of this project")
+        return target
+
     def remove_member(self, uid, project_id, login):
         def action(state):
             project = self._lead(state, uid, project_id)
-            target = next(
-                (m for m in project["members"] if self._login(state, m).lower() == login.lower()),
-                None,
-            )
-            if target is None:
-                raise ValueError(f"{login} isn't a member of this project")
+            target = self._target(state, project, login)
             if target == project["lead"]:
                 raise ValueError("The lead can't remove themselves")
             del project["members"][target]
-            # Their agent names become free for whoever takes over that component.
-            released = sorted(n for n, owner in project["agents"].items() if owner == target)
-            for name in released:
-                del project["agents"][name]
-            return self._view(state, uid, project) | {"released_agents": released}
+            project.setdefault("removed", {})[target] = int(self.clock())
+            # Their agents keep their topics, subscriptions and messages, so a name is never
+            # free for the taking: the lead hands it to whoever continues that component.
+            retired = sorted(n for n, owner in project["agents"].items() if owner == target)
+            for name in retired:
+                project.setdefault("retired", {})[name] = project["agents"].pop(name)
+            return self._view(state, uid, project) | {
+                "retired_now": retired,
+                "next": "Hand a retired agent to a teammate with assign_agent if someone "
+                "continues that component.",
+            }
+
+        return self._mutate(action)
+
+    def readmit_member(self, uid, project_id, login):
+        """Lead only: let a removed member join again with the join code."""
+
+        def action(state):
+            project = self._lead(state, uid, project_id)
+            removed = project.setdefault("removed", {})
+            target = next(
+                (m for m in removed if self._login(state, m).lower() == login.lower()), None
+            )
+            if target is None:
+                raise ValueError(f"{login} wasn't removed from this project")
+            del removed[target]
+            return self._view(state, uid, project) | {
+                "next": f"{login} can join_project with the join code again."
+            }
 
         return self._mutate(action)
 
     # Agents and sessions ------------------------------------------------------------------
 
-    def bind_agent(self, uid, project_id, name):
-        """Reserve an agent name for this member, or confirm it is already theirs."""
+    @staticmethod
+    def _valid_name(name):
         if not isinstance(name, str) or not AGENT_NAME.fullmatch(name):
             raise ValueError("Use an agent name of letters, digits, - or _ (up to 60)")
 
+    @staticmethod
+    def _case_clash(project, name):
+        """Names differing only by case would read as the same agent; refuse them."""
+        taken = [*project["agents"], *project.get("retired", {})]
+        return next((n for n in taken if n.lower() == name.lower() and n != name), None)
+
+    def bind_agent(self, uid, project_id, name):
+        """Reserve an agent name for this member, or confirm it is already theirs."""
+        self._valid_name(name)
+
         def action(state):
             project = self._member(state, uid, project_id)
+            if name in project.get("retired", {}):
+                raise ValueError(
+                    f"The agent {name} belonged to a member who was removed; the lead can "
+                    "hand it to you with assign_agent, or pick a different name"
+                )
+            clash = self._case_clash(project, name)
+            if clash:
+                raise ValueError(f"This project already has an agent named {clash}")
             owner = project["agents"].setdefault(name, uid)
             if owner != uid:
                 raise ValueError(
@@ -245,6 +295,31 @@ class Registry:
             return {"agent": name}
 
         return self._mutate(action)
+
+    def assign_agent(self, uid, project_id, name, login):
+        """Lead only: give an agent name (retired, free or in use) to a member."""
+        self._valid_name(name)
+
+        def action(state):
+            project = self._lead(state, uid, project_id)
+            target = self._target(state, project, login)
+            clash = self._case_clash(project, name)
+            if clash:
+                raise ValueError(f"This project already has an agent named {clash}")
+            project.get("retired", {}).pop(name, None)
+            previous = project["agents"].get(name)
+            project["agents"][name] = target
+            return self._view(state, uid, project) | {
+                "agent": name,
+                "previous": self._login(state, previous) if previous else None,
+            }
+
+        return self._mutate(action)
+
+    def agent_holder(self, project_id, name):
+        """The member who currently runs this agent, or None (free or retired)."""
+        project = self._state()["projects"].get(project_id, {})
+        return project.get("agents", {}).get(name)
 
     def record_session(self, uid, project_id, agent, session_id):
         def action(state):
@@ -266,7 +341,7 @@ class Registry:
             raise ValueError("Unknown session; call join first and use the session_id it returns")
         project = self._member(state, uid, record["project"])
         if project["agents"].get(record["agent"]) != uid:
-            raise ValueError("Your agent name in this project was released; join again")
+            raise ValueError("The lead gave this agent to someone else; join with another name")
         return record["project"], record["agent"]
 
     def lead_login(self, uid, project_id):

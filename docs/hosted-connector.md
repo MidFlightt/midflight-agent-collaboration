@@ -34,28 +34,39 @@ The server's landing page (`https://<HostedUrl>/`) shows the same instructions.
 | Tool | Who | What |
 | --- | --- | --- |
 | `create_project(name)` | anyone signed in | New project; the caller becomes its lead. Returns the join code. |
-| `join_project(join_code)` | anyone signed in | Become a member. Codes are case- and dash-insensitive. |
-| `my_projects()` | members | Role, join code, members, agent names (and who runs each), topic owners. |
+| `join_project(join_code)` | anyone signed in | Become a member. Any case, with or without `MF`, dashes or spaces. |
+| `my_projects()` | members | Role, join code, members, agent names (and who runs each), retired agents, topic owners. |
 | `join(name, task, request_id, project_id?, session_id?, dependencies?)` | members | Join as one agent. `project_id` is optional with exactly one project. |
 | `send`, `check_in`, `objection` | the agent's member | Unchanged coordination tools, addressed by `session_id`. |
-| `assign_owner(project_id, topic, agent)` | lead | Hand a topic to a joined agent; topic subscribers are told. |
+| `assign_owner(project_id, topic, agent)` | lead | Hand a topic to an agent a current member runs; topic subscribers are told. |
+| `assign_agent(project_id, name, login)` | lead | Hand an agent name (for example a retired one) to a member, who continues its topics and messages. |
 | `rotate_join_code(project_id)` | lead | New code; the old one stops working. |
-| `remove_member(project_id, login)` | lead | Removes access and frees their agent names for a replacement. |
+| `remove_member(project_id, login)` | lead | Removes access (the code no longer lets them back in) and retires their agents. |
+| `readmit_member(project_id, login)` | lead | Lets a removed member join again with the code. |
 
 ## Rules that differ from the operator-roster pilot
 
 - **No roster.** Agents declare subscriptions with `join(dependencies=[...])`, as before.
 - **First publisher owns a topic.** The first `send(kind="interface")` on a topic nobody
-  owns (with `expected_revision=0`) makes that agent the owner. A rejected publication
-  claims nothing. Later publications by others are refused; they `objection` or
-  message instead. Owners can still `transfer`; the lead can `assign_owner`.
+  owns (with `expected_revision=0`) makes that agent the owner. A topic that already has
+  activity (policies, objections) can be claimed only by an agent subscribed to it, since
+  ownership widens what the owner sees. A rejected publication claims nothing. Later
+  publications by others are refused; they `objection` or message instead. Owners can
+  still `transfer` (to an agent a current member runs); the lead can `assign_owner`.
 - **Agent names belong to people.** In a project, the first member to join as
-  `billing` owns that name. Others are refused and pick another name. One person may
+  `billing` owns that name; names that differ only by case are refused. One person may
   run several agents (`orders`, `menu`, ...). Sessions are usable only by the member
-  who created them.
+  who created them, and retry IDs are scoped per person.
+- **Removal sticks; agents are handed over, not grabbed.** A removed member can't
+  rejoin with the join code unless the lead calls `readmit_member`. Their agents become *retired*: they keep their topics,
+  subscriptions and messages, so nobody can claim the name by joining with it. The lead
+  hands a retired (or any) agent to a member with `assign_agent`.
 - **Identity is GitHub sign-in**, through the MCP authorization flow (dynamic client
-  registration, PKCE, 1-hour access tokens, 30-day rotating refresh tokens). Codes and
-  tokens are stored only as SHA-256 hashes.
+  registration, PKCE, 1-hour access tokens, 30-day rotating refresh tokens). Before
+  GitHub, MidFlight shows its own consent page naming the app and the host it will send
+  access to; cookies bind the GitHub round trip to the browser that pressed Continue, so
+  a sign-in link crafted by someone else can't hand them your access. Codes and tokens
+  are stored only as SHA-256 hashes.
 
 Everything else — routing through the dependency graph, policies, objections,
 cursors, retries with `request_id` — is the same `Service` the prototype uses.
@@ -111,7 +122,11 @@ persistent local storage (`docker compose -f compose.graph-hacks.yml up -d`).
    ```
 
    Review the change set first: it should add the hosted resources and update the
-   database security group in place, with no database or volume replacement.
+   database security group in place, with no database or volume replacement. The
+   database's AMI is resolved from SSM on every deploy, so if Amazon published a new
+   AL2023 image since the last deploy the change set may show `Database
+   replacement=True`. Don't execute that during a demo; pin `ImageId` to the current AMI
+   instead.
 3. **Second deployment** passes the now-known URL and the GitHub credentials:
 
    ```sh
@@ -121,18 +136,23 @@ persistent local storage (`docker compose -f compose.graph-hacks.yml up -d`).
    ```
 
    Later deployments keep both without the flag.
-4. **Check** `https://<HostedUrl>/healthz` returns `{"status":"ok"}` (not
-   `"configured": false`), open the landing page, then add the connector in a client
-   and create a project.
+4. **Check** `https://<HostedUrl>/healthz` returns `{"status":"ok"}`. Until the URL and
+   GitHub credentials are both set it answers `"configured": false` with the reason, and
+   `/mcp` returns 503 instead of failing to start. Open the landing page, then add the
+   connector in a client and create a project.
 
 ## Tests and limits
 
 - `tests/unit/test_hosted_connector.py`: tool surface, two people sharing a project,
   name and session ownership, first-publisher ownership, routing, lead tools, removal.
 - `tests/integration/test_hosted_connector_http.py`: the real server over HTTP with the
-  OAuth flow (register, authorize, dev sign-in, token, refresh) and two signed-in people.
+  OAuth flow (register, authorize, dev sign-in, token, refresh) and two signed-in people;
+  the GitHub consent page and cookies; and a crafted-link attack that must fail.
 - `tests/integration/test_hosted_connector_falkordb.py` (`--falkordb`): persistence
   across a restart in real FalkorDB.
-- The registry is one JSON document read on every call; fine for many teams, not for
-  very large numbers of projects. No per-user rate limits or project caps.
+- The registry is one JSON document read on every call, and every `join` writes it;
+  fine for many teams, not for very large numbers of projects. No per-user rate limits
+  or project caps; `/register` keeps client registrations without expiry.
+- Join codes are 8 characters from a 32-letter alphabet with no attempt limit; rotate a
+  code if it leaks.
 - The hosted connector has not yet been deployed or tried from a real coding client.

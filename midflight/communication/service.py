@@ -97,6 +97,17 @@ class Service:
         state["events"].append(event)
         return event
 
+    @staticmethod
+    def _relevant_topics(state, actor):
+        """The actor's subscriptions plus every topic they depend on, transitively."""
+        relevant, pending = set(), list(state["agents"].get(actor, {}).get("dependencies", []))
+        while pending:
+            topic = pending.pop()
+            if topic not in relevant:
+                relevant.add(topic)
+                pending.extend(state["dependencies"].get(topic, []))
+        return relevant
+
     def _inbox(self, state, sid, after=None, full=False):
         session = self._session(state, sid)
         actor = session["agent"]
@@ -156,13 +167,7 @@ class Service:
         )
         # Current shared interfaces are context, including for a newly subscribed session.
         # Delivery is recorded per session; it never implies agreement or code adoption.
-        relevant_topics = set()
-        pending = list(state["agents"][actor]["dependencies"])
-        while pending:
-            topic = pending.pop()
-            if topic not in relevant_topics:
-                relevant_topics.add(topic)
-                pending.extend(state["dependencies"].get(topic, []))
+        relevant_topics = self._relevant_topics(state, actor)
         owners = {
             topic: owner
             for topic, owner in state["owners"].items()
@@ -292,6 +297,15 @@ class Service:
                 owner = state["owners"].get(topic)
                 claimed = False
                 if kind == "interface" and owner is None and self.claim_unowned:
+                    # A brand-new topic is anyone's to claim. A topic already in use (say,
+                    # policies and objections) only by an agent that subscribes to it:
+                    # ownership widens what the owner sees.
+                    in_use = any(e.get("topic") == topic for e in state["events"])
+                    if in_use and topic not in self._relevant_topics(state, actor):
+                        raise ValueError(
+                            f"{topic} already has activity and you don't subscribe to it; "
+                            "subscribe first or ask the project lead to assign an owner"
+                        )
                     # Nothing is committed unless the whole publication below succeeds.
                     owner = state["owners"][topic] = {"name": actor, "revision": 1}
                     claimed = True

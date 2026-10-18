@@ -92,7 +92,10 @@ def main():
     s3.upload_file(str(artifact), bucket, key)
     try:
         existing = cf.describe_stacks(StackName=STACK)["Stacks"][0]
-        existing_parameters = {p["ParameterKey"] for p in existing.get("Parameters", [])}
+        existing_values = {
+            p["ParameterKey"]: p.get("ParameterValue", "") for p in existing.get("Parameters", [])
+        }
+        existing_parameters = set(existing_values)
         outputs = {o["OutputKey"]: o["OutputValue"] for o in existing.get("Outputs", [])}
         status = existing["StackStatus"]
         change_type = "CREATE" if status == "REVIEW_IN_PROGRESS" else "UPDATE"
@@ -100,8 +103,7 @@ def main():
         if "does not exist" not in error.response["Error"].get("Message", ""):
             raise
         change_type = "CREATE"
-        existing_parameters = set()
-        outputs = {}
+        existing_values, existing_parameters, outputs = {}, set(), {}
     # The connector must know its own URL for sign-in, but a Function URL exists only after
     # the first deployment creates it. That deployment serves an "unconfigured" page; the
     # next one passes the URL in. Rerun this script once after the first apply.
@@ -123,8 +125,11 @@ def main():
             for key in ("GitHubClientId", "GitHubClientSecret")
             if key in existing_parameters
         ]
-    if hosted_url and not args.github_oauth and "GitHubClientId" not in existing_parameters:
-        print("No GitHub sign-in configured yet: pass --github-oauth so people can sign in.")
+    if hosted_url and not args.github_oauth and not existing_values.get("GitHubClientId"):
+        print(
+            "No GitHub sign-in configured: the connector will answer 'not configured' "
+            "until you rerun with --github-oauth."
+        )
     invite_parameters = []
     if args.invite_secrets:
         secrets = json.loads(args.invite_secrets.read_text())

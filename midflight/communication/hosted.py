@@ -21,6 +21,7 @@ Run locally (no GitHub secrets, in-memory storage, a sign-in form instead of Git
     claude mcp add --transport http midflight http://127.0.0.1:8000/mcp
 """
 
+import hashlib
 import html
 import os
 import threading
@@ -72,6 +73,13 @@ def hosted_instructions():
 def _signed_in_user_id():
     token = get_access_token()
     return token.subject if token else None
+
+
+def scoped(uid, request_id):
+    """Retry IDs are per person, so whoever takes over an agent can't replay our writes."""
+    if not isinstance(request_id, str) or not request_id.strip() or len(request_id) > 120:
+        raise ValueError("request_id must contain 1–120 characters")
+    return f"{uid}:{hashlib.sha256(request_id.encode()).hexdigest()[:32]}"
 
 
 def build_hosted_server(
@@ -164,15 +172,18 @@ def build_hosted_server(
             if session_id is not None and registry.session(uid, session_id) != (pid, name):
                 raise ValueError("That session belongs to another agent or project")
             registry.bind_agent(uid, pid, name)
-            result = service_for(pid).join(name, task, request_id, session_id, dependencies)
+            result = service_for(pid).join(
+                name, task, scoped(uid, request_id), session_id, dependencies
+            )
             registry.record_session(uid, pid, name, result["session_id"])
             return result | {"project_id": pid, "project": project["name"]}
 
         return coordinate("join", act, (name, task, request_id, session_id, dependencies))
 
-    def session_service(session_id):
-        pid, _agent = registry.session(me(), session_id)
-        return service_for(pid)
+    def session_of(session_id):
+        uid = me()
+        pid, _agent = registry.session(uid, session_id)
+        return uid, pid, service_for(pid)
 
     @server.tool()
     def send(
@@ -213,7 +224,14 @@ def build_hosted_server(
             depends_on,
             new_owner,
         )
-        return coordinate("send", lambda: session_service(session_id).send(*args), args)
+
+        def act():
+            uid, pid, service = session_of(session_id)
+            if kind == "transfer" and registry.agent_holder(pid, new_owner) is None:
+                raise ValueError("new_owner must be an agent that a current member runs")
+            return service.send(*args[:3], scoped(uid, request_id), *args[4:])
+
+        return coordinate("send", act, args)
 
     @server.tool()
     def check_in(session_id: str, after: int | None = None) -> dict:
@@ -223,7 +241,7 @@ def build_hosted_server(
         on current context. Each session has its own persistent cursor.
         """
         args = (session_id, after)
-        return coordinate("check_in", lambda: session_service(session_id).check_in(*args), args)
+        return coordinate("check_in", lambda: session_of(session_id)[2].check_in(*args), args)
 
     @server.tool()
     def objection(
@@ -242,7 +260,12 @@ def build_hosted_server(
         Publication, tests, silence and supersession never resolve an objection.
         """
         args = (session_id, publication_id, revision, problem, affects, request_id, alternative)
-        return coordinate("object", lambda: session_service(session_id).object(*args), args)
+
+        def act():
+            uid, _pid, service = session_of(session_id)
+            return service.object(*args[:5], scoped(uid, request_id), alternative)
+
+        return coordinate("object", act, args)
 
     # Lead tools ---------------------------------------------------------------------------
 
@@ -253,9 +276,21 @@ def build_hosted_server(
 
         def act():
             lead = registry.lead_login(uid, project_id)
+            if registry.agent_holder(project_id, agent) is None:
+                raise ValueError(f"No current member runs an agent named {agent}")
             return service_for(project_id).assign_owner(topic, agent, f"lead:{lead}")
 
         return run(act)
+
+    @server.tool()
+    def assign_agent(project_id: str, name: str, login: str) -> dict:
+        """Lead only. Hand an agent name to a member (for example, a retired agent).
+
+        The member then joins as that agent and continues its topics and messages. Whoever
+        ran it before loses access to its sessions.
+        """
+        uid = me()
+        return run(lambda: registry.assign_agent(uid, project_id, name, login))
 
     @server.tool()
     def rotate_join_code(project_id: str) -> dict:
@@ -265,9 +300,16 @@ def build_hosted_server(
 
     @server.tool()
     def remove_member(project_id: str, login: str) -> dict:
-        """Lead only. Remove a member by GitHub login; their agent names are released."""
+        """Lead only. Remove a member by GitHub login. They can't rejoin with the code;
+        their agents are retired until you hand them to someone with assign_agent."""
         uid = me()
         return run(lambda: registry.remove_member(uid, project_id, login))
+
+    @server.tool()
+    def readmit_member(project_id: str, login: str) -> dict:
+        """Lead only. Let a removed member join again with the join code."""
+        uid = me()
+        return run(lambda: registry.readmit_member(uid, project_id, login))
 
     return server
 
@@ -387,8 +429,8 @@ class Services:
             return self.services[project_id]
 
 
-def _unconfigured_app():
-    """Before the first deploy knows its own URL: healthy, but explains what's missing."""
+def _unconfigured_app(reason):
+    """Not ready to sign anyone in yet: healthy, so the deploy succeeds, and says why."""
 
     async def app(scope, receive, send):
         if scope["type"] == "lifespan":
@@ -400,11 +442,10 @@ def _unconfigured_app():
                     await send({"type": "lifespan.shutdown.complete"})
                     return
         if scope["path"] == "/healthz":
-            response = JSONResponse({"status": "ok", "configured": False})
+            response = JSONResponse({"status": "ok", "configured": False, "reason": reason})
         else:
             response = JSONResponse(
-                {"detail": "MidFlight connector not configured: set MIDFLIGHT_PUBLIC_URL"},
-                status_code=503,
+                {"detail": f"MidFlight connector not configured: {reason}"}, status_code=503
             )
         await response(scope, receive, send)
 
@@ -422,7 +463,7 @@ def create_app_from_env():
     """
     public_url = os.environ.get("MIDFLIGHT_PUBLIC_URL", "").rstrip("/")
     if not public_url:
-        return _unconfigured_app()
+        return _unconfigured_app("set MIDFLIGHT_PUBLIC_URL")
     dev_login = os.environ.get("MIDFLIGHT_DEV_LOGIN") == "1"
     github_sign_in = None
     client_id = os.environ.get("MIDFLIGHT_GITHUB_CLIENT_ID")
@@ -431,6 +472,10 @@ def create_app_from_env():
         from midflight.adapters.github import GitHubAppSignIn
 
         github_sign_in = GitHubAppSignIn(client_id, client_secret)
+    elif not dev_login:
+        return _unconfigured_app(
+            "set MIDFLIGHT_GITHUB_CLIENT_ID and MIDFLIGHT_GITHUB_CLIENT_SECRET for sign-in"
+        )
     if os.environ.get("MIDFLIGHT_HOSTED_STORE", "falkordb") == "memory":
         registry, services = memory_backend()
     else:
@@ -452,7 +497,17 @@ def falkor_backend(host, port, prefix=""):
     def store_factory(graph):
         return Store(prefix + graph, port, host=host)
 
-    auth = FalkorAuth(FalkorDB(host=host, port=port).select_graph(prefix + "hosted_auth"))
+    from redis.backoff import NoBackoff
+    from redis.retry import Retry
+
+    client = FalkorDB(
+        host=host,
+        port=port,
+        socket_timeout=15,
+        socket_connect_timeout=5,
+        retry=Retry(NoBackoff(), 0),
+    )
+    auth = FalkorAuth(client.select_graph(prefix + "hosted_auth"))
     return Registry(store_factory("hosted_registry"), auth), Services(store_factory)
 
 

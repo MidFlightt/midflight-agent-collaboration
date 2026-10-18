@@ -66,8 +66,10 @@ async def test_exact_tool_surface():
         "check_in",
         "objection",
         "assign_owner",
+        "assign_agent",
         "rotate_join_code",
         "remove_member",
+        "readmit_member",
     }
 
 
@@ -294,22 +296,91 @@ async def test_lead_tools_rotate_reassign_and_remove():
         )
         assert republished["revision"] == 2
 
+        await team.call(
+            client,
+            "frederik",
+            "send",
+            session_id=sp,
+            kind="message",
+            to=["orders"],
+            body="staging password is in the vault",
+            request_id="dm",
+        )
         removed = await team.call(
             client, "somesh", "remove_member", project_id=pid, login="Frederik"
         )
-        assert removed["released_agents"] == ["payments"]
+        assert removed["retired_now"] == ["payments"]
+        assert removed["retired_agents"] == ["payments"]
         assert "aren't a member" in await team.refused(
             client, "frederik", "check_in", session_id=sp
         )
+        # Removal sticks even though Frederik saw the join code.
+        assert "removed you" in await team.refused(
+            client, "frederik", "join_project", join_code=rotated["join_code"]
+        )
 
-        # Whoever takes over the component can now use the released name.
+        # A retired agent keeps its topics and messages, so it isn't first-come.
         await team.call(client, "stranger", "join_project", join_code=rotated["join_code"])
+        assert "assign_agent" in await team.refused(
+            client, "stranger", "join", name="payments", task="Payments", request_id="j"
+        )
+        assert "No current member runs" in await team.refused(
+            client, "somesh", "assign_owner", project_id=pid, topic="x", agent="payments"
+        )
+        assert "current member runs" in await team.refused(
+            client,
+            "somesh",
+            "send",
+            session_id=so,
+            kind="transfer",
+            topic="order-record",
+            body="x",
+            request_id="t",
+            new_owner="payments",
+            expected_revision=2,
+        )
+        handed = await team.call(
+            client, "somesh", "assign_agent", project_id=pid, name="payments", login="stranger"
+        )
+        assert handed["agents"]["payments"] == "stranger" and handed["retired_agents"] == []
+        # The same retry ID as the previous holder is a fresh join, not their old session.
         takeover = await team.call(
-            client, "stranger", "join", name="payments", task="Payments", request_id="j2"
+            client, "stranger", "join", name="payments", task="Payments", request_id="j"
         )
         assert takeover["updates"]["agent"] == "payments"
+        assert takeover["session_id"] != sp
         assert "can't remove themselves" in await team.refused(
             client, "somesh", "remove_member", project_id=pid, login="somesh"
+        )
+        # The lead can let Frederik back in; he then joins with the code as usual.
+        await team.call(client, "somesh", "readmit_member", project_id=pid, login="frederik")
+        back = await team.call(client, "frederik", "join_project", join_code=rotated["join_code"])
+        assert "frederik" in back["members"]
+        assert "wasn't removed" in await team.refused(
+            client, "somesh", "readmit_member", project_id=pid, login="frederik"
+        )
+
+
+async def test_names_are_case_insensitive_and_lead_can_reassign_live_agents():
+    team = Team()
+    async with Client(team.server) as client:
+        created = await team.call(client, "somesh", "create_project", name="Shop")
+        pid = created["project_id"]
+        await team.call(client, "frederik", "join_project", join_code=created["join_code"])
+        so = (await team.call(client, "somesh", "join", name="orders", task="x", request_id="j"))[
+            "session_id"
+        ]
+        assert "already has an agent named orders" in await team.refused(
+            client, "frederik", "join", name="Orders", task="x", request_id="j"
+        )
+        await team.call(
+            client, "somesh", "assign_agent", project_id=pid, name="orders", login="frederik"
+        )
+        assert "gave this agent to someone else" in await team.refused(
+            client, "somesh", "check_in", session_id=so
+        )
+        assert "Only the project's lead" in await team.refused(
+            client, "frederik", "assign_agent", project_id=pid, name="orders", login="frederik"
         )
 
 
@@ -344,9 +415,17 @@ def test_registry_survives_restart_and_tracks_renames():
 
 
 def test_join_codes_normalize_and_reject_garbage():
-    assert normalized_code(" mf-abcd-efgh ") == "MF-ABCD-EFGH"
-    assert normalized_code("abcdefgh") == "MF-ABCD-EFGH"
-    for bad in ("", "MF-0000-0000", "hello", "MF-ABCD-EFG"):
+    for typed in (
+        " mf-abcd-efgh ",
+        "abcdefgh",
+        "MFABCDEFGH",
+        "mfabcdefgh",
+        "ABCD-EFGH",
+        "MF ABCD EFGH",
+        "MF-ABCDEFGH",
+    ):
+        assert normalized_code(typed) == "MF-ABCD-EFGH", typed
+    for bad in ("", "MF-0000-0000", "hello", "MF-ABCD-EFG", "MF-ABCD-EFGHJ"):
         with pytest.raises(ValueError, match="join code"):
             normalized_code(bad)
 
@@ -405,3 +484,22 @@ def test_memory_routing_follows_topic_prerequisites():
     service.send(sid, "dependency", "report uses order", "d", topic="report", depends_on=["order"])
     sent = service.send(sid, "policy", "price change", "p", topic="order", source="human said so")
     assert sent["recipients"] == ["checkout", "reporting"]
+
+
+def test_in_use_topics_are_claimable_only_by_subscribers():
+    service = Service(MemoryStore(), claim_unowned=True)
+    pricing = service.join("pricing", "x", "j", dependencies=["refund"])["session_id"]
+    refunds = service.join("refunds", "x", "j", dependencies=["refund"])["session_id"]
+    menu = service.join("menu", "x", "j", dependencies=["menu-item"])["session_id"]
+    policy = service.send(pricing, "policy", "fee", "p", topic="refund", source="human")
+    service.object(refunds, policy["event_id"], 1, "Fee breaks EU rule", "EU", "o")
+    with pytest.raises(ValueError, match="already has activity"):
+        service.send(menu, "interface", "mine", "i", topic="refund", expected_revision=0)
+    assert service.check_in(menu)["open_objections"] == []
+    # A subscriber may still take the unowned topic, and a fresh topic is anyone's.
+    assert service.send(refunds, "interface", "r1", "i", topic="refund", expected_revision=0)[
+        "claimed_ownership"
+    ]
+    assert service.send(menu, "interface", "r1", "i2", topic="brand-new", expected_revision=0)[
+        "claimed_ownership"
+    ]

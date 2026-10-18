@@ -5,8 +5,11 @@ What happens when someone adds Midflight to their AI client:
 1. The client calls `/mcp` without a token and gets 401, which points it at Midflight's
    sign-in discovery document.
 2. The client registers itself (`/register`) and opens `/authorize` in the browser.
-3. `authorize()` below remembers that request and sends the browser to GitHub, or to a
-   local form when the dev login is on.
+3. `authorize()` below remembers that request and sends the browser to Midflight's own
+   consent page (or to a local form when the dev login is on). The page names the app and
+   where it will send the person back; only a click on Continue, in that browser, goes on
+   to GitHub. Cookies bind the GitHub round trip to that browser, so a link to GitHub
+   crafted by someone else can't sign the person in to the other party's app.
 4. GitHub sends the browser back to `/oauth/github/callback` with a code. Midflight
    trades it for the GitHub account, signs the person in, and sends the browser back to
    the AI client with Midflight's own one-time code.
@@ -21,10 +24,12 @@ and tokens are stored under their SHA-256 hash, never as themselves.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import html
 import secrets
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 import anyio
 from mcp.server.auth.provider import (
@@ -51,6 +56,10 @@ CODE_SECONDS = 5 * 60
 PENDING_SECONDS = 10 * 60
 GITHUB_CALLBACK = "/oauth/github/callback"
 DEV_LOGIN = "/oauth/dev-login"
+CONSENT = "/oauth/consent"
+CSRF_COOKIE = "midflight_consent"  # SameSite=Strict: only our own consent form sends it
+SIGN_IN_COOKIE = "midflight_signin"  # SameSite=Lax: comes back with GitHub's redirect
+NO_FRAMES = {"X-Frame-Options": "DENY", "Content-Security-Policy": "frame-ancestors 'none'"}
 
 
 def _hash(secret: str) -> str:
@@ -102,12 +111,30 @@ class MidflightOAuth(
         )
         if self.dev_login:
             return f"{self._public_url}{DEV_LOGIN}?pending={pending}"
-        assert self._github is not None
-        return self._github.authorize_url(pending, self.github_redirect_uri)
+        return f"{self._public_url}{CONSENT}?pending={pending}"
 
     @property
     def github_redirect_uri(self) -> str:
         return f"{self._public_url}{GITHUB_CALLBACK}"
+
+    @property
+    def secure_cookies(self) -> bool:
+        return self._public_url.startswith("https://")
+
+    def consent_details(self, pending: str) -> tuple[str, str]:
+        """(app name, host it will send the person back to) for a pending sign-in."""
+        request = self._store.get_auth("pending", _hash(pending))
+        if request is None:
+            raise AuthorizeError("access_denied", "this sign-in link expired; start again")
+        client = self._store.get_auth("client", request["client_id"]) or {}
+        redirect = request["params"]["redirect_uri"]
+        host = urlparse(str(redirect)).netloc or str(redirect)
+        return str(client.get("client_name") or "An app"), host
+
+    def github_authorize_url(self, pending: str) -> str:
+        self.consent_details(pending)  # still pending
+        assert self._github is not None
+        return self._github.authorize_url(pending, self.github_redirect_uri)
 
     # Step 4: GitHub (or the dev form) says who signed in --------------------------------
 
@@ -231,6 +258,56 @@ def add_sign_in_routes(
 ) -> None:
     """The pages a browser visits while signing in: GitHub's callback, or the dev form."""
 
+    def cookie(response: Response, name: str, value: str, same_site: str) -> None:
+        response.set_cookie(
+            name,
+            value,
+            max_age=PENDING_SECONDS,
+            path="/oauth",
+            httponly=True,
+            secure=oauth.secure_cookies,
+            samesite=same_site,  # type: ignore[arg-type]
+        )
+
+    @server.custom_route(CONSENT, methods=["GET"])
+    async def consent_page(request: Request) -> Response:
+        pending = request.query_params.get("pending", "")
+        try:
+            app_name, host = oauth.consent_details(pending)
+        except AuthorizeError as error:
+            return _page("Sign-in failed", error.error_description or error.error, 400)
+        token = secrets.token_urlsafe(24)
+        response = _page(
+            "Sign in to Midflight",
+            f"{app_name} wants to use Midflight as you, and will receive access at {host}. "
+            "Continue only if you just started this from your own coding client.",
+            200,
+            f'<form method="post"><input type="hidden" name="pending" '
+            f'value="{html.escape(pending)}"><input type="hidden" name="csrf" '
+            f'value="{token}"><button>Continue with GitHub</button></form>',
+        )
+        response.headers.update(NO_FRAMES)
+        cookie(response, CSRF_COOKIE, token, "strict")
+        return response
+
+    @server.custom_route(CONSENT, methods=["POST"])
+    async def consent_given(request: Request) -> Response:
+        form = await request.form()
+        pending, token = str(form.get("pending", "")), str(form.get("csrf", ""))
+        expected = request.cookies.get(CSRF_COOKIE, "")
+        if not token or not expected or not hmac.compare_digest(token, expected):
+            return _page("Sign-in failed", "Open the sign-in link again and press Continue.", 400)
+        if github is None:
+            return _page("Sign-in failed", "Sign in with GitHub isn't configured here.", 400)
+        try:
+            target = oauth.github_authorize_url(pending)
+        except AuthorizeError as error:
+            return _page("Sign-in failed", error.error_description or error.error, 400)
+        response = RedirectResponse(target, status_code=302)
+        cookie(response, SIGN_IN_COOKIE, _hash(pending), "lax")
+        response.delete_cookie(CSRF_COOKIE, path="/oauth")
+        return response
+
     @server.custom_route(GITHUB_CALLBACK, methods=["GET"])
     async def github_callback(request: Request) -> Response:
         code, pending = request.query_params.get("code"), request.query_params.get("state")
@@ -238,11 +315,20 @@ def add_sign_in_routes(
             return _page(
                 "Sign-in failed", "GitHub didn't send back a sign-in code. Try again.", 400
             )
+        started_here = request.cookies.get(SIGN_IN_COOKIE, "")
+        if not started_here or not hmac.compare_digest(started_here, _hash(pending)):
+            return _page(
+                "Sign-in failed",
+                "This sign-in didn't start in this browser. Start again from your coding client.",
+                400,
+            )
         try:
             account = await anyio.to_thread.run_sync(
                 github.account_for_code, code, oauth.github_redirect_uri
             )
-            return RedirectResponse(oauth.finish_sign_in(pending, account), status_code=302)
+            response = RedirectResponse(oauth.finish_sign_in(pending, account), status_code=302)
+            response.delete_cookie(SIGN_IN_COOKIE, path="/oauth")
+            return response
         except Exception as error:  # shown to the person, never a stack trace
             return _page("Sign-in failed", str(error), 400)
 
