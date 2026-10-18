@@ -112,3 +112,11 @@ expose its terminal controller to the internet. Agent decisions are nondetermini
 local tests may use mocks, and combined-code validation covers the Python modules,
 not a deployed application. See the measured evidence for observed behavior and
 remaining limitations rather than treating the recording as a guarantee.
+
+## Collaborating across computers
+
+The local demo above runs independently on each machine. A shared authenticated
+backend is being added on `codex/shared-backend`; see the
+[shared-backend setup and deployment status](docs/shared-backend.md).
+It shares coordination while coding sessions and repositories stay local. AWS
+hosting is not live yet; the setup guide records the remaining deployment blocker.

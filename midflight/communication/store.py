@@ -18,9 +18,9 @@ def encoded(value):
 
 
 class Store:
-    def __init__(self, graph_name, port=6379):
+    def __init__(self, graph_name, port=6379, *, host="127.0.0.1"):
         self.client = FalkorDB(
-            host="127.0.0.1",
+            host=host,
             port=port,
             socket_timeout=15,
             socket_connect_timeout=5,

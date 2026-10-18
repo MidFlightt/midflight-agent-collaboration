@@ -70,8 +70,15 @@ This is a trusted local prototype; agent names are labels, not authenticated ide
 """
 
 
-def build_server(service):
-    server = MCPServer("midflight", instructions=INSTRUCTIONS)
+def build_server(service, *, remote=False):
+    instructions = INSTRUCTIONS
+    if remote:
+        instructions = instructions.replace(
+            "This is a trusted local prototype; agent names are labels, "
+            "not authenticated identities.",
+            "Your credential binds you to one project and agent. Join using that agent name.",
+        )
+    server = MCPServer("midflight", instructions=instructions)
 
     def invoke(action, *args):
         try:
@@ -173,6 +180,22 @@ def build_server(service):
 
 
 def main():
+    if os.environ.get("MIDFLIGHT_URL"):
+        from pathlib import Path
+
+        from .cloud import RemoteService
+
+        token = (
+            Path(os.environ["MIDFLIGHT_TOKEN_FILE"]).read_text().strip()
+            if os.environ.get("MIDFLIGHT_TOKEN_FILE")
+            else os.environ["MIDFLIGHT_TOKEN"]
+        )
+        remote = RemoteService(os.environ["MIDFLIGHT_URL"], token)
+        try:
+            build_server(remote, remote=True).run("stdio")
+        finally:
+            remote.close()
+        return
     store = Store(os.environ["MIDFLIGHT_PROJECT"], int(os.environ.get("MIDFLIGHT_DB_PORT", 6379)))
     try:
         build_server(Service(store)).run("stdio")

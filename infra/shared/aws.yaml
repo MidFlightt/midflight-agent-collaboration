@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Separate MidFlight communication backend. No reviewer or model permissions.
+Parameters:
+  ArtifactBucket:
+    Type: String
+  ArtifactKey:
+    Type: String
+  ConfigJson:
+    Type: String
+    NoEcho: true
+    Description: Operator roster and SHA256 token hashes only; no raw bearer tokens.
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.76.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: {VpcId: !Ref Vpc, InternetGatewayId: !Ref Gateway}
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.76.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+  Routes:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref Vpc}
+  Route:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref Routes
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Gateway
+  RouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: {SubnetId: !Ref Subnet, RouteTableId: !Ref Routes}
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Coordination Lambda; no inbound rules
+      VpcId: !Ref Vpc
+      SecurityGroupEgress:
+        - {IpProtocol: tcp, FromPort: 6379, ToPort: 6379, CidrIp: 10.76.1.0/24}
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: FalkorDB reachable only by coordination Lambda
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      SecurityGroupEgress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0}
+        - {IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0}
+  DatabaseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ec2.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+  DatabaseProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: {Roles: [!Ref DatabaseRole]}
+  DataVolume:
+    Type: AWS::EC2::Volume
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Retain
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Size: 20
+      VolumeType: gp3
+      Encrypted: true
+      Tags: [{Key: Name, Value: midflight-shared-data}]
+  Database:
+    Type: AWS::EC2::Instance
+    DependsOn: Route
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: t4g.small
+      IamInstanceProfile: !Ref DatabaseProfile
+      MetadataOptions: {HttpTokens: required}
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          AssociatePublicIpAddress: true
+          SubnetId: !Ref Subnet
+          GroupSet: [!Ref DatabaseSecurityGroup]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: {VolumeSize: 12, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true}
+      Tags: [{Key: Name, Value: midflight-shared-falkordb}]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          dnf install -y docker
+          VOLUME_SERIAL=$(echo '${DataVolume}' | tr -d '-')
+          for attempt in $(seq 1 120); do
+            device=$(lsblk -ndo NAME,SERIAL | awk -v id="$VOLUME_SERIAL" '$2==id {print "/dev/"$1}')
+            [ -n "$device" ] && break
+            sleep 5
+          done
+          test -n "$device"
+          if ! blkid "$device"; then mkfs -t xfs "$device"; fi
+          mkdir -p /srv/midflight
+          uuid=$(blkid -s UUID -o value "$device")
+          echo "UUID=$uuid /srv/midflight xfs defaults,nofail 0 2" >> /etc/fstab
+          mount /srv/midflight
+          mkdir -p /etc/systemd/system/docker.service.d
+          printf '[Unit]\nRequiresMountsFor=/srv/midflight\n[Service]\nExecStartPre=/usr/bin/mountpoint -q /srv/midflight\n' > /etc/systemd/system/docker.service.d/data.conf
+          systemctl daemon-reload
+          systemctl enable --now docker
+          docker run -d --name falkordb --restart unless-stopped -p 6379:6379 \
+            -v /srv/midflight:/data \
+            -e 'REDIS_ARGS=--appendonly yes --appendfsync always --save ""' \
+            -e 'FALKORDB_ARGS=TIMEOUT 10000 MAX_QUEUED_QUERIES 100' \
+            falkordb/falkordb:v4.22.1@sha256:b0bdcac2cbaff989e77cb0610439b7a9289e86de033ccbbd4368b66fb680ae7a
+  DataAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties: {Device: /dev/sdf, InstanceId: !Ref Database, VolumeId: !Ref DataVolume}
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+  Function:
+    Type: AWS::Lambda::Function
+    DependsOn: DataAttachment
+    Properties:
+      Runtime: python3.12
+      Architectures: [arm64]
+      Handler: run.sh
+      Role: !GetAtt FunctionRole.Arn
+      MemorySize: 512
+      Timeout: 30
+      Code: {S3Bucket: !Ref ArtifactBucket, S3Key: !Ref ArtifactKey}
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerArm64:30
+      VpcConfig:
+        SubnetIds: [!Ref Subnet]
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_PORT: '8080'
+          AWS_LWA_READINESS_CHECK_PATH: /healthz
+          MIDFLIGHT_DB_HOST: !GetAtt Database.PrivateIp
+          MIDFLIGHT_CONFIG_JSON: !Ref ConfigJson
+  FunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties: {TargetFunctionArn: !GetAtt Function.Arn, AuthType: NONE}
+  UrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Function
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+  InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Function
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+  Logs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${Function}
+      RetentionInDays: 14
+Outputs:
+  Url: {Value: !GetAtt FunctionUrl.FunctionUrl}
+  DatabaseInstance: {Value: !Ref Database}
+  DataVolume: {Value: !Ref DataVolume}
+  Function: {Value: !Ref Function}

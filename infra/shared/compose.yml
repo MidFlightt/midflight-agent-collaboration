@@ -1,0 +1,61 @@
+name: midflight-shared
+services:
+  db:
+    image: falkordb/falkordb:v4.22.1@sha256:b0bdcac2cbaff989e77cb0610439b7a9289e86de033ccbbd4368b66fb680ae7a
+    restart: unless-stopped
+    environment:
+      REDIS_ARGS: '--appendonly yes --appendfsync always --save ""'
+      FALKORDB_ARGS: 'TIMEOUT 10000 MAX_QUEUED_QUERIES 100'
+    volumes:
+      - coordination:/data
+    networks: [storage]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/shared/Dockerfile
+    restart: unless-stopped
+    environment:
+      MIDFLIGHT_CONFIG: /run/secrets/config.json
+      MIDFLIGHT_DB_HOST: db
+    volumes:
+      - ${MIDFLIGHT_CONFIG_PATH:?Set absolute path to server config}:/run/secrets/config.json:ro
+    networks: [storage, edge]
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      MIDFLIGHT_DOMAIN: ${MIDFLIGHT_DOMAIN:?Set the public DNS name}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - caddy_config:/config
+    networks: [edge]
+    depends_on:
+      api:
+        condition: service_healthy
+networks:
+  storage:
+    internal: true
+  edge:
+volumes:
+  coordination:
+  certificates:
+  caddy_config:

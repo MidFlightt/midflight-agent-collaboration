@@ -1,0 +1,6 @@
+{$MIDFLIGHT_DOMAIN} {
+    request_body {
+        max_size 64KB
+    }
+    reverse_proxy api:8080
+}
