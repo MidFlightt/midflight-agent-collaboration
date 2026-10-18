@@ -35,7 +35,7 @@ These are the proposed starting point for `graph-hacks`. The AWS documents below
 | [domain.md](domain.md) | Exact names, states, MCP tools, REST paths, and invariants |
 | [use-cases.md](use-cases.md) | UC-01 to UC-16 with sequence diagrams ([visual version](pages/use-cases.html)) |
 | [requirements.md](requirements.md) | Requirements, demo scenarios, definition of done |
-| [design-decisions.md](design-decisions.md) | Decisions D1 to D34 and open questions |
+| [design-decisions.md](design-decisions.md) | Decisions D1 to D35 and open questions |
 | [pages/scenarios.html](pages/scenarios.html) | Every demo scenario traced through the code, written by `tests/scenario_report.py` |
 
 ## Try it with a teammate

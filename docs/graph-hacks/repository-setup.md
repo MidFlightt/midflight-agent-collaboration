@@ -1,4 +1,10 @@
-# Use MidFlight on an existing repository
+# Local mode: MidFlight on one computer
+
+> This guide covers **local mode**: one person, one computer, optionally several agents in
+> worktrees. Its service listens only on 127.0.0.1 and refuses other host names, and its
+> worktree credentials are copies of one person's local identities. It is **not** a way
+> for people on different computers to collaborate: for that, use the team server in the
+> root README ("Set up a team" and "Join a team").
 
 Follow the root README for install and `midflight up`. This guide covers the reusable
 integration in more detail, not the synthetic four-agent presentation.

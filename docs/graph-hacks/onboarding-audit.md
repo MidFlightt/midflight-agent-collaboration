@@ -9,6 +9,12 @@ TEAM-07.
 (Compose v5.5.1), uv 0.11.28, Codex CLI 0.145.0, Claude Code 2.1.296. Fresh clone in
 `fresh/midflight`, new empty app repo `fresh/try-app`, default ports 8000/6379 free.
 
+> **Correction.** This audit and the first TEAM-04 changes covered one person running
+> several agents on one computer. Local mode's localhost service and copied worktree
+> credentials do not give people on different computers a way to collaborate. The team
+> path is the hosted connector on FalkorDB (`midflight host`): Sign in with GitHub, join
+> codes, per-person tokens and lead-only tools. See the root README, journeys A and B.
+
 ## Status after the TEAM-04 changes
 
 Built on this branch: fixes 1, 2, 4, 5, 6, 7, 8 (`midflight status`; `/healthz` is unchanged,
