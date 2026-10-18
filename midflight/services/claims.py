@@ -15,6 +15,7 @@ the other task saw and didn't object to is recorded as agreed (D30). See
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -84,6 +85,7 @@ from midflight.services.errors import InvalidRequest, NotFound, PermissionDenied
 from midflight.services.review import parse_reviewer_findings, reviewer_unavailable
 
 # How many times a review rereads and reruns when another change lands first (UC-05 6a).
+log = logging.getLogger(__name__)
 MAX_REVIEW_RUNS = 3
 # How many times the reviewer is asked before the review counts as incomplete (UC-05 4a).
 MAX_REVIEWER_ATTEMPTS = 2
@@ -404,6 +406,7 @@ class ClaimService:
                 )
                 return
             except RevisionConflict:
+                log.warning("review_stale job=%s run=%s", job.id, run)
                 continue  # another change landed first: reread and rerun (UC-05 6a)
         project = self._project(job.project_id)
         self._close_job(
@@ -427,10 +430,13 @@ class ClaimService:
         )
         known = _known_ids(plan, claim, related)
         reason = "no usable reply"
-        for _ in range(MAX_REVIEWER_ATTEMPTS):
+        for attempt in range(MAX_REVIEWER_ATTEMPTS):
             try:
                 raw = self._reviewer.review_claim(request)
             except ReviewerUnavailable as error:
+                log.warning(
+                    "review_retry claim=%s attempt=%s reason=unavailable", claim.id, attempt + 1
+                )
                 reason = str(error) or "timed out"
                 continue
             parsed = parse_reviewer_findings(raw, known, claim)

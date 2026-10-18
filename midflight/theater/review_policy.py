@@ -161,6 +161,23 @@ DECIDE_SCHEMA: dict[str, Any] = {
 }
 
 
+# Keep a separate evidence check from detection, but return its ruling in the
+# same response rather than paying for a third model round trip.
+RESOLVE_SYSTEM = (
+    CONFIRM_SYSTEM.replace("Answer by calling confirm_conflict.", "")
+    + "\nOnly if contradiction is true, apply these decision rules:\n"
+    + DECIDE_SYSTEM.replace("Answer by calling decide_conflict.", "")
+    + "\nIf false, set decides=reviewer and answer to an empty string. "
+    "Answer by calling resolve_conflict."
+)
+RESOLVE_SCHEMA = {
+    "type": "object",
+    "properties": {**CONFIRM_SCHEMA["properties"], **DECIDE_SCHEMA["properties"]},
+    "required": ["why", "contradiction", "decides", "answer"],
+    "additionalProperties": False,
+}
+
+
 def _statements(finding: dict[str, Any], request: ClaimReviewRequest) -> dict[str, Any]:
     """What the narrower questions are asked about: the reported conflict, and the
     requirements and claims it names.
@@ -221,28 +238,17 @@ class PeerReviewPolicy(BedrockReviewer):
                 "explanation": f"{said} (Only one task declares this boundary; "
                 "an unspecified peer interface is not a contradiction.)",
             }
-        try:
-            look = self._call(
-                CONFIRM_SYSTEM, CONFIRM_TASK, data, "confirm_conflict", CONFIRM_SCHEMA
-            )
-        except ReviewerUnavailable:
-            look = None
+        look = self._call(RESOLVE_SYSTEM, CONFIRM_TASK, data, "resolve_conflict", RESOLVE_SCHEMA)
         if not isinstance(look, dict) or not isinstance(look.get("contradiction"), bool):
-            note = "(Not checked a second time, so it doesn't block.)"
-            return finding | {"severity": "info", "explanation": f"{said} {note}"}
+            raise ReviewerUnavailable("Conflict confirmation was incomplete.")
         if not look["contradiction"]:
             note = "(Not escalated: a second check found that both statements can hold.)"
             return finding | {"severity": "info", "explanation": f"{said} {note}"}
-        try:
-            ruling = self._call(DECIDE_SYSTEM, DECIDE_TASK, data, "decide_conflict", DECIDE_SCHEMA)
-        except ReviewerUnavailable:
-            ruling = None
-        if not isinstance(ruling, dict):
-            return finding  # no ruling: the first pass's kind and fix stand
         kinds = {"lead": "requirement_conflict", "reviewer": "semantic_mismatch"}
-        checked = finding | {"kind": kinds.get(str(ruling.get("decides")), finding.get("kind"))}
-        answer = str(ruling.get("answer") or "").strip()
-        return checked | {"proposed_correction": answer} if answer else checked
+        answer = str(look.get("answer") or "").strip()
+        if look.get("decides") not in kinds or not answer:
+            raise ReviewerUnavailable("Confirmed conflict has no usable correction.")
+        return finding | {"kind": kinds[look["decides"]], "proposed_correction": answer}
 
     def _ask(self, task: str, data: dict[str, Any]) -> Any:
         return self._call(SYSTEM, task, data, "report_findings", FINDINGS_SCHEMA)

@@ -1,6 +1,7 @@
 """Hosted OpenAI reviews through the supported Codex CLI and its saved sign-in."""
 
 import json
+import logging
 import os
 import shutil
 import signal
@@ -9,9 +10,12 @@ import tempfile
 import time
 from contextlib import suppress
 from pathlib import Path
+from threading import local
 
 from midflight.ports import ReviewerUnavailable
 from midflight.theater.review_policy import PeerReviewPolicy
+
+log = logging.getLogger(__name__)
 
 
 def strict_schema(schema):
@@ -60,10 +64,28 @@ class HostedReviewer(PeerReviewPolicy):
         super().__init__("hosted-codex")
         self.call_timeout = call_timeout
         self.review_timeout = review_timeout
+        self._context = local()
         self._deadline = None
         self._failure = None
 
+    @property
+    def _deadline(self):
+        return getattr(self._context, "deadline", None)
+
+    @_deadline.setter
+    def _deadline(self, value):
+        self._context.deadline = value
+
+    @property
+    def _failure(self):
+        return getattr(self._context, "failure", None)
+
+    @_failure.setter
+    def _failure(self, value):
+        self._context.failure = value
+
     def review_claim(self, request):
+        self._context.claim_id = getattr(getattr(request, "claim", None), "id", "unknown")
         self._deadline = time.monotonic() + self.review_timeout
         self._failure = None
         try:
@@ -77,6 +99,23 @@ class HostedReviewer(PeerReviewPolicy):
             self._deadline = None
 
     def _call(self, system, task, data, tool, schema):
+        started = time.perf_counter()
+        outcome = "ok"
+        try:
+            return self._infer(system, task, data, tool, schema)
+        except Exception as error:
+            outcome = type(error).__name__
+            raise
+        finally:
+            log.warning(
+                "review_phase claim=%s phase=%s seconds=%.3f outcome=%s",
+                getattr(self._context, "claim_id", "unknown"),
+                tool,
+                time.perf_counter() - started,
+                outcome,
+            )
+
+    def _infer(self, system, task, data, tool, schema):
         executable = shutil.which("codex")
         if not executable:
             raise ReviewerUnavailable("Hosted reviewer: Codex CLI is not installed.")

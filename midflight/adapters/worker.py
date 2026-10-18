@@ -8,6 +8,8 @@ Run exactly one service process against a graph (no distributed lease is provide
 from __future__ import annotations
 
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
 from threading import Event, Lock, Thread
 from typing import Protocol
 
@@ -31,11 +33,12 @@ class RecoverableWorker(_Dispatch):
         clock: Clock,
         *,
         max_attempts: int = 3,
+        concurrency: int = 1,
         poll_interval: float = 1,
         retry_delay: float = 2,
     ) -> None:
         super().__init__()
-        if max_attempts < 1 or poll_interval <= 0 or retry_delay < 0:
+        if max_attempts < 1 or poll_interval <= 0 or retry_delay < 0 or concurrency < 1:
             raise ValueError("invalid worker retry/poll settings")
         self.store, self.clock = store, clock
         self.max_attempts, self.poll_interval, self.retry_delay = (
@@ -46,6 +49,9 @@ class RecoverableWorker(_Dispatch):
         self._wake, self._stop = Event(), Event()
         self._dispatch_lock = Lock()
         self._thread: Thread | None = None
+        self.concurrency = concurrency
+        self._pool = None
+        self._inflight = {}
 
     @property
     def running(self) -> bool:
@@ -72,7 +78,19 @@ class RecoverableWorker(_Dispatch):
                     "worker did not finish before shutdown timeout; job remains durable"
                 )
 
+        elif self._pool is not None:
+            self._pool.shutdown(wait=True)
+            self._pool = None
+
     def _loop(self) -> None:
+        try:
+            self._poll_loop()
+        finally:
+            if self._pool is not None:
+                self._pool.shutdown(wait=True)
+                self._pool = None
+
+    def _poll_loop(self):
         while not self._stop.is_set():
             self._wake.clear()
             try:
@@ -85,10 +103,21 @@ class RecoverableWorker(_Dispatch):
     def run_once(self) -> int:
         """Process at most 100 due jobs. Storage failures propagate to the poll loop."""
         with self._dispatch_lock:
+            for key, future in list(self._inflight.items()):
+                if future.done():
+                    del self._inflight[key]
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        log.error("Worker handler storage failure (%s)", type(exc).__name__)
             count = 0
             jobs = sorted(self.store.list_unfinished_jobs(), key=lambda j: (j.created_at, j.id))
             for candidate in jobs:
                 if self._stop.is_set() or count >= 100:
+                    break
+                if candidate.id in self._inflight:
+                    continue
+                if self.concurrency > 1 and len(self._inflight) >= self.concurrency:
                     break
                 job = self.store.get_job(candidate.id)
                 if job is None or job.state in _TERMINAL:
@@ -114,23 +143,45 @@ class RecoverableWorker(_Dispatch):
                     )
                 )
                 count += 1
-                try:
-                    # Existing handlers increment attempts themselves on success.
-                    # Pass the pre-dispatch count; the durable RUNNING record has
-                    # already reserved this attempt even if the process crashes.
-                    self._run(job)
-                    saved = self.store.get_job(job.id)
-                    if saved is None or saved.state not in _TERMINAL:
-                        raise RuntimeError("handler returned without a terminal job result")
-                except Exception as exc:
-                    saved = self.store.get_job(job.id)
-                    if saved is not None and saved.state not in _TERMINAL:
-                        self._failed(
-                            saved,
-                            f"worker handler failed ({type(exc).__name__})",
-                            terminal=saved.attempts >= self.max_attempts,
+                if self.concurrency == 1:
+                    self._execute(job)
+                else:
+                    if self._pool is None:
+                        self._pool = ThreadPoolExecutor(
+                            max_workers=self.concurrency, thread_name_prefix="midflight-job"
                         )
+                    self._inflight[job.id] = self._pool.submit(self._execute, job)
+
             return count
+
+    def _execute(self, job):
+        started = time.perf_counter()
+        log.warning(
+            "job_start job=%s subject=%s queue_seconds=%.3f attempt=%s",
+            job.id,
+            job.subject_id,
+            (self.clock.now() - job.created_at).total_seconds(),
+            job.attempts + 1,
+        )
+        try:
+            # Existing handlers increment attempts themselves on success.
+            # Pass the pre-dispatch count; the durable RUNNING record has
+            # already reserved this attempt even if the process crashes.
+            self._run(job)
+            saved = self.store.get_job(job.id)
+            if saved is None or saved.state not in _TERMINAL:
+                raise RuntimeError("handler returned without a terminal job result")
+        except Exception as exc:
+            saved = self.store.get_job(job.id)
+            if saved is not None and saved.state not in _TERMINAL:
+                self._failed(
+                    saved,
+                    f"worker handler failed ({type(exc).__name__})",
+                    terminal=saved.attempts >= self.max_attempts,
+                )
+        finally:
+            self._wake.set()
+            log.warning("job_end job=%s seconds=%.3f", job.id, time.perf_counter() - started)
 
     def _failed(self, job: Job, reason: str, *, terminal: bool) -> None:
         key = f"worker-failure:{job.id}:{job.attempts}"

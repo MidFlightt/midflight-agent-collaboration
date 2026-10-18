@@ -39,7 +39,11 @@ class PeerTheater(InteractiveTheater):
     submit_initial_prompt = False
 
     def reviewer(self):
-        return HostedReviewer()
+        if os.environ.get("MIDFLIGHT_REVIEW_TRANSPORT", "warm-codex") == "codex":
+            return HostedReviewer()
+        from midflight.theater.warm_reviewer import WarmReviewer
+
+        return WarmReviewer()
 
     def initial_plan(self):
         return initial_plan()

@@ -210,3 +210,46 @@ def test_handler_declared_failure_requires_explicit_retry():
     worker.run_once()
     assert worker.run_once() == 0
     assert store.get_job(result.job_id).error == "review incomplete"
+
+
+def test_slow_job_does_not_block_next_job_or_get_dispatched_twice():
+    store, _, result = setup()
+    worker = RecoverableWorker(
+        store, FixedClock(NOW), concurrency=2, retry_delay=0, poll_interval=0.01
+    )
+    first = store.get_job(result.job_id)
+    second = first.model_copy(
+        update={"id": "J-other", "subject_id": "other", "idempotency_key": "other"}
+    )
+    store.commit(Commit(PROJECT, "second", puts=[second]))
+    blocked, release, fast_done = Event(), Event(), Event()
+    calls = []
+
+    def handle(job):
+        calls.append(job.id)
+        if job.id == first.id:
+            blocked.set()
+            assert release.wait(5)
+        store.commit(
+            Commit(
+                PROJECT,
+                "done-" + job.id,
+                puts=[job.model_copy(update={"state": JobState.SUCCEEDED})],
+            )
+        )
+        if job.id == second.id:
+            fast_done.set()
+
+    worker.register(JobKind.CLAIM_REVIEW, handle)
+    worker.start()
+    try:
+        assert blocked.wait(2)
+        assert fast_done.wait(2)  # Before releasing the slow job.
+        assert worker.run_once() == 0
+        assert calls.count(first.id) == 1
+        assert calls.count(second.id) == 1
+    finally:
+        release.set()
+        worker.stop()
+    assert store.get_job(first.id).state == JobState.SUCCEEDED
+    assert not worker.running

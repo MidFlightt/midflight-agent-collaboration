@@ -53,6 +53,7 @@ def restore(root, *, db_port=6379, api_port=8910, port=8909):
             falkor_graph=theater.project,
             public_url=f"http://127.0.0.1:{api_port}",
             worker_poll_interval=0.2,
+            worker_concurrency=2,
         ),
         reviewer=live.reviewer(),
     )

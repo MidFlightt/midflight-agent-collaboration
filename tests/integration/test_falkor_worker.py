@@ -105,3 +105,45 @@ def test_review_rechecks_revision_when_context_changes(falkor_store):
     events = [e for e in falkor_store.list_audit(PROJECT) if e.action == "claim.reviewed"]
     assert len(events) == 1
     assert events[0].versions["coord_rev"] == 2
+
+
+def test_concurrent_reviews_reject_stale_result_and_commit_once(falkor_store):
+    import time
+    from threading import Barrier, Lock
+
+    seed(falkor_store)
+    clock = FixedClock(NOW)
+    rendezvous, lock = Barrier(2), Lock()
+    calls = []
+
+    class Reviewer:
+        def review_claim(self, request):
+            with lock:
+                calls.append(request.claim.id)
+                first_pair = len(calls) <= 2
+            if first_pair:
+                rendezvous.wait(timeout=5)
+            return {"findings": []}
+
+    worker = RecoverableWorker(
+        falkor_store, clock, concurrency=2, retry_delay=0, poll_interval=0.01
+    )
+    services = build_services(falkor_store, clock, reviewer=Reviewer(), runner=worker)
+    worker.register(JobKind.CLAIM_REVIEW, services.claims.run_review)
+    results = [
+        services.claims.submit(falkor_store.get_participant("p-" + task.lower()), submission(task))
+        for task in ["T1", "T2"]
+    ]
+    worker.start()
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if all(falkor_store.get_job(r.job_id).state == JobState.SUCCEEDED for r in results):
+                break
+            time.sleep(0.02)
+        assert all(falkor_store.get_job(r.job_id).state == JobState.SUCCEEDED for r in results)
+    finally:
+        worker.stop()
+    assert len(calls) == 3  # Two parallel reads; exactly one version-conflict re-review.
+    events = [e for e in falkor_store.list_audit(PROJECT) if e.action == "claim.reviewed"]
+    assert len(events) == 2

@@ -51,6 +51,7 @@ class Settings:
     falkor_username: str | None = None
     falkor_password: str | None = field(default=None, repr=False)
     falkor_ssl: bool = False
+    worker_concurrency: int = 1
     worker_max_attempts: int = 3
     worker_poll_interval: float = 1
     worker_retry_delay: float = 2
@@ -63,7 +64,8 @@ class Settings:
         if not self.falkor_graph or not 0 < self.falkor_port < 65536:
             raise ValueError("invalid FalkorDB graph or port")
         if (
-            self.worker_max_attempts < 1
+            self.worker_concurrency < 1
+            or self.worker_max_attempts < 1
             or self.worker_poll_interval <= 0
             or self.worker_retry_delay < 0
         ):
@@ -109,6 +111,7 @@ class Settings:
             falkor_username=env.get("MIDFLIGHT_FALKOR_USERNAME") or None,
             falkor_password=env.get("MIDFLIGHT_FALKOR_PASSWORD") or None,
             falkor_ssl=env.get("MIDFLIGHT_FALKOR_SSL", "") == "1",
+            worker_concurrency=int(env.get("MIDFLIGHT_WORKER_CONCURRENCY", "1")),
             worker_max_attempts=int(env.get("MIDFLIGHT_WORKER_MAX_ATTEMPTS", "3")),
             worker_poll_interval=float(env.get("MIDFLIGHT_WORKER_POLL_INTERVAL", "1")),
             worker_retry_delay=float(env.get("MIDFLIGHT_WORKER_RETRY_DELAY", "2")),

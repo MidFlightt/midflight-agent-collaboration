@@ -134,3 +134,26 @@ def test_timeout_kills_the_cli_wrapper_and_its_child(tmp_path):
         ["ps", "-p", str(pid), "-o", "stat="], capture_output=True, text=True
     ).stdout.strip()
     assert not state or state.startswith("Z")
+
+
+def test_concurrent_reviews_have_isolated_deadlines_and_failures():
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from midflight.theater.review_policy import PeerReviewPolicy
+
+    reviewer = HostedReviewer()
+    barrier = Barrier(2)
+
+    def review(self, request):
+        if request == "fail":
+            self._failure = ReviewerUnavailable("failed transport")
+        barrier.wait(timeout=3)
+        return {"findings": []}
+
+    with patch.object(PeerReviewPolicy, "review_claim", review), ThreadPoolExecutor(2) as pool:
+        fail = pool.submit(reviewer.review_claim, "fail")
+        good = pool.submit(reviewer.review_claim, "good")
+        with pytest.raises(ReviewerUnavailable):
+            fail.result()
+        assert good.result() == {"findings": []}

@@ -86,6 +86,7 @@ def create_server(
             store,
             clock,
             max_attempts=settings.worker_max_attempts,
+            concurrency=settings.worker_concurrency,
             poll_interval=settings.worker_poll_interval,
             retry_delay=settings.worker_retry_delay,
         )
@@ -117,6 +118,9 @@ def create_server(
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         try:
             async with mcp.session_manager.run():
+                warm = getattr(reviewer, "warm", None)
+                if warm is not None:
+                    await asyncio.to_thread(warm)
                 if worker is not None:
                     worker.start()
                 try:
@@ -125,6 +129,10 @@ def create_server(
                     if worker is not None:
                         await asyncio.to_thread(worker.stop)
         finally:
+            if worker is None or not worker.running:
+                close_reviewer = getattr(reviewer, "close", None)
+                if close_reviewer is not None:
+                    close_reviewer()
             # Never close a connection while an unfinished handler still uses it.
             if owns_store and (worker is None or not worker.running):
                 close = getattr(store, "close", None)
