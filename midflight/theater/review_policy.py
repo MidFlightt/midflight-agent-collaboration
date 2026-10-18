@@ -1,7 +1,6 @@
 """PigeonPost's conservative semantic policy, isolated to the peer experiment."""
 
 import re
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from midflight.adapters.bedrock import FINDINGS_SCHEMA, BedrockReviewer, _names
@@ -222,30 +221,22 @@ class PeerReviewPolicy(BedrockReviewer):
                 "explanation": f"{said} (Only one task declares this boundary; "
                 "an unspecified peer interface is not a contradiction.)",
             }
-
-        # Both questions read the same immutable evidence. Ask independently in
-        # parallel, but never apply the ruling unless confirmation succeeds.
-        def optional_call(system, task, tool, schema):
-            try:
-                return self._call(system, task, data, tool, schema)
-            except ReviewerUnavailable:
-                return None
-
-        with ThreadPoolExecutor(max_workers=2, thread_name_prefix="review-check") as pool:
-            confirmation = pool.submit(
-                optional_call, CONFIRM_SYSTEM, CONFIRM_TASK, "confirm_conflict", CONFIRM_SCHEMA
+        try:
+            look = self._call(
+                CONFIRM_SYSTEM, CONFIRM_TASK, data, "confirm_conflict", CONFIRM_SCHEMA
             )
-            decision = pool.submit(
-                optional_call, DECIDE_SYSTEM, DECIDE_TASK, "decide_conflict", DECIDE_SCHEMA
-            )
-            look = confirmation.result()
-            ruling = decision.result()
+        except ReviewerUnavailable:
+            look = None
         if not isinstance(look, dict) or not isinstance(look.get("contradiction"), bool):
             note = "(Not checked a second time, so it doesn't block.)"
             return finding | {"severity": "info", "explanation": f"{said} {note}"}
         if not look["contradiction"]:
             note = "(Not escalated: a second check found that both statements can hold.)"
             return finding | {"severity": "info", "explanation": f"{said} {note}"}
+        try:
+            ruling = self._call(DECIDE_SYSTEM, DECIDE_TASK, data, "decide_conflict", DECIDE_SCHEMA)
+        except ReviewerUnavailable:
+            ruling = None
         if not isinstance(ruling, dict):
             return finding  # no ruling: the first pass's kind and fix stand
         kinds = {"lead": "requirement_conflict", "reviewer": "semantic_mismatch"}
