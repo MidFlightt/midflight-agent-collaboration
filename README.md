@@ -1,18 +1,77 @@
 # MidFlight: communication between coding agents
 
-Four real coding sessions use owner-published interfaces and receive relevant changes
-through a FalkorDB dependency graph. MidFlight makes no model calls. There are no
-claims, mandatory AI reviewers or approval gates. The tools are **join, send,
-check_in, object**. An owner's publication is the default immediately. Consumers
-follow it without mutual acceptance. Explicit objections handle incompatibilities;
-`object` names an exact interface or policy revision, a concrete problem and the affected
-requirement or dependency. Suggested alternatives are optional. Only the author resolves
-through `send`. Silence is neither agreement nor proof of compatibility.
+**Keep a team's coding agents in sync as interfaces and requirements change.**
+MidFlight connects four real coding sessions through a FalkorDB dependency graph,
+so a change reaches the agents whose work depends on it.
+
+## For judges
+
+**[Watch the submitted pitch and demo](https://youtu.be/jv4e4_U-ygw)** ·
+[Run the prototype](#run-the-four-terminal-prototype) ·
+[Inspect the measured evidence](docs/evidence/object-rehearsal.md) ·
+[Read the architecture](docs/agent-communication.md)
+
+### The problem and the demo
+
+Coding agents working on separate parts of a project can build incompatible
+interfaces or miss a requirement that changes after work begins. MidFlight gives
+them shared, versioned interfaces and routes relevant updates through explicit
+dependencies.
+
+The demo uses **Billing, Delivery, Booking and Notifications**:
+
+1. Billing and Delivery begin with incompatible list/mapping interfaces. Delivery
+   publishes the interface it owns; Billing can adapt or raise a concrete incompatibility.
+2. A human asks Delivery to retain a four-credit cancellation fee. Delivery publishes
+   the new policy without changing the API shape.
+3. The graph routes the policy to Billing and Delivery. Booking and Notifications
+   are not subscribed to cancellation policy and receive no fee update.
+4. Billing receives the pending policy when it next does useful work. The operator
+   separately tests the four agents' actual combined Python modules.
+
+### Why FalkorDB matters
+
+Agents subscribe to topics, and topics can depend on other topics. FalkorDB stores
+this dependency graph and selects subscribers of a changed topic and its transitive
+dependants. Keeping business policies separate from API shape lets a cancellation
+rule reach Billing without notifying every consumer of Delivery's interface.
+Versioned publications, retry receipts and per-session inbox cursors persist with
+the coordination state. Coding agents interpret requirements and write code;
+**MidFlight itself makes no model calls**.
+
+### What was demonstrated
+
+The [latest documented real-agent rehearsal](docs/evidence/object-rehearsal.md)
+records interface adaptation, selective fee routing, **23 component tests and an
+operator-run combined-code test passing after Billing's follow-up**, with zero
+automatic wakeups or repeated nudges. Booking and Notifications' code and session
+state remained unchanged during the fee stage.
+
+This is one rehearsal, not a reliability or speedup benchmark. No formal objection
+occurred in that run; the objection lifecycle is covered by focused tests. Combined
+validation covers Python modules, not a deployed application. The evidence separates
+routing, delivery, observed use and test results.
+
+### The four coordination tools
+
+| Tool | Purpose |
+| --- | --- |
+| `join` | Join a project session and declare topic subscriptions. |
+| `send` | Publish an owned interface or policy, or communicate with peers. |
+| `check_in` | Retrieve relevant updates at a natural work checkpoint. |
+| `object` | Record a concrete incompatibility with an exact interface or policy revision. |
+
+An owner's publication takes effect immediately; consumers follow it without
+mutual acceptance. Only the objection author can resolve their objection through
+`send`. Silence is neither agreement nor proof of compatibility. There are no
+mandatory AI reviewers or approval gates.
 
 ## Run the four-terminal prototype
 
 This is the hackathon prototype in **MidFlightt/midflight-agent-collaboration**.
-Use the `codex/agent-communication` branch; the official MidFlight repository is separate.
+Use **`main`** for the current review and local setup. The previously submitted
+[`codex/agent-communication` link](https://github.com/MidFlightt/midflight-agent-collaboration/tree/codex/agent-communication#run-the-four-terminal-prototype)
+remains available. The official MidFlight repository is separate.
 
 Prerequisites: Git, [uv](https://docs.astral.sh/uv/), Docker with Compose,
 `tmux`, and an authenticated `codex` CLI on PATH. Python 3.12 or newer is required
@@ -26,7 +85,7 @@ keychain-only login or custom CODEX_HOME is not supported. Each isolated local
 profile links to that file. Never share the generated `runs/` directory.
 
 ```sh
-git clone --branch codex/agent-communication https://github.com/MidFlightt/midflight-agent-collaboration.git
+git clone --branch main https://github.com/MidFlightt/midflight-agent-collaboration.git
 cd midflight-agent-collaboration
 uv sync --locked --extra falkordb --extra demo
 docker compose -f compose.graph-hacks.yml up -d --wait
