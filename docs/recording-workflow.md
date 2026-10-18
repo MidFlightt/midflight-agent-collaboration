@@ -95,3 +95,7 @@ list/mapping example Billing adapted to `get_delivery_records().values()`.
 Existing MCP processes retain their loaded code. This preview change takes effect on
 new/reconnected MCP sessions; it does not reset, wake or interrupt any current agent.
 The CLI controls wrapping/truncation, so a long message may still require Show details.
+
+New communication sessions use the MCP server name `midflight`, so calls appear as
+`midflight.join`, `midflight.send`, `midflight.check_in` and `midflight.object`.
+Existing loaded sessions retain their previous server name until relaunched.

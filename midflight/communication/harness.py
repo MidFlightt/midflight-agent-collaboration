@@ -41,6 +41,7 @@ class CommunicationTheater(InteractiveTheater):
     submit_initial_prompt = False
     coordination_tools = ["join", "send", "check_in", "object"]
     mcp_module = "midflight.communication.mcp"
+    mcp_server_name = "midflight"
     first_pane_title = "Billing agent"
 
     def __init__(self, root, db_port=6379, api_port=8928, controller_port=8927):
@@ -102,7 +103,7 @@ class CommunicationTheater(InteractiveTheater):
                 "Local tests may mock peers; only operator combined-code validation "
                 "tests integration. "
                 "Do not claim end-to-end success from local tests.\n"
-                "Use theater_midflight for coordination. Do not commit, push or delegate.\n"
+                "Use midflight for coordination. Do not commit, push or delegate.\n"
                 "Join with your name and a fresh request ID. "
                 "Existing topic subscriptions are seeded.\n"
                 "Do useful local work while a peer is busy; finish the turn if waiting.\n"

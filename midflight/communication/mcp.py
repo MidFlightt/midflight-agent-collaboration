@@ -71,7 +71,7 @@ This is a trusted local prototype; agent names are labels, not authenticated ide
 
 
 def build_server(service):
-    server = MCPServer("midflight-communication", instructions=INSTRUCTIONS)
+    server = MCPServer("midflight", instructions=INSTRUCTIONS)
 
     def invoke(action, *args):
         try:

@@ -41,6 +41,7 @@ class InteractiveTheater:
     submit_initial_prompt = True
 
     mcp_module = "midflight.theater.agent_mcp"
+    mcp_server_name = "theater_midflight"
 
     def initial_prompt(self, name, default):
         return default
@@ -106,7 +107,7 @@ class InteractiveTheater:
         theater = self.theater
         for i, name in enumerate(self.names):
             config = (
-                "mcp_servers.theater_midflight={command="
+                f"mcp_servers.{self.mcp_server_name}=" + "{command="
                 + json.dumps(sys.executable)
                 + ',args=["-m",'
                 + json.dumps(self.mcp_module)
@@ -170,7 +171,7 @@ class InteractiveTheater:
             for tool in tools:
                 command += [
                     "-c",
-                    f'mcp_servers.theater_midflight.tools.{tool}.approval_mode="approve"',
+                    f'mcp_servers.{self.mcp_server_name}.tools.{tool}.approval_mode="approve"',
                 ]
             if self.submit_initial_prompt:
                 command.append(prompt)
