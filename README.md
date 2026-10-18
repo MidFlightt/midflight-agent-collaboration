@@ -2,6 +2,8 @@
 
 **[Watch the pitch and demo](https://youtu.be/jv4e4_U-ygw)**
 
+[Watch the full end-to-end demo (no audio)](https://www.youtube.com/watch?v=LrAt4zUnVrc)
+
 ## The problem
 
 Coding agents working on the same project can build incompatible interfaces or miss
