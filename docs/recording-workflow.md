@@ -103,14 +103,14 @@ Existing loaded sessions retain their previous server name until relaunched.
 ## Reversible terminal highlighting
 
 The browser has a Highlights on/off toggle, remembered locally. Blue marks the four
-MidFlight tool names (including the older theater_midflight prefix); orange marks
-agent names (Billing agent, Delivery agent, Booking agent, Notifications agent) and
-change-related wording such as "adapted", "switched to" and "policy revision".
-Name matching includes self-mentions; it does not infer who changed direction.
-This is syntax highlighting of existing output, not a classification of delivery,
-application or correctness. It never injects narration, rewrites terminal bytes or
-adds success colors. Toggle off to restore original text colors immediately.
+MidFlight tool names (including the older theater_midflight prefix). Orange marks only
+mentions of a different agent inside a terminal, using the actual tmux panel geometry.
+Self-mentions and panel headings keep their original colors. Generic change words are
+not highlighted. If panel ownership is unknown, orange highlighting is omitted.
+This is syntax highlighting, not evidence that a change was received or applied.
+Toggle off to restore original text colors immediately. No agent turns are triggered.
 
-Implemented with the existing xterm decoration approach. Tested against actual visible
-agent output and with `node tests/browser/communication-colors.cjs`. Matching is per
-rendered line, so phrases split across lines may not be highlighted.
+Checked with `node tests/browser/communication-colors.cjs` and actual visible output.
+Matching is per rendered line; names split across lines may not be highlighted.
+Orange highlighting is omitted when viewing browser terminal scrollback because the
+current panel geometry cannot reliably identify historical layouts.

@@ -1,17 +1,25 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><title>MidFlight · live coding team</title><link rel="stylesheet" href="/vendor/xterm.css"><style>
 html,body{margin:0;height:100%;background:#101114;color:#ddd;font:13px system-ui}header{height:48px;display:flex;align-items:center;gap:16px;padding:0 15px}button,a{background:#273041;color:#eee;border:0;border-radius:4px;padding:7px 12px;cursor:pointer;text-decoration:none}button:disabled{opacity:.5;cursor:wait}#terminal{height:calc(100% - 48px);padding:0 8px}#note{margin-left:auto;font-size:12px;color:#c4c4cf}small{color:#9c9ca8}
 
-</style><header><b>MidFlight · live coding team</b><small>Type your direction in <strong>any agent</strong></small><button id="reset">Reset</button><button id="colors" title="Blue: MidFlight calls. Orange: agent names and change-related wording, not proof of application.">Highlights: on</button><button id="fullscreen" title="Expand all four coding panes">Fullscreen</button><a href="/report" target="_blank" title="Recorded communication and test evidence">Run evidence</a><span id="note">Connecting…</span></header><div id="terminal"></div>
+</style><header><b>MidFlight · live coding team</b><small>Type your direction in <strong>any agent</strong></small><button id="reset">Reset</button><button id="colors" title="Blue: MidFlight calls. Orange: mentions of other agents in this panel.">Highlights: on</button><button id="fullscreen" title="Expand all four coding panes">Fullscreen</button><a href="/report" target="_blank" title="Recorded communication and test evidence">Run evidence</a><span id="note">Connecting…</span></header><div id="terminal"></div>
 <script src="/vendor/xterm.js"></script><script src="/vendor/addon-fit.js"></script><script>
 // BEGIN DEMO TEXT COLORS — presentation only; never edits the terminal stream.
-function demoColorRanges(text) {
-  const rules = [
-    ['#79bdff', /\b(?:theater_)?midflight\.(?:join|send|check_in|object)\b/g],
-    ['#f7ba55', /\b(?:(?:Billing|Delivery|Booking|Notifications) agent|new direction|update received|implementation changed|changed (?:my |the )?approach|adapt(?:ed|ing)(?: to)?|switched to|previously expected|I (?:changed|updated)|policy (?:update|revision)|cancellation fee)\b/gi],
-  ];
+function paneAgentAt(layout, x, y) {
+  for (const [agent, p] of Object.entries(layout)) {
+    if (x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + p.height) return agent;
+  }
+  return null; // Borders, headings and unknown layout are never agent mentions.
+}
+function demoColorRanges(text, agentAt = () => null) {
   const cells = Array(text.length).fill(null);
-  for (const [color, pattern] of rules) {
-    for (const match of text.matchAll(pattern)) cells.fill(color, match.index, match.index + match[0].length);
+  for (const match of text.matchAll(/\b(?:theater_)?midflight\.(?:join|send|check_in|object)\b/g)) {
+    cells.fill('#79bdff', match.index, match.index + match[0].length);
+  }
+  for (const match of text.matchAll(/\b(Billing|Delivery|Booking|Notifications) agent\b/gi)) {
+    const owner = agentAt(match.index);
+    if (owner && owner !== match[1].toLowerCase()) {
+      cells.fill('#f7ba55', match.index, match.index + match[0].length);
+    }
   }
   const ranges = [];
   for (let start = 0; start < cells.length;) {
@@ -24,6 +32,7 @@ function demoColorRanges(text) {
 }
 // END DEMO TEXT COLORS
 function installDemoTextColors(term, button) {
+  let layout = {};
   let enabled = localStorage.getItem("midflight-text-colors") !== "off";
   function label() { button.textContent = "Highlights: " + (enabled ? "on" : "off"); button.setAttribute("aria-pressed", String(enabled)); }
   label();
@@ -56,7 +65,8 @@ function installDemoTextColors(term, button) {
       const old = decorated.get(y);
       if (old?.text === text && !old.marker.isDisposed && old.marker.line === y) continue;
       if (old) { dispose(old); decorated.delete(y); }
-      const ranges = demoColorRanges(text); if (!ranges.length) continue;
+      const ranges = demoColorRanges(text, index =>
+        buffer.viewportY === buffer.baseY ? paneAgentAt(layout, columns[index], row) : null); if (!ranges.length) continue;
       const marker = term.registerMarker(y - buffer.baseY - buffer.cursorY);
       if (!marker) continue;
       const decorations = [];
@@ -73,6 +83,12 @@ function installDemoTextColors(term, button) {
   button.onclick = () => { enabled = !enabled; localStorage.setItem("midflight-text-colors", enabled ? "on" : "off"); label(); schedule(); };
   term.onWriteParsed(schedule); term.onResize(schedule); term.onScroll(schedule);
   schedule();
+  return next => {
+    if (JSON.stringify(layout) === JSON.stringify(next || {})) return;
+    layout = next || {};
+    for (const entry of decorated.values()) dispose(entry);
+    decorated.clear(); schedule();
+  };
 }
 
 // Shared tmux panes have one size: only the foreground browser may set it.
@@ -99,10 +115,10 @@ function installTerminalSizing(term, fit, socket) {
   return schedule;
 }
 
-(async()=>{let connection,ws,generation=0,session=null,seenDirection=null,resetting=false;const note=document.getElementById('note'),button=document.getElementById('reset');const term=new Terminal({fontSize:12,fontFamily:'Menlo,monospace',cursorBlink:true,allowProposedApi:true,theme:{background:'#101114'}});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('terminal'));fit.fit();installDemoTextColors(term,document.getElementById('colors'));term.onData(data=>{if(ws?.readyState===1)ws.send(JSON.stringify({type:'input',data}))});const resize=installTerminalSizing(term,fit,()=>ws);
+(async()=>{let connection,ws,generation=0,session=null,seenDirection=null,resetting=false;const note=document.getElementById('note'),button=document.getElementById('reset');const term=new Terminal({fontSize:12,fontFamily:'Menlo,monospace',cursorBlink:true,allowProposedApi:true,theme:{background:'#101114'}});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('terminal'));fit.fit();const updateColorLayout=installDemoTextColors(term,document.getElementById('colors'));term.onData(data=>{if(ws?.readyState===1)ws.send(JSON.stringify({type:'input',data}))});const resize=installTerminalSizing(term,fit,()=>ws);
 const fullscreen=document.getElementById('fullscreen');fullscreen.onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch(e){fullscreen.title='Fullscreen is unavailable here. Use Control–Command–F in Chrome on macOS, or open this URL in your browser.';note.textContent=fullscreen.title}};document.addEventListener('fullscreenchange',()=>{fullscreen.textContent=document.fullscreenElement?'Exit fullscreen':'Fullscreen';requestAnimationFrame(resize)});
 
 async function connect(){const current=++generation;try{connection=await(await fetch('/connection')).json();if(current!==generation)return;if(session!==connection.session){term.reset();session=connection.session;seenDirection=null}ws=new WebSocket('ws://'+location.host+'/terminal?key='+encodeURIComponent(connection.key));ws.binaryType='arraybuffer';ws.onopen=()=>{resize();term.focus()};ws.onmessage=e=>{if(current===generation)term.write(new Uint8Array(e.data))};ws.onclose=()=>{if(current===generation&&!resetting)setTimeout(connect,1500)}}catch(e){if(current===generation&&!resetting)setTimeout(connect,1500)}}
-async function status(){if(!connection||resetting)return;try{const r=await fetch('/status',{headers:{'X-Demo-Key':connection.key}});if(!r.ok)return;const s=await r.json();note.textContent='';}catch(e){note.textContent='Reconnecting…'}}
+async function status(){if(!connection||resetting)return;try{const r=await fetch('/status',{headers:{'X-Demo-Key':connection.key}});if(!r.ok)return;const s=await r.json();updateColorLayout(s.layout);note.textContent='';}catch(e){note.textContent='Reconnecting…'}}
 button.onclick=async()=>{if(resetting||!connection)return;resetting=true;button.disabled=true;button.textContent='Resetting…';note.textContent='Starting a fresh team; prior evidence is retained';try{const r=await fetch('/reset',{method:'POST',headers:{'X-Demo-Key':connection.key}});if(!r.ok)throw Error((await r.json()).detail);generation++;ws?.close();term.reset();resetting=false;await connect()}catch(e){note.textContent=e.message;resetting=false}finally{button.disabled=false;button.textContent='Reset'}};await connect();setInterval(status,750);status();})();
 </script></html>
