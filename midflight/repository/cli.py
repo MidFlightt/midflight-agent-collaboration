@@ -21,6 +21,7 @@ from pydantic import ValidationError
 
 from midflight.mcp.local.client import MidflightUnavailable, NotSignedIn
 from midflight.repository.instructions import END, INSTRUCTIONS, START
+from midflight.repository.team import TEAM_GRAPH, TEAM_PORT
 
 DEFAULT_HOME = Path.home() / ".local/share/midflight"
 DEFAULT_URL = "http://127.0.0.1:8000"
@@ -478,6 +479,17 @@ def status(args, repo):
     return ok
 
 
+LOOPBACK_HOSTS = ["127.0.0.1", "localhost"]
+
+
+def loopback_only(app):
+    """Local mode has a setup key and the dev login, so it refuses requests addressed to any
+    other host name: tunnelling it to other computers doesn't work. Teams use `midflight host`."""
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=LOOPBACK_HOSTS)
+
+
 def serve(args):
     import uvicorn
 
@@ -505,6 +517,7 @@ def serve(args):
         )
     )
     add_local_routes(server, keyfile.read_text().strip())
+    loopback_only(server.app)
     print(f"MidFlight local service: http://127.0.0.1:{args.port}; graph={args.graph}")
     uvicorn.run(server.app, host="127.0.0.1", port=args.port)
 
@@ -602,6 +615,15 @@ def main():
         "serve", help="Run one persistent local service in the foreground, without the demo seed"
     )
     service_options(service)
+    team = sub.add_parser(
+        "host", help="Run the team server other computers connect to (administrator, once)"
+    )
+    team.add_argument("--url", help="Public HTTPS address (default: from the settings file)")
+    team.add_argument("--env-file", type=Path, default=DEFAULT_HOME / "team.env")
+    team.add_argument("--port", type=int, default=TEAM_PORT)
+    team.add_argument("--db-port", type=int, default=DEFAULT_DB_PORT)
+    team.add_argument("--graph", default=TEAM_GRAPH)
+    team.add_argument("--check", action="store_true", help="Check the settings and exit")
     init = sub.add_parser("init", help="Install once in an existing Git repository")
     init.add_argument("--repo", type=Path, help=repo_help)
     init.add_argument("--repository", help="owner/name label (default: from the git remote)")
@@ -643,6 +665,10 @@ def main():
             down(args)
         elif args.command == "serve":
             serve(args)
+        elif args.command == "host":
+            from midflight.repository.team import host
+
+            host(args)
         elif args.command == "init":
             repo = args.repo or git_root(Path.cwd())
             config = initialize(
