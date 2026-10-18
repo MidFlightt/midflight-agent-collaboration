@@ -4,6 +4,18 @@ The editable 3:42 pitch lives here. Start with the native Remotion project;
 `presentation/Midflight-animated.html` is the self-contained presentation reference.
 The video does not capture or play that HTML file.
 
+## Demo files — keep both takes
+
+| Recording | File | Use |
+|---|---|---|
+| **Primary demo — full original** | [Demo.mov](recordings/Demo.mov) | Most important source; preserved in full for further editing (about 65 seconds). |
+| Primary demo — trimmed version | [live-agent-demo.mp4](public/demo/live-agent-demo.mp4) | 52-second cut already used in the 3:42 product video. |
+| Second take — separate footage | [agent-interface-demo-take-2.mp4](recordings/agent-interface-demo-take-2.mp4) | 58-second alternate take for teammates; not in the product video. |
+
+Both takes are retained. `Demo.mov` matches the first recording used for the
+primary trimmed clip. Adding its full source does not change the product video,
+the selected demo, or the timeline.
+
 ## Run
 
 Use Node.js 22+ and npm. From this directory:
@@ -75,8 +87,9 @@ to 1080p at 30 fps without stretching, retains the original quiet audio with bri
 edge fades, and plays at its original speed. It shows live work in progress, including agent check-ins, interface updates,
 and component test results.
 
-The original recording remains outside this repository. Only the trimmed clip is
-tracked. To use a replacement, put it at `public/demo.mp4` and render:
+The full primary source is preserved at `recordings/Demo.mov`; the trimmed clip
+remains selected by default. To use a replacement, put it at `public/demo.mp4`
+and render:
 
 ```sh
 npm run render -- --props='{"demoFile":"demo.mp4"}'
@@ -85,9 +98,9 @@ npm run render -- --props='{"demoFile":"demo.mp4"}'
 Use a 52-second replacement or update `DEMO_SECONDS` and this timeline. Longer
 footage is trimmed to the scene. The included demo runs from 0:47 to 1:39 in the pitch.
 
-Only current source, the trimmed demo, and required assets are tracked here.
-Installations, exports, review screenshots, old cuts, alternative diagrams, and raw
-recordings stay out of Git. The HTML reference embeds its own media and can be
+Current source, required assets, both demo takes, and the full primary
+`Demo.mov` are tracked here. Installations, exports, review screenshots, old cuts,
+alternative diagrams, and other raw recordings stay out of Git. The HTML reference embeds its own media and can be
 opened offline.
 
 ## Extra footage for teammates
