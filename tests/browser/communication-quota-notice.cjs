@@ -15,5 +15,13 @@ const result = masks(twoPanes, {billing:{x:0,y:0,width:100,height:1},delivery:{x
 assert.equal(result.length, 1);
 assert.equal(result[0].x, 100, 'never mask neighboring agent output');
 assert.equal(masks([banner], {}).length, 0, 'do not guess unknown pane boundaries');
+const indicator = '⚠ weekly limit: 21% left · /status';
+const footer = 'Other status  ' + indicator + '  Keep this warning';
+const footerMasks = masks([footer], {billing:{x:0,y:0,width:120,height:1}});
+assert.equal(footerMasks.length, 1);
+assert.equal(footer.slice(footerMasks[0].x, footerMasks[0].x + footerMasks[0].width), indicator);
+const wrappedFooter = indicator.match(/.{1,18}/g);
+assert.equal(masks(wrappedFooter, {billing:{x:0,y:0,width:18,height:wrappedFooter.length}}).length, wrappedFooter.length);
+assert.equal(masks(['Error: weekly limit exceeded; request failed'], {billing:{x:0,y:0,width:100,height:1}}).length, 0);
 new vm.Script(html.split('<script>')[1].split('</script>')[0]);
 console.log('Quota notice: exact banner, wrapped lines and pane isolation passed');

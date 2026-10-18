@@ -45,17 +45,28 @@ function demoColorRanges(text, agentAt = () => null) {
 function quotaNoticeMasks(rows, layout) {
   const masks = [];
   for (const pane of Object.values(layout)) {
-    let compact = ''; const lineAt = [];
+    let compact = ''; const lineAt = [], columnAt = [];
     for (let y = pane.y; y < Math.min(rows.length, pane.y + pane.height); y++) {
       const fragment = (rows[y] || '').slice(pane.x, pane.x + pane.width);
       for (let i = 0; i < fragment.length; i++) {
-        if (!/\s/.test(fragment[i])) { compact += fragment[i]; lineAt.push(y); }
+        if (!/\s/.test(fragment[i])) { compact += fragment[i]; lineAt.push(y); columnAt.push(pane.x + i); }
       }
     }
     const banner = /Headsup,youhavelessthan\d+%ofyourweeklylimitleft\.Run\/statusforabreakdown\./g;
     for (const match of compact.matchAll(banner)) {
       for (let y = lineAt[match.index]; y <= lineAt[match.index + match[0].length - 1]; y++) {
         masks.push({row: y, x: pane.x, width: pane.width});
+      }
+    }
+    // Mask only the compact indicator, preserving neighboring status text.
+    const weekly = /(?:⚠\ufe0f?)?weeklylimit:\d+%left[·•|]\/status/gi;
+    for (const match of compact.matchAll(weekly)) {
+      const last = match.index + match[0].length - 1;
+      const firstRow = lineAt[match.index], lastRow = lineAt[last];
+      for (let y = firstRow; y <= lastRow; y++) {
+        const x = y === firstRow ? columnAt[match.index] : pane.x;
+        const end = y === lastRow ? columnAt[last] + 1 : pane.x + pane.width;
+        masks.push({row: y, x, width: end - x});
       }
     }
   }
