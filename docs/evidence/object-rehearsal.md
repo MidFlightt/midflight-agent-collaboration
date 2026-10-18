@@ -114,3 +114,43 @@ is returned in full; large-project performance was not measured.
 validate actual combined code, introduce the fee through Delivery, give Billing the one
 useful follow-up, then validate again. Inspect objection and consumption evidence
 separately from test results. Never stage an objection for the recording.
+
+## Archived rehearsal and fresh recording
+
+After all validation completed, the browser Reset archived `runs/object-rehearsal`.
+All **62** checked source/test/validation files retained their exact hashes, and the old
+graph was unchanged. The earlier prepared run was not reset during this work.
+[Reset verification](object-rehearsal/reset-verification.json) records the checks.
+
+Fresh page: http://127.0.0.1:18940/ . All four panels are connected with **join, send,
+check_in, object** configured. All prepared prompts remain unsent; zero tasks and zero
+coordination events. [Ready screenshot](object-rehearsal/recording-ready.png).
+
+Root: `/private/tmp/midflight-agent-communication/runs/interactive-6f7489fd08`.
+Session: `midflight-fe517bca`.
+
+For this run:
+
+```sh
+cd /tmp/midflight-agent-communication
+RUN=/private/tmp/midflight-agent-communication/runs/interactive-6f7489fd08
+```
+
+1. Submit each prepared task once and let the four agents finish. Do not force objections.
+2. Inspect any open incompatibilities and run the operator's actual-module test:
+
+   `.venv/bin/python -m midflight.communication.validate "$RUN" --label baseline --id-field id`
+
+3. Send Delivery: “When a delivery is cancelled, keep a four-credit cancellation fee and
+   refund the rest, never below zero.” Let it finish. Inspect routing and delivery metadata.
+4. Give Billing one useful task: “Add regression coverage for revenue reporting across
+   mixed confirmed and cancelled deliveries under the current shared requirements,
+   including small totals and previously saved refunds.” Record this operator action.
+5. When Billing finishes, inspect its exact policy report separately and run:
+
+   `.venv/bin/python -m midflight.communication.validate "$RUN" --fee 400 --label fee --id-field id`
+
+Use `delivery_id` instead of `id` if the new publication chooses that field. Agent choices
+and durations can vary. If an actual incompatibility remains open, retain and report it
+alongside test results, discuss alternatives or escalate; do not mark it resolved merely
+to finish a recording. Validation labels must be unique to retain prior attempts.

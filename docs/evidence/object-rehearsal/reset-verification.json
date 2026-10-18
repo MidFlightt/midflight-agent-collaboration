@@ -1,0 +1,56 @@
+{
+  "archived_root": "/private/tmp/midflight-agent-communication/runs/object-rehearsal",
+  "preserved_file_count": 62,
+  "all_archived_file_hashes_match": true,
+  "archived_graph_unchanged": true,
+  "new_root": "/private/tmp/midflight-agent-communication/runs/interactive-6f7489fd08",
+  "new_graph": "communication-2b4a4536f9b14361abd436387ed08ae7",
+  "new_session": "midflight-fe517bca",
+  "new_event_count": 0,
+  "panels": {
+    "billing": {
+      "pane": "%248",
+      "tasks_started": 0,
+      "prepared_prompt": "Implement billing and revenue reporting.",
+      "core_tools": [
+        "join",
+        "send",
+        "check_in",
+        "object"
+      ]
+    },
+    "delivery": {
+      "pane": "%249",
+      "tasks_started": 0,
+      "prepared_prompt": "Implement delivery management.",
+      "core_tools": [
+        "join",
+        "send",
+        "check_in",
+        "object"
+      ]
+    },
+    "booking": {
+      "pane": "%250",
+      "tasks_started": 0,
+      "prepared_prompt": "Build the customer booking flow.",
+      "core_tools": [
+        "join",
+        "send",
+        "check_in",
+        "object"
+      ]
+    },
+    "notifications": {
+      "pane": "%251",
+      "tasks_started": 0,
+      "prepared_prompt": "Implement customer notifications.",
+      "core_tools": [
+        "join",
+        "send",
+        "check_in",
+        "object"
+      ]
+    }
+  }
+}
