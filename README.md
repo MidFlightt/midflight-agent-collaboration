@@ -47,23 +47,38 @@ branch.
 
 ## Try it: one command
 
-This opens Claude Code in **PigeonPost**, a small six-part app, already connected to the
-hosted MidFlight server:
+This opens **PigeonPost**, a small six-part app, in your coding agent, already connected to
+the hosted MidFlight server. You need Claude Code or Codex, and a GitHub account.
+
+**Claude Code**
 
 ```sh
 git clone https://github.com/MidFlightt/pigeonpost-playground && cd pigeonpost-playground && claude
 ```
 
-On Windows PowerShell, use `;` instead of `&&`. You need Claude Code and a GitHub account.
 Approve the `midflight` connector when Claude Code asks, then type `/mcp`, pick
-**midflight** and choose **Authenticate** to sign in. Then use the ready-made commands:
+**midflight** and choose **Authenticate**.
 
-- `/mf-start` creates a project. Share its join code; teammates run `/mf-join MF-XXXX-XXXX`.
-- `/mf-take pricing` (or `roost`, `dispatch`, `billing`, `tracking`, `cli`) claims a part and
-  publishes its contracts; `/mf-build` builds it.
-- `/mf-cancel-fee` changes a business rule, and only dispatch and billing receive it.
-  `/mf-change-quote` changes a contract, and the parts that use it adapt or object.
-  `/mf-news` shows what each agent received.
+**Codex**
+
+```sh
+git clone https://github.com/MidFlightt/pigeonpost-playground && cd pigeonpost-playground && ./play-codex.sh
+```
+
+The script adds the connector to Codex, signs you in the first time and opens Codex.
+
+On Windows PowerShell, use `;` instead of `&&`, and run the Codex script with
+`powershell -ExecutionPolicy Bypass -File play-codex.ps1`.
+
+Then use the same commands in either: `/mf-...` in Claude Code, `$mf-...` in Codex.
+
+- `mf-start` creates a project. Share its join code; teammates run `mf-join MF-XXXX-XXXX`.
+- `mf-take pricing` (or `roost`, `dispatch`, `billing`, `tracking`, `cli`) claims a part and
+  publishes its contracts; `mf-build` builds it.
+- `mf-cancel-fee` changes a business rule, and only dispatch and billing receive it.
+  `mf-change-quote` changes a contract, and the parts that use it adapt or object.
+  `mf-news` shows what each agent received.
 
 Playing alone? Open a few terminals in the folder and take a different part in each.
+Claude Code and Codex agents can share one project.
 Details: [the playground's README](https://github.com/MidFlightt/pigeonpost-playground#readme).
