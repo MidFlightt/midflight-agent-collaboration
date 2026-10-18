@@ -38,3 +38,15 @@ A retained local trial on 2026-10-17 used the actual Codex CLI sessions and Falk
 Machine-local evidence, transcripts and exact module hashes are retained under the ignored `runs/objection-validated-trial-20261017-235732/` directory. Raw sessions and credentials are not committed.
 
 Reset preserves the previous run and creates new workspaces with the baseline publication prompt. Establish the baseline again before starting Billing.
+
+## Two-prompt overlapping work mode
+
+Run the same module with `--overlap` to prepare Delivery's implementation task and
+Billing's reporting task unsent. Start Delivery, then start Billing as soon as its
+interface is published, while Delivery is still implementing/testing. A final
+check-in and updates returned by send may reveal Billing's objection during that
+same work turn. There is no publication-only setup turn or third prompt in this
+mode, and no idle wakes, delays or synchronization barriers. Reset retains the
+selected mode. This is timing-dependent: Delivery can anticipate a compatible
+extension, or finish before an objection arrives. The validated staged trial
+above does not establish repeatability for this overlapping variant.

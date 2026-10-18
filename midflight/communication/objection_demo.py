@@ -100,7 +100,10 @@ class ObjectionTheater(CommunicationTheater):
         for name in ("delivery", "billing"):
             p = root / name / "AGENTS.md"
             p.write_text(
-                p.read_text() + "\nBefore ending a work turn, check in after tests. "
+                p.read_text()
+                + "\nPublish the owned interface before implementation and test changes, "
+                "then continue useful work without waiting for peers. "
+                "Before ending a work turn, check in after tests. "
                 "Read updates returned by sends too. Address actionable technical "
                 "objections and questions during the current work turn. "
                 "Do not wait or poll for hypothetical updates. "
@@ -138,11 +141,25 @@ class ObjectionTheater(CommunicationTheater):
         return PUBLISH_PROMPT if name == "delivery" else WORK_PROMPTS[name]
 
 
+class OverlapObjectionTheater(ObjectionTheater):
+    """Two unsent tasks: the owner publishes and implements in the same turn."""
+
+    def initial_prompt(self, name, default):
+        if name == "delivery":
+            return "Implement delivery management with a customer-facing list of active deliveries."
+        return WORK_PROMPTS[name]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path)
     parser.add_argument("--port", type=int, default=18943)
     parser.add_argument("--db-port", type=int, default=6379)
+    parser.add_argument(
+        "--overlap",
+        action="store_true",
+        help="Prepare implementation prompts for overlapping work turns",
+    )
     args = parser.parse_args()
     with socket.socket() as probe:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -150,11 +167,10 @@ def main():
     root = args.root or Path(__file__).resolve().parents[2] / "runs" / (
         "objection-" + uuid.uuid4().hex[:10]
     )
-    live = ObjectionTheater(root, args.db_port, controller_port=args.port)
+    factory = OverlapObjectionTheater if args.overlap else ObjectionTheater
+    live = factory(root, args.db_port, controller_port=args.port)
     live.launch()
-    uvicorn.run(
-        app_for(live, factory=ObjectionTheater), host="127.0.0.1", port=args.port, access_log=False
-    )
+    uvicorn.run(app_for(live, factory=factory), host="127.0.0.1", port=args.port, access_log=False)
 
 
 if __name__ == "__main__":
