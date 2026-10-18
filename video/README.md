@@ -89,3 +89,14 @@ Only current source, the trimmed demo, and required assets are tracked here.
 Installations, exports, review screenshots, old cuts, alternative diagrams, and raw
 recordings stay out of Git. The HTML reference embeds its own media and can be
 opened offline.
+
+## Extra footage for teammates
+
+[Agent interface demo — take 2](recordings/agent-interface-demo-take-2.mp4) is a
+standalone 58-second clip from `Screen Recording 2026-10-17 at 21.01.13.mov`,
+trimmed to 0:12–1:10. Browser/fullscreen setup and ending recording controls are
+excluded; the macOS menu/status strips are cropped. All four panes, original speed,
+and audio are retained, at 1080p/30 fps.
+
+This extra take is outside `public/` and is not referenced by Remotion. The
+3:42 product video and its existing demo clip are unchanged.
