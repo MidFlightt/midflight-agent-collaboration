@@ -55,6 +55,12 @@ def coordination_objections(root):
     from .store import Store
 
     run = json.loads(metadata.read_text())
+    if run.get("cloud"):
+        return {
+            "available": False,
+            "reason": "Inspect cloud agent session evidence separately",
+            "open_objections": None,
+        }
     store = Store(run["graph"], run["db_port"])
     try:
         state = store.read()[1]

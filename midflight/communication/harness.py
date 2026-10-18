@@ -37,6 +37,7 @@ OWNERS = {
 
 
 class CommunicationTheater(InteractiveTheater):
+    cloud = None
     names = tuple(PROMPTS)
     submit_initial_prompt = False
     coordination_tools = ["join", "send", "check_in", "object"]
@@ -44,13 +45,14 @@ class CommunicationTheater(InteractiveTheater):
     mcp_server_name = "midflight"
     first_pane_title = "Billing agent"
 
-    def __init__(self, root, db_port=6379, api_port=8928, controller_port=8927):
+    def __init__(self, root, db_port=6379, api_port=8928, controller_port=8927, *, cloud=None):
+        self.cloud = cloud
         root = Path(root).resolve()
         root.mkdir(parents=True, exist_ok=False, mode=0o700)
         repo = Path(__file__).resolve().parents[2]
-        project = "communication-" + uuid.uuid4().hex
-        self.store = Store(project, db_port)
-        self.service = Service(self.store)
+        project = cloud["project"] if cloud else "communication-" + uuid.uuid4().hex
+        self.store = None if cloud else Store(project, db_port)
+        self.service = None if cloud else Service(self.store)
         self.theater = SimpleNamespace(
             root=root,
             repo=repo,
@@ -61,7 +63,7 @@ class CommunicationTheater(InteractiveTheater):
             commit=subprocess.check_output(
                 ["git", "rev-parse", "HEAD"], cwd=repo, text=True
             ).strip(),
-            close=self.store.close,
+            close=self.store.close if self.store else lambda: None,
         )
         self.session = "midflight-" + uuid.uuid4().hex[:8]
         self.key = secrets.token_urlsafe(24)
@@ -75,7 +77,8 @@ class CommunicationTheater(InteractiveTheater):
         self.cues, self.check_ins = {}, {}
         requirements = initial_plan().requirements
         for name in self.names:
-            self.service.join(name, PROMPTS[name], "seed", dependencies=DEPENDENCIES[name])
+            if self.service:
+                self.service.join(name, PROMPTS[name], "seed", dependencies=DEPENDENCIES[name])
             folder = root / name
             folder.mkdir()
             write_starter(folder, name)
@@ -125,10 +128,12 @@ class CommunicationTheater(InteractiveTheater):
                 cwd=folder,
                 check=True,
             )
-        self.service.configure_interfaces(OWNERS)
+        if self.service:
+            self.service.configure_interfaces(OWNERS)
         (root / "run.json").write_text(
             json.dumps(
                 dict(
+                    cloud=cloud,
                     graph=project,
                     db_port=db_port,
                     session=self.session,
@@ -148,8 +153,9 @@ class CommunicationTheater(InteractiveTheater):
         run = json.loads((root / "run.json").read_text())
         metadata = json.loads((root / "interactive.json").read_text())
         live = cls.__new__(cls)
-        live.store = Store(run["graph"], run["db_port"])
-        live.service = Service(live.store)
+        live.cloud = run.get("cloud")
+        live.store = None if live.cloud else Store(run["graph"], run["db_port"])
+        live.service = None if live.cloud else Service(live.store)
         live.theater = SimpleNamespace(
             root=root,
             repo=Path(run["repo"]),
@@ -158,7 +164,7 @@ class CommunicationTheater(InteractiveTheater):
             api_port=8928,
             tokens={},
             commit=metadata["commit"],
-            close=live.store.close,
+            close=live.store.close if live.store else lambda: None,
         )
         live.session, live.panes = metadata["session"], metadata["panes"]
         live.key = secrets.token_urlsafe(24)
@@ -175,6 +181,16 @@ class CommunicationTheater(InteractiveTheater):
                 "Saved terminals are absent; retain the run and reset to start new ones"
             )
         return live
+
+    def mcp_environment(self, name, environment):
+        environment.pop("MIDFLIGHT_URL", None)
+        environment.pop("MIDFLIGHT_TOKEN", None)
+        if self.cloud:
+            environment["MIDFLIGHT_URL"] = self.cloud["url"]
+            environment["MIDFLIGHT_TOKEN_FILE"] = str(
+                Path(self.cloud["credentials"]) / (name + ".token")
+            )
+        return environment
 
     def initial_prompt(self, name, default):
         return PROMPTS[name]
@@ -198,7 +214,12 @@ class CommunicationTheater(InteractiveTheater):
             project=self.theater.project,
             session=self.session,
             root=str(self.theater.root),
-            coordination=self.service.status(),
+            coordination=self.service.status()
+            if self.service
+            else {
+                "available": False,
+                "reason": "Cloud evidence is in agent session logs; no operator inbox reads",
+            },
             integration=None,
         )
         evidence = self.theater.root / "integration.json"
@@ -206,9 +227,15 @@ class CommunicationTheater(InteractiveTheater):
             report["integration"] = evidence_status(
                 self.theater.root, json.loads(evidence.read_text())
             )
-        report["open_objections"] = [
-            o for o in report["coordination"].get("objections", {}).values() if o["state"] == "open"
-        ]
+        report["open_objections"] = (
+            None
+            if self.cloud
+            else [
+                o
+                for o in report["coordination"].get("objections", {}).values()
+                if o["state"] == "open"
+            ]
+        )
         if report["integration"] is not None:
             report["integration"]["current_open_objections"] = report["open_objections"]
         (self.theater.root / "report.json").write_text(json.dumps(report, indent=2))
@@ -241,7 +268,24 @@ def main():
     parser.add_argument("--root", type=Path)
     parser.add_argument("--scenario", choices=["delivery"], default="delivery")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--cloud-url")
+    parser.add_argument("--credentials", type=Path)
+    parser.add_argument("--cloud-project")
     args = parser.parse_args()
+    cloud = None
+    if args.cloud_url or args.credentials or args.cloud_project:
+        if not (args.cloud_url and args.credentials and args.cloud_project):
+            parser.error("Cloud mode requires URL, credentials and project")
+        if not args.cloud_url.startswith("https://"):
+            parser.error("Cloud URL must use HTTPS")
+        for name in PROMPTS:
+            if not (args.credentials / (name + ".token")).is_file():
+                parser.error(f"Missing credential for {name}")
+        cloud = dict(
+            url=args.cloud_url,
+            credentials=str(args.credentials.resolve()),
+            project=args.cloud_project,
+        )
     if args.root is None:
         if args.resume:
             parser.error("--resume requires --root")
@@ -253,7 +297,7 @@ def main():
     if args.resume:
         live = CommunicationTheater.restore(args.root, args.port)
     else:
-        live = CommunicationTheater(args.root, args.db_port, controller_port=args.port)
+        live = CommunicationTheater(args.root, args.db_port, controller_port=args.port, cloud=cloud)
         live.launch()
     uvicorn.run(app_for(live), host="127.0.0.1", port=args.port, access_log=False)
 

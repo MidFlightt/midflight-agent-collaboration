@@ -114,3 +114,29 @@ Checked with `node tests/browser/communication-colors.cjs` and actual visible ou
 Matching is per rendered line; names split across lines may not be highlighted.
 Orange highlighting is omitted when viewing browser terminal scrollback because the
 current panel geometry cannot reliably identify historical layouts.
+
+## Four real agents using the shared cloud backend
+
+An operator can provision a separate cloud project with the delivery roster, deploy its
+hashed credential configuration, then run this harness locally:
+
+```sh
+.venv/bin/python -m midflight.communication.harness \
+  --port 18941 --root runs/my-cloud-rehearsal \
+  --cloud-url https://YOUR-FUNCTION.lambda-url.us-east-1.on.aws \
+  --cloud-project YOUR-PROJECT --credentials /absolute/private/credentials
+```
+
+The credentials directory must contain one token file for each of the four agents.
+Use a fresh project for a fresh scenario; a new directory does not clear cloud state.
+The harness starts four real coding clients with prompts unsent. Each client's MCP
+bridge uses HTTPS and its individual credential; no local coordination database is
+created. Code stays in the four local workspaces. The usual operator combined-module
+validator works, but cloud objection evidence must be inspected separately in the
+agent transcripts; unavailable evidence is never reported as zero objections.
+
+Cloud Reset is deliberately disabled before any archive/close action: the operator must
+provision a fresh project rather than silently reset other computers' shared state.
+Existing terminals can be reattached with `--resume --root runs/my-cloud-rehearsal`.
+Local-mode Reset retains its archive-and-prepare behavior. Cloud agents are not polled
+or automatically woken. The browser highlights remain presentation only.

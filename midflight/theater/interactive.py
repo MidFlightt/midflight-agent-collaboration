@@ -103,26 +103,33 @@ class InteractiveTheater:
     def tmux(self, *args):
         return subprocess.check_output(["tmux", *args], text=True).strip()
 
+    def mcp_environment(self, name, environment):
+        return environment
+
     def launch(self):
         theater = self.theater
         for i, name in enumerate(self.names):
             config = (
-                f"mcp_servers.{self.mcp_server_name}=" + "{command="
+                f"mcp_servers.{self.mcp_server_name}="
+                + "{command="
                 + json.dumps(sys.executable)
                 + ',args=["-m",'
                 + json.dumps(self.mcp_module)
                 + "],env={"
                 + ",".join(
                     json.dumps(k) + "=" + json.dumps(v)
-                    for k, v in {
-                        "MIDFLIGHT_URL": f"http://127.0.0.1:{theater.api_port}",
-                        "MIDFLIGHT_TOKEN": theater.tokens[name],
-                        "MIDFLIGHT_PROJECT": theater.project,
-                        "MIDFLIGHT_DB_PORT": str(theater.db_port),
-                        "PYTHONPATH": str(theater.repo),
-                        "MIDFLIGHT_DEMO_CONTROLLER": f"http://127.0.0.1:{self.controller_port}",
-                        "MIDFLIGHT_DEMO_AGENT": name,
-                    }.items()
+                    for k, v in self.mcp_environment(
+                        name,
+                        {
+                            "MIDFLIGHT_URL": f"http://127.0.0.1:{theater.api_port}",
+                            "MIDFLIGHT_TOKEN": theater.tokens[name],
+                            "MIDFLIGHT_PROJECT": theater.project,
+                            "MIDFLIGHT_DB_PORT": str(theater.db_port),
+                            "PYTHONPATH": str(theater.repo),
+                            "MIDFLIGHT_DEMO_CONTROLLER": f"http://127.0.0.1:{self.controller_port}",
+                            "MIDFLIGHT_DEMO_AGENT": name,
+                        },
+                    ).items()
                 )
                 + "}}"
             )
@@ -483,6 +490,11 @@ def terminal_app(live, *, factory=None, allow_staged_reset=False):
         with control_lock:
             if request.headers.get("x-demo-key") != live.key:
                 raise HTTPException(403)
+            if getattr(live, "cloud", None):
+                raise HTTPException(
+                    409,
+                    "Cloud runs require a separately provisioned project; this run is preserved.",
+                )
             old = live
             old.report()
             old.close()
