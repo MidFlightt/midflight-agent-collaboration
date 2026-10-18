@@ -119,7 +119,13 @@ class Trial:
         return json.loads((self.root / "state.json").read_text(encoding="utf-8"))
 
     def save(self, state: dict) -> None:
-        (self.root / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+        with tempfile.NamedTemporaryFile(mode="w", dir=self.root, delete=False,
+                                         encoding="utf-8") as output:
+            json.dump(state, output, indent=2)
+            output.flush()
+            os.fsync(output.fileno())
+            temporary = output.name
+        os.replace(temporary, self.root / "state.json")
 
 
 def load_module(path: Path, name: str) -> ModuleType:
@@ -210,7 +216,7 @@ def phase(trial: Trial, number: int) -> None:
 
     def one(indexed: tuple[int, str]) -> tuple[str, dict | None]:
         index, agent = indexed
-        if trial.with_midflight and index < workers:
+        if trial.with_midflight and index < workers and getattr(trial.case, "STAGGER_START", True):
             time.sleep(20 * index)  # one at a time, so start-up requests don't pile up
         if trial.scripted:
             prompt = trial.case.prompt(trial.approach, agent, number, trial.project)

@@ -29,3 +29,9 @@ build/
 
 # Isolated coding sessions and local credentials
 runs/
+
+# Generated benchmark bundles, reports and private credentials
+/prepared/
+/reports/
+*.token
+/experiment/cases/pigeonpost/results/

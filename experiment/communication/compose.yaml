@@ -1,0 +1,10 @@
+services:
+  falkordb:
+    image: falkordb/falkordb:v4.22.1@sha256:b0bdcac2cbaff989e77cb0610439b7a9289e86de033ccbbd4368b66fb680ae7a
+    ports:
+      - "127.0.0.1:52017:6379"
+    command: ["--appendonly", "yes", "--appendfsync", "always"]
+    volumes:
+      - benchmark-data:/data
+volumes:
+  benchmark-data:

@@ -1,5 +1,9 @@
 # MidFlight: communication between coding agents
 
+This branch also provides the [PigeonPost v6 benchmark setup](experiment/communication/README.md)
+for no channel, Git-backed team chat and an isolated local MidFlight backend. Benchmark
+outcome reports and raw run artifacts are intentionally excluded.
+
 Four real coding sessions use owner-published interfaces and receive relevant changes
 through a FalkorDB dependency graph. MidFlight makes no model calls. There are no
 claims, mandatory AI reviewers or approval gates. The tools are **join, send,
