@@ -22,7 +22,16 @@ console.log('Communication highlighting checks passed');
 
 const actual = "The Billing agent adapted the starter’s list assumption to the Delivery agent’s published ID-keyed dictionary interface (#2).";
 const adaptation = classify(actual);
-assert.equal(adaptation.length, 1);
+assert.equal(adaptation.length, 3);
 assert.equal(adaptation[0].color, '#f7ba55');
-assert.equal(actual.slice(adaptation[0].start, adaptation[0].end), 'adapted');
+assert.equal(actual.slice(adaptation[1].start, adaptation[1].end), 'adapted');
 assert.equal(classify('Adapted to the published mapping.')[0].color, '#f7ba55');
+
+for (const name of ['Billing agent', 'Delivery agent', 'Booking agent', 'Notifications agent']) {
+  const text = 'Following the ' + name + '’s interface.';
+  const ranges = classify(text);
+  assert.equal(ranges.length, 1);
+  assert.equal(ranges[0].color, '#f7ba55');
+  assert.equal(text.slice(ranges[0].start, ranges[0].end), name);
+}
+assert.equal(classify('billing.py delivery records booking requests').length, 0);

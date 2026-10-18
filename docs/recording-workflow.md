@@ -104,7 +104,9 @@ Existing loaded sessions retain their previous server name until relaunched.
 
 The browser has a Highlights on/off toggle, remembered locally. Blue marks the four
 MidFlight tool names (including the older theater_midflight prefix); orange marks
-explicit change-related wording such as "Adapted to", "switched to" and "policy revision".
+agent names (Billing agent, Delivery agent, Booking agent, Notifications agent) and
+change-related wording such as "adapted", "switched to" and "policy revision".
+Name matching includes self-mentions; it does not infer who changed direction.
 This is syntax highlighting of existing output, not a classification of delivery,
 application or correctness. It never injects narration, rewrites terminal bytes or
 adds success colors. Toggle off to restore original text colors immediately.

@@ -1,13 +1,13 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><title>MidFlight · live coding team</title><link rel="stylesheet" href="/vendor/xterm.css"><style>
 html,body{margin:0;height:100%;background:#101114;color:#ddd;font:13px system-ui}header{height:48px;display:flex;align-items:center;gap:16px;padding:0 15px}button,a{background:#273041;color:#eee;border:0;border-radius:4px;padding:7px 12px;cursor:pointer;text-decoration:none}button:disabled{opacity:.5;cursor:wait}#terminal{height:calc(100% - 48px);padding:0 8px}#note{margin-left:auto;font-size:12px;color:#c4c4cf}small{color:#9c9ca8}
 
-</style><header><b>MidFlight · live coding team</b><small>Type your direction in <strong>any agent</strong></small><button id="reset">Reset</button><button id="colors" title="Blue: MidFlight calls. Orange: change-related wording, not proof of application.">Highlights: on</button><button id="fullscreen" title="Expand all four coding panes">Fullscreen</button><a href="/report" target="_blank" title="Recorded communication and test evidence">Run evidence</a><span id="note">Connecting…</span></header><div id="terminal"></div>
+</style><header><b>MidFlight · live coding team</b><small>Type your direction in <strong>any agent</strong></small><button id="reset">Reset</button><button id="colors" title="Blue: MidFlight calls. Orange: agent names and change-related wording, not proof of application.">Highlights: on</button><button id="fullscreen" title="Expand all four coding panes">Fullscreen</button><a href="/report" target="_blank" title="Recorded communication and test evidence">Run evidence</a><span id="note">Connecting…</span></header><div id="terminal"></div>
 <script src="/vendor/xterm.js"></script><script src="/vendor/addon-fit.js"></script><script>
 // BEGIN DEMO TEXT COLORS — presentation only; never edits the terminal stream.
 function demoColorRanges(text) {
   const rules = [
     ['#79bdff', /\b(?:theater_)?midflight\.(?:join|send|check_in|object)\b/g],
-    ['#f7ba55', /\b(?:new direction|update received|implementation changed|changed (?:my |the )?approach|adapt(?:ed|ing)(?: to)?|switched to|previously expected|I (?:changed|updated)|policy (?:update|revision)|cancellation fee)\b/gi],
+    ['#f7ba55', /\b(?:(?:Billing|Delivery|Booking|Notifications) agent|new direction|update received|implementation changed|changed (?:my |the )?approach|adapt(?:ed|ing)(?: to)?|switched to|previously expected|I (?:changed|updated)|policy (?:update|revision)|cancellation fee)\b/gi],
   ];
   const cells = Array(text.length).fill(null);
   for (const [color, pattern] of rules) {
