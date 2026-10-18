@@ -2,5 +2,5 @@ node_modules/
 out/
 .DS_Store
 *.tsbuildinfo
-# Local demo recordings; supply your own 40-second clip.
+# Optional local replacement; the trimmed demo in public/demo/ is tracked.
 public/demo.mp4

@@ -1,6 +1,6 @@
 # Midflight video handoff
 
-The editable 3:30 pitch lives here. Start with the native Remotion project;
+The editable 3:42 pitch lives here. Start with the native Remotion project;
 `presentation/Midflight-animated.html` is the self-contained presentation reference.
 The video does not capture or play that HTML file.
 
@@ -44,19 +44,19 @@ When editing SVGs, update the matching PNG: the video renders the PNGs.
 
 ## Current sequence
 
-1920 × 1080, 30 fps, 6,300 frames, exactly 3:30.
+1920 × 1080, 30 fps, 6,660 frames, exactly 3:42.
 
 | Time | Section |
 |---|---|
 | 0:00–0:47 | Project delegation → team lead → direct chip-to-plane handoff → flight and team |
-| 0:47–1:27 | Demo placeholder |
-| 1:27–1:47 | How Midflight works |
-| 1:47–2:12 | How Midflight shares changes |
-| 2:12–2:32 | System architecture |
-| 2:32–2:57 | Benchmark setup |
-| 2:57–3:12 | Benchmark results |
-| 3:12–3:25 | Context research |
-| 3:25–3:30 | Thank you |
+| 0:47–1:39 | Live coding demo |
+| 1:39–1:59 | How Midflight works |
+| 1:59–2:24 | How Midflight shares changes |
+| 2:24–2:44 | System architecture |
+| 2:44–3:09 | Benchmark setup |
+| 3:09–3:24 | Benchmark results |
+| 3:24–3:37 | Context research |
+| 3:37–3:42 | Thank you |
 
 The opening uses the original native animations. It shows one merge attempt, then
 fades the lead scene while Agent A/B chips move directly onto their plane labels.
@@ -64,18 +64,28 @@ There is no second merge attempt or return to the project diagram in that handof
 The charts and research still retain their reading time. The closing slogan and
 failure-path section are omitted.
 
-## Insert the demo
+## Demo recording
 
-The 40-second slot is intentionally still a placeholder. Put a 40-second recording
-at `public/demo.mp4`, then render:
+The demo is included at `public/demo/live-agent-demo.mp4` and plays by default.
+It is the continuous 0:11–1:03 interval (52 seconds) from
+`Screen Recording 2026-10-17 at 19.26.18.mov`. Initial setup/idle time and the
+recording-control overlay at the end are removed. The macOS menu strip and terminal
+status strip are cropped; all four agent panes remain visible. The clip is fitted
+to 1080p at 30 fps without stretching, retains the original quiet audio with brief
+edge fades, and plays at its original speed. It shows live work in progress, including agent check-ins, interface updates,
+and component test results.
+
+The original recording remains outside this repository. Only the trimmed clip is
+tracked. To use a replacement, put it at `public/demo.mp4` and render:
 
 ```sh
 npm run render -- --props='{"demoFile":"demo.mp4"}'
 ```
 
-The recording should cover the full slot; longer footage is trimmed. If its final
-length changes, update `PITCH_CHAPTERS` and this timeline. Demo audio is included.
+Use a 52-second replacement or update `DEMO_SECONDS` and this timeline. Longer
+footage is trimmed to the scene. The included demo runs from 0:47 to 1:39 in the pitch.
 
-Only current source and required assets are tracked here. Installations, exports,
-review screenshots, old cuts, alternative diagrams, and recording footage stay out
-of Git. The HTML reference embeds its own media and can be opened offline.
+Only current source, the trimmed demo, and required assets are tracked here.
+Installations, exports, review screenshots, old cuts, alternative diagrams, and raw
+recordings stay out of Git. The HTML reference embeds its own media and can be
+opened offline.

@@ -8,11 +8,13 @@ const FPS = 30;
 const asset = (name: string) => staticFile(name);
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
-// Supply a 40-second recording here (or via --props). The slot stays at 0:47–1:27.
+// The trimmed recording is included by default. Override its path with --props.
+export const DEMO_FILE = 'demo/live-agent-demo.mp4';
+export const DEMO_SECONDS = 52;
 export type PitchProps = {demoFile?: string};
 export const PITCH_CHAPTERS = [
   {name: 'Opening — project, team lead, planes, team of agents', seconds: 47},
-  {name: 'Demo — reserved for footage', seconds: 40},
+  {name: 'Demo — live coding team', seconds: DEMO_SECONDS},
   {name: 'How Midflight works', seconds: 20},
   {name: 'How Midflight shares changes', seconds: 25},
   {name: 'System architecture', seconds: 20},
@@ -49,10 +51,10 @@ const BenchmarkChapter: React.FC<{results?: boolean}> = ({results = false}) => {
   return <Freeze frame={originalFrame}><BenchmarkSetup/></Freeze>;
 };
 
-export const Pitch: React.FC<PitchProps> = ({demoFile}) => {
+export const Pitch: React.FC<PitchProps> = ({demoFile = DEMO_FILE}) => {
   const scenes = [
     <ReorderedOpening key="opening"/>,
-    demoFile ? <OffthreadVideo key="demo" src={staticFile(demoFile)}/> : <Title key="demo" title="Demo" subtitle="Demo footage to be inserted"/>,
+    demoFile ? <OffthreadVideo key="demo" src={staticFile(demoFile)} style={{width: '100%', height: '100%', objectFit: 'contain'}}/> : <Title key="demo" title="Demo" subtitle="Demo footage to be inserted"/>,
     <Still key="works" file="flowcharts/how-midflight-works.png"/>,
     <Still key="changes" file="flowcharts/how-midflight-shares-changes.png"/>,
     <Still key="architecture" file="flowcharts/midflight-system-architecture.png"/>,
