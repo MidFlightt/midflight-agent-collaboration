@@ -1,3 +1,6 @@
+# A fixed project name keeps one graph volume for every clone, whatever its folder name.
+# To keep using a volume from a clone in another folder, set COMPOSE_PROJECT_NAME=<folder>.
+name: midflight-agent-collaboration
 services:
   falkordb:
     image: falkordb/falkordb:v4.22.1@sha256:b0bdcac2cbaff989e77cb0610439b7a9289e86de033ccbbd4368b66fb680ae7a

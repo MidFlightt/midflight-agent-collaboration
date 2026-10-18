@@ -28,6 +28,7 @@ import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,9 @@ class Settings:
     worker_retry_delay: float = 2
 
     def __post_init__(self) -> None:
+        if self.dev_login and urlparse(self.public_url).hostname not in {"127.0.0.1", "localhost"}:
+            # The dev form lets anyone sign in as anyone: never reachable from other computers.
+            raise ValueError("MIDFLIGHT_DEV_LOGIN only runs on a 127.0.0.1 or localhost URL")
         if self.backend not in {"memory", "dynamodb", "falkordb"}:
             raise ValueError("MIDFLIGHT_STORE must be memory, dynamodb or falkordb")
         if self.backend == "dynamodb" and not self.table_name:

@@ -188,8 +188,7 @@ def test_init_preserves_repository_files_and_retries_with_saved_credentials(tmp_
     second = initialize(repo, "http://127.0.0.1:8000", "example/new", ["worker"], home)
     assert first == second
     guide = (repo / "MIDFLIGHT.md").read_text()
-    assert "Terminal → New Terminal" in guide
-    assert "--identity lead" in guide and "--identity worker" in guide
+    assert "midflight worktree worker" in guide and str(tmp_path) not in guide
     assert first["identities"]["worker"]["token"] not in guide
     assert (repo / "AGENTS.md").read_text().startswith("Existing team rules.")
     assert (repo / "AGENTS.md").read_text().count("<!-- midflight:start -->") == 1
@@ -219,7 +218,7 @@ def test_codex_launcher_has_no_scripted_scenario_or_permission_overrides(tmp_pat
 
     command = codex_command(tmp_path, "backend")
     assert command[:3] == ["codex", "-C", str(tmp_path)]
-    assert "mcp_servers.midflight_repository" in command[-1]
+    assert "mcp_servers.midflight=" in command[-1]
     assert "private.json" not in command[-1]
     assert "--dangerously-bypass-approvals-and-sandbox" not in command
     assert "subscription" not in " ".join(command)
@@ -271,3 +270,150 @@ def test_start_guide_preserves_owner_edits(tmp_path):
     (tmp_path / "MIDFLIGHT.md").write_text("Team-specific startup notes")
     install_start_guide(tmp_path, {})
     assert (tmp_path / "MIDFLIGHT.md").read_text() == "Team-specific startup notes"
+
+
+def git_repo(path, remote=None):
+    import subprocess
+
+    path.mkdir()
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    if remote:
+        subprocess.run(["git", "-C", str(path), "remote", "add", "origin", remote], check=True)
+    return path
+
+
+def commit_all(repo):
+    import subprocess
+
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c"],
+        check=True,
+    )
+
+
+def local_service(tmp_path, monkeypatch, down=False):
+    """A home with a setup key and httpx routed to an in-memory service (or a refused port)."""
+    from midflight.repository import cli
+
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "setup.key").write_text(KEY)
+    services, testclient = setup()
+
+    def handle(request):
+        if down:
+            raise httpx.ConnectError("refused", request=request)
+        response = testclient.request(
+            request.method, request.url.path, content=request.content, headers=request.headers
+        )
+        return httpx.Response(response.status_code, json=response.json())
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        cli.httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(handle))
+    )
+    return home, services
+
+
+@pytest.mark.parametrize(
+    ("remote", "expected"),
+    [
+        ("git@github.com:acme/shop.git", "acme/shop"),
+        ("https://github.com/acme/shop", "acme/shop"),
+        (None, "local/my-app"),
+    ],
+)
+def test_repository_label_defaults_from_remote_or_folder(tmp_path, remote, expected):
+    from midflight.repository.cli import default_repository
+
+    assert default_repository(git_repo(tmp_path / "my app", remote)) == expected
+
+
+@pytest.mark.parametrize(
+    ("down", "message"), [(False, "No local setup key"), (True, "isn't running")]
+)
+def test_init_leaves_repository_untouched_until_the_service_is_ready(
+    tmp_path, monkeypatch, down, message
+):
+    home, _ = local_service(tmp_path, monkeypatch, down=down)
+    if not down:
+        (home / "setup.key").unlink()
+    repo = git_repo(tmp_path / "repo")
+    with pytest.raises(ValueError, match=message):
+        initialize(repo, "http://127.0.0.1:8000", "example/new", ["worker"], home)
+    assert sorted(p.name for p in repo.iterdir()) == [".git"]
+
+
+def test_init_starts_over_when_the_service_never_registered_the_saved_setup(tmp_path, monkeypatch):
+    home, services = local_service(tmp_path, monkeypatch)
+    repo = git_repo(tmp_path / "repo")
+    stale = {
+        "url": "http://127.0.0.1:8000",
+        "repository": "example/new",
+        "project_id": "local-ffffffffffffffff",
+        "identities": {"lead": {"token": "x" * 40}, "worker": {"token": "y" * 40}},
+    }
+    (repo / ".midflight").mkdir()
+    (repo / ".midflight/private.json").write_text(json.dumps(stale))
+    config = initialize(repo, "http://127.0.0.1:8000", "example/new", ["worker", "web"], home)
+    assert set(config["identities"]) == {"lead", "worker", "web"}
+    assert services.store.get_project(config["project_id"])
+    assert (repo / ".gitignore").read_text().count("/.midflight/") == 1
+    with pytest.raises(ValueError, match="different agents.*agents worker, web"):
+        initialize(repo, "http://127.0.0.1:8000", "example/new", ["worker"], home)
+
+
+def test_bad_repository_label_and_unknown_identity_say_what_to_use(tmp_path, monkeypatch):
+    from midflight.repository.cli import member
+
+    home, _ = local_service(tmp_path, monkeypatch)
+    repo = git_repo(tmp_path / "repo")
+    with pytest.raises(ValueError, match="owner/name"):
+        initialize(repo, "http://127.0.0.1:8000", "noslash", ["worker"], home)
+    with pytest.raises(ValueError, match="Choose one of: lead, worker"):
+        member({"identities": {"lead": {}, "worker": {}}}, "tests")
+
+
+def test_worktree_carries_credentials_identity_and_portable_client_config(tmp_path, monkeypatch):
+    from midflight.repository.cli import add_worktree, default_identity
+
+    home, _ = local_service(tmp_path, monkeypatch)
+    repo = git_repo(tmp_path / "app")
+    (repo / ".mcp.json").write_text(json.dumps({"mcpServers": {"other": {"command": "x"}}}))
+    initialize(repo, "http://127.0.0.1:8000", "example/new", ["worker"], home)
+    servers = json.loads((repo / ".mcp.json").read_text())["mcpServers"]
+    assert servers["other"] == {"command": "x"}
+    assert servers["midflight"] == {"command": "midflight", "args": ["mcp"]}
+    with pytest.raises(ValueError, match="Commit the MidFlight files first"):
+        add_worktree(repo, "worker")
+    commit_all(repo)
+    with pytest.raises(ValueError, match="main checkout"):
+        add_worktree(repo, "lead")
+    path = add_worktree(repo, "worker")
+    assert path == tmp_path / "app-worker"
+    assert (path / ".midflight/private.json").stat().st_mode & 0o777 == 0o600
+    assert default_identity(path) == "worker" and default_identity(repo) == "lead"
+    assert str(path) in (path / ".midflight/mcp-worker.json").read_text()
+    assert (path / "AGENTS.md").exists() and (path / ".mcp.json").exists()
+
+
+def test_launchers_pass_client_flags_and_never_preapprove_plan_writes(tmp_path):
+    from midflight.repository.cli import claude_command, codex_command
+
+    extra = ["-m", "some-model"]
+    codex = codex_command(tmp_path, "backend", "Do the task", extra=extra)
+    assert codex[-3:] == ["-m", "some-model", "Do the task"]
+    claude = claude_command(tmp_path, "backend", "Do the task", True, extra)
+    assert claude[:3] == ["claude", "-p", "Do the task"]
+    assert claude[claude.index("--mcp-config") + 1] == str(tmp_path / ".midflight/mcp-backend.json")
+    allowed = claude[claude.index("--allowedTools") + 1]
+    assert "mcp__midflight__check_in" in allowed
+    assert "propose_plan" not in allowed and "approve_plan" not in allowed
+    assert claude[-2:] == extra
+
+
+def test_compose_file_is_found_from_a_source_checkout():
+    from midflight.repository.cli import compose_file
+
+    assert "name: midflight-agent-collaboration" in compose_file().read_text()
