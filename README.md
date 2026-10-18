@@ -115,8 +115,8 @@ remaining limitations rather than treating the recording as a guarantee.
 
 ## Collaborating across computers
 
-The local demo above runs independently on each machine. A shared authenticated
-backend is being added on `codex/shared-backend`; see the
-[shared-backend setup and deployment status](docs/shared-backend.md).
-It shares coordination while coding sessions and repositories stay local. AWS
-hosting is not live yet; the setup guide records the remaining deployment blocker.
+The local demo above runs independently on each machine. The authenticated AWS
+backend is deployed on `codex/shared-backend`. See [teammate setup](docs/teammate-cloud-setup.md)
+for the live endpoint, local MCP bridge, and individual agent credentials.
+Coding sessions and repositories remain local; share code through Git.
+[Deployment details and measured limitations](docs/shared-backend.md).

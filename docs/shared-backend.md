@@ -1,10 +1,11 @@
 # Shared coordination backend
 
-Status: implemented and tested locally across independent HTTPS/MCP processes.
-**Not yet deployed to AWS.** Deployment in account 825125930394 is blocked because
-`midflight-dev` lacks EC2 and CloudFormation permissions. There is no teammate URL yet.
-The recorded four-panel local prototype remains on `codex/agent-communication`.
-Shared-backend development is on `codex/shared-backend`.
+Status: deployed to AWS account 825125930394 in us-east-1 on October 17, 2026.
+The authenticated pilot endpoint is
+`https://iimfbygoctyel62ztqcitecoxy0ykppp.lambda-url.us-east-1.on.aws`.
+Start with [teammate setup](teammate-cloud-setup.md). The recorded local prototype
+remains on `codex/agent-communication`; the cloud implementation is on
+`codex/shared-backend`.
 
 ## Architecture
 
@@ -90,16 +91,18 @@ aws cloudformation describe-stacks --profile midflight-dev --region us-east-1 \
 Database bootstrap takes time after EC2 creation. Wait for stack completion and a
 successful `/healthz`; CloudFormation completion alone does not prove the database
 container is running. Do not distribute a URL until an authenticated two-client
-exchange succeeds. No AWS deployment has yet been validated by this branch.
+exchange succeeds. The initial AWS stack has been deployed; live verification
+results are recorded below.
 
 The deployment role needs CloudFormation change-set/stack management, the template's
 EC2/VPC/EBS resources, Lambda and Function URL management, IAM role creation and
 PassRole for these stack roles, log groups, artifact-bucket S3 access, and SSM AMI
 parameter reads. Database maintenance uses SSM. Have an account administrator provide
 a scoped deployment role; do not attach broad administrator permissions to teammates.
-Current permission failures: `ec2:DescribeVpcs`, `cloudformation:ListStacks`, and
-`iam:ListAttachedUserPolicies`. Merely adding these read permissions is not enough
-to create the resources in the template.
+The `midflight-shared-deploy` policy was attached to `midflight-development` with
+explicit user approval. Deployment/readiness checks succeeded using `midflight-dev`.
+Its EC2 lifecycle permissions cover the whole region; teammates receive only agent
+tokens, never this deployment identity.
 
 ### Connect a teammate
 
@@ -185,6 +188,39 @@ has not been validated on a remote host.
   recovery, and oversized-request rejection.
 - Lint, terminal-highlighting checks, Compose configuration validation, and
   CloudFormation `cfn-lint` passed. The Docker image and ARM64 Lambda archive build.
-- These are local transport tests, not a test on two physical computers or a live
-  AWS deployment. No new real-agent rehearsal or human requirement interpretation
-  was performed for this transport change. Earlier rehearsal evidence stays unchanged.
+- Live AWS validation uses a separate `deployment-verification` project. Four
+  independent MCP subprocesses on one computer called the real HTTPS endpoint and
+  passed routing, retry, supersession, concurrent revision, objection-author,
+  session isolation, and client restart/replay checks. This is operator-run protocol
+  testing, not proof of LLM reading, code application, or multi-computer user testing.
+- The first health request timed out while Lambda was still Pending. An initial
+  live run also saw a 401 on its second join after a configuration update. All four
+  token bindings subsequently verified and the full rerun passed. The cause of that
+  temporary authentication failure was not conclusively established; failed-run
+  evidence was retained. Earlier real-agent rehearsal evidence stays unchanged.
+- Cross-project access was rejected with 403. Redeploying the identical Lambda
+  package preserved the verification session, cursor 5, and policy IDs 1 and 2.
+  All four pilot credentials were recognized without changing pilot coordination state.
+  No database crash/restore or second physical computer was tested in this deployment.
+
+## Live operator evidence
+
+The deployment stack is `midflight-shared-communication`. Operator evidence is kept
+privately under `runs/shared-cloud-preview/`, including the change set, deployed
+network/storage checks, failed first attempt, successful live smoke run, and recovery
+check. Raw credentials and session records are not committed. The initial deployment
+created 20 stack resources. The verification-project update changed Lambda configuration;
+it did not replace the database or data volume.
+
+To repeat protocol checks, use dedicated verification credentials, not a teammate's
+project, and a new output path:
+
+```sh
+uv run --extra falkordb python infra/shared/smoke.py \
+  --url https://iimfbygoctyel62ztqcitecoxy0ykppp.lambda-url.us-east-1.on.aws \
+  --credentials /private/path/to/verification-credentials \
+  --output /private/path/to/new-result.json
+```
+
+The script sends explicitly labelled operator fixtures. It does not run coding agents
+or claim they read/applied a requirement. Teammate-pilot coordination is kept separate.
