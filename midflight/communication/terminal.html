@@ -40,6 +40,27 @@ function demoColorRanges(text, agentAt = () => null) {
   }
   return ranges;
 }
+// Return display-only masks for the exact Codex quota banner, scoped to each pane.
+// Model output, errors and terminal/transcript bytes remain untouched.
+function quotaNoticeMasks(rows, layout) {
+  const masks = [];
+  for (const pane of Object.values(layout)) {
+    let compact = ''; const lineAt = [];
+    for (let y = pane.y; y < Math.min(rows.length, pane.y + pane.height); y++) {
+      const fragment = (rows[y] || '').slice(pane.x, pane.x + pane.width);
+      for (let i = 0; i < fragment.length; i++) {
+        if (!/\s/.test(fragment[i])) { compact += fragment[i]; lineAt.push(y); }
+      }
+    }
+    const banner = /Headsup,youhavelessthan\d+%ofyourweeklylimitleft\.Run\/statusforabreakdown\./g;
+    for (const match of compact.matchAll(banner)) {
+      for (let y = lineAt[match.index]; y <= lineAt[match.index + match[0].length - 1]; y++) {
+        masks.push({row: y, x: pane.x, width: pane.width});
+      }
+    }
+  }
+  return masks;
+}
 // END DEMO TEXT COLORS
 function installDemoTextColors(term, button) {
   let layout = {};
@@ -53,13 +74,16 @@ function installDemoTextColors(term, button) {
     pending = false;
     if (!enabled) {
       for (const entry of decorated.values()) dispose(entry);
-      decorated.clear(); return;
+      decorated.clear();
     }
     const buffer = term.buffer.active;
     if (buffer !== previousBuffer || term.cols !== previousCols) {
       for (const entry of decorated.values()) dispose(entry);
       decorated.clear(); previousBuffer = buffer; previousCols = term.cols;
     }
+    const screenRows = Array.from({length: term.rows}, (_, row) =>
+      buffer.getLine(buffer.viewportY + row)?.translateToString(false) || '');
+    const quotaMasks = quotaNoticeMasks(screenRows, layout);
     const visible = new Set();
     for (let row = 0; row < term.rows; row++) {
       const y = buffer.viewportY + row, line = buffer.getLine(y);
@@ -72,20 +96,28 @@ function installDemoTextColors(term, button) {
         for (let i = 0; i < chars.length; i++) { columns.push(x); ends.push(x + cell.getWidth()); }
         text += chars;
       }
+      const rowMasks = quotaMasks.filter(mask => mask.row === row);
+      const signature = text + JSON.stringify(rowMasks) + enabled;
       const old = decorated.get(y);
-      if (old?.text === text && !old.marker.isDisposed && old.marker.line === y) continue;
+      if (old?.text === signature && !old.marker.isDisposed && old.marker.line === y) continue;
       if (old) { dispose(old); decorated.delete(y); }
-      const ranges = demoColorRanges(text, index =>
-        buffer.viewportY === buffer.baseY ? paneAgentAt(layout, columns[index], row) : null); if (!ranges.length) continue;
+      const ranges = enabled ? demoColorRanges(text, index =>
+        buffer.viewportY === buffer.baseY ? paneAgentAt(layout, columns[index], row) : null) : [];
+      ranges.push(...rowMasks.map(mask => ({cellX: mask.x, cellWidth: mask.width,
+        color: '#101114', backgroundColor: '#101114', layer: 'top'})));
+      if (!ranges.length) continue;
       const marker = term.registerMarker(y - buffer.baseY - buffer.cursorY);
       if (!marker) continue;
       const decorations = [];
       for (const range of ranges) {
-        const x = columns[range.start], width = ends[range.end - 1] - x;
-        const decoration = term.registerDecoration({marker, x, width, foregroundColor: range.color, layer: 'bottom'});
+        const x = range.cellX ?? columns[range.start];
+        const width = range.cellWidth ?? (ends[range.end - 1] - x);
+        const decoration = term.registerDecoration({marker, x, width,
+          foregroundColor: range.color, backgroundColor: range.backgroundColor,
+          layer: range.layer || 'bottom'});
         if (decoration) decorations.push(decoration);
       }
-      decorated.set(y, {text, marker, decorations});
+      decorated.set(y, {text: signature, marker, decorations});
     }
     for (const [y, entry] of decorated) if (!visible.has(y)) { dispose(entry); decorated.delete(y); }
   }

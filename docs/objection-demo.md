@@ -50,3 +50,5 @@ mode, and no idle wakes, delays or synchronization barriers. Reset retains the
 selected mode. This is timing-dependent: Delivery can anticipate a compatible
 extension, or finish before an objection arrives. The validated staged trial
 above does not establish repeatability for this overlapping variant.
+
+The terminal viewer masks the exact Codex “Heads up” weekly-quota banner for recordings, including wrapped notices. The underlying terminal stream and saved transcripts retain it; model output and other errors are not filtered. The compact quota indicator remains visible. This display mask works independently of the Highlights toggle.
