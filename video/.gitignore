@@ -1,0 +1,6 @@
+node_modules/
+out/
+.DS_Store
+*.tsbuildinfo
+# Optional local replacement; the trimmed demo in public/demo/ is tracked.
+public/demo.mp4

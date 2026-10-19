@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1350" viewBox="0 0 2400 1350" role="img" aria-labelledby="title desc">
+<title id="title">Midflight system architecture</title><desc id="desc">Human direction reaches a coding agent. The agent communicates through Midflight, backed by FalkorDB, which routes messages to affected peers. Peers reply through Midflight. Both the initiating agent and peers write code in workspaces, which is combined and tested. Test evidence returns to the coding agents.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#66cce2"/></marker></defs>
+<rect width="2400" height="1350" fill="#080f15"/><g font-family="Arial, Helvetica, sans-serif">
+<text x="90" y="105" font-size="66" fill="#f0eee6" font-weight="400" text-anchor="start">Midflight system architecture</text>
+<text x="93" y="158" font-size="30" fill="#9cabb8" font-weight="400" text-anchor="start">Human direction → agent communication → coordinated code → real tests</text>
+<rect x="790" y="230" width="850" height="620" rx="24" fill="#0b141d" stroke="#314552" stroke-width="2"/>
+<text x="820" y="278" font-size="34" fill="#f0eee6" font-weight="600" text-anchor="start">Midflight coordination</text>
+<text x="1610" y="278" font-size="25" fill="#9cabb8" font-weight="400" text-anchor="end">No model calls</text>
+<rect x="90" y="340" width="520" height="150" rx="17" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="118" y="389" font-size="34" fill="#66cce2" font-weight="600" text-anchor="start">Human direction</text>
+<text x="118" y="434" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Given to their own coding agent</text>
+<rect x="90" y="600" width="520" height="200" rx="17" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="118" y="649" font-size="34" fill="#66cce2" font-weight="600" text-anchor="start">Coding agent</text>
+<text x="118" y="694" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Interprets the human’s change</text>
+<text x="118" y="731" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Negotiates shared interfaces</text>
+<text x="118" y="768" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Codex · Claude Code · others</text>
+<path d="M350 490 V600" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="460" y="552" font-size="25" fill="#66cce2" font-weight="400" text-anchor="middle">Interpret</text>
+<rect x="820" y="340" width="790" height="180" rx="17" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="848" y="389" font-size="34" fill="#66cce2" font-weight="600" text-anchor="start">FalkorDB</text>
+<text x="848" y="434" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Messages · proposals · agreement revisions</text>
+<text x="848" y="471" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Dependencies · retry receipts · session cursors</text>
+<rect x="820" y="600" width="790" height="200" rx="17" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="848" y="649" font-size="34" fill="#66cce2" font-weight="600" text-anchor="start">MCP tools + selective routing</text>
+<text x="848" y="694" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">join · send · check_in · agree</text>
+<text x="848" y="731" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Explicit subscriptions + dependency traversal</text>
+<text x="848" y="768" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Relevant messages; exact agreement revisions</text>
+<path d="M1215 600 V520" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<text x="1418" y="565" font-size="25" fill="#66cce2" font-weight="400" text-anchor="middle">Atomic reads / writes</text>
+<path d="M610 700 H820" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<text x="715" y="665" font-size="25" fill="#66cce2" font-weight="400" text-anchor="middle">MCP</text>
+<rect x="1820" y="600" width="490" height="200" rx="17" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="1848" y="649" font-size="34" fill="#66cce2" font-weight="600" text-anchor="start">Affected peer agents</text>
+<text x="1848" y="694" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Read relevant messages</text>
+<text x="1848" y="731" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Negotiate and reply</text>
+<text x="1848" y="768" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Implement their own changes</text>
+<path d="M1610 700 H1820" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1715" y="650" font-size="25" fill="#66cce2" font-weight="400" text-anchor="middle">At check-in</text>
+<path d="M2065 600 V565 Q2065 550 2050 550 H1725 Q1710 550 1710 565 V610 Q1710 625 1695 625 H1610" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1940" y="528" font-size="25" fill="#66cce2" font-weight="400" text-anchor="middle">Replies + proposals</text>
+<rect x="820" y="930" width="790" height="165" rx="17" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="848" y="979" font-size="34" fill="#66cce2" font-weight="600" text-anchor="start">Code in agent workspaces</text>
+<text x="848" y="1024" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Each agent writes and tests its owned component</text>
+<text x="848" y="1061" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Combine the actual implementations</text>
+<path d="M350 800 V995 Q350 1012 370 1012 H820" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="590" y="981" font-size="25" fill="#66cce2" font-weight="400" text-anchor="middle">Write / update code</text>
+<path d="M2065 800 V875 Q2065 895 2045 895 H1500 Q1480 895 1480 915 V930" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1845" y="872" font-size="25" fill="#66cce2" font-weight="400" text-anchor="middle">Write / update code</text>
+<rect x="1820" y="930" width="490" height="165" rx="17" fill="#101923" stroke="#66cce2" stroke-width="2.5"/>
+<text x="1848" y="979" font-size="34" fill="#66cce2" font-weight="600" text-anchor="start">Combined-code tests</text>
+<text x="1848" y="1024" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Exercise real interfaces together</text>
+<text x="1848" y="1061" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Record results and failures</text>
+<path d="M1610 1012 H1820" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1715" y="981" font-size="25" fill="#66cce2" font-weight="400" text-anchor="middle">Run tests</text>
+<path d="M2310 1012 H2345 Q2365 1012 2365 1032 V1145 Q2365 1165 2345 1165 H70 Q50 1165 50 1145 V765 Q50 745 70 745 H90" fill="none" stroke="#66cce2" stroke-width="3" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1215" y="1152" font-size="25" fill="#66cce2" font-weight="400" text-anchor="middle">Test evidence returns to agents for fixes and further coordination</text>
+<text x="90" y="1254" font-size="31" fill="#f0eee6" font-weight="600" text-anchor="start">Cancellation fee → Delivery + Billing</text>
+<text x="90" y="1296" font-size="27" fill="#9cabb8" font-weight="400" text-anchor="start">Booking and Notifications receive no policy update.</text>
+<text x="2310" y="1254" font-size="29" fill="#f0eee6" font-weight="400" text-anchor="end">Agreement records intent. Tests check the code.</text>
+<text x="2310" y="1296" font-size="26" fill="#9cabb8" font-weight="400" text-anchor="end">No approval gates · no idle polling · reset preserves prior work</text>
+</g></svg>
